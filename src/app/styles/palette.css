@@ -1,0 +1,36 @@
+/* ─────────────────────────────────────────────────────────
+   Palette — raw brand tokens, theme-independent. Role tokens (theme-aware) live in globals.css.
+   Components never hard-code hex: use role tokens (bg-primary, text-muted-foreground…) or these ramps.
+   ───────────────────────────────────────────────────────── */
+:root {
+  /* Studio violet — primary brand */
+  --brand-50: oklch(0.966 0.018 286);
+  --brand-100: oklch(0.93 0.04 286);
+  --brand-200: oklch(0.87 0.08 286);
+  --brand-300: oklch(0.77 0.14 285);
+  --brand-400: oklch(0.65 0.2 283);
+  --brand-500: oklch(0.54 0.25 281); /* #5b3df5 */
+  --brand-600: oklch(0.48 0.25 280);
+  --brand-700: oklch(0.41 0.21 280);
+  --brand-800: oklch(0.34 0.16 281);
+  --brand-900: oklch(0.27 0.11 282);
+  /* Accents */
+  --sun-400: oklch(0.86 0.16 85); /* #ffc53d */
+  --pink-400: oklch(0.7 0.19 5); /* #ff5c8a */
+  --green-500: oklch(0.62 0.15 158); /* #0f9d63 */
+  --amber-600: oklch(0.6 0.13 70);
+  --red-500: oklch(0.6 0.21 18);
+  /* Warm neutrals */
+  --sand-50: oklch(0.975 0.004 85);
+  --sand-100: oklch(0.955 0.006 85);
+  --sand-200: oklch(0.92 0.008 85);
+  --sand-300: oklch(0.87 0.01 85);
+  --ink-900: oklch(0.21 0.02 290);
+  --ink-700: oklch(0.4 0.02 290);
+  --ink-500: oklch(0.6 0.015 290);
+
+  --gradient-brand: linear-gradient(120deg, #5b3df5 0%, #ff5c8a 60%, #ffc53d 100%);
+  --gradient-celebrate: linear-gradient(120deg, #f1edff, #fff1f5 60%, #fff8e5);
+  --shadow-card: 0 1px 2px rgb(23 21 31 / 0.06), 0 4px 16px rgb(23 21 31 / 0.06);
+  --shadow-lift: 0 10px 40px rgb(23 21 31 / 0.16);
+}

@@ -1,5 +1,11 @@
 node_modules/
-projects/
+.next/
+next-env.d.ts
+*.tsbuildinfo
 .env
+.env.local
 *.log
+# runtime data: SQLite db, settings with API keys, media (voice, renders)
 data/
+# media from the pre-Next.js MVP
+projects/

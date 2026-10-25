@@ -1,0 +1,19 @@
+/* Semantic type scale: use text-h1..text-caption for content instead of the numeric Tailwind scale. */
+@theme {
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.625rem;
+  --text-h1: 1.875rem;
+  --text-h1--line-height: 2.25rem;
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 2rem;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.75rem;
+  --text-title: 1.0625rem;
+  --text-title--line-height: 1.5rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+}

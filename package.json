@@ -21,6 +21,7 @@
     "@remotion/media-parser": "^4.0.538",
     "@remotion/renderer": "^4.0.538",
     "gsap": "^3.14.2",
+    "openai": "^7.43.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "remotion": "^4.0.538",

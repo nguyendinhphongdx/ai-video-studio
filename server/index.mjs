@@ -3,10 +3,12 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import * as pipe from "./pipeline.mjs";
-import { hasApiKey, manualPrompt, briefPrompt, revisePrompt, parsePastedSpec } from "./ai.mjs";
+import { llmConfigured, manualPrompt, briefPrompt, revisePrompt, parsePastedSpec } from "./ai.mjs";
 import { ttsAvailable, VOICES } from "./tts.mjs";
 import { TEMPLATES, FORMATS } from "./spec.mjs";
 import { listBrands, loadBrand } from "./brand.mjs";
+import { getLlmSettings, publicSettings, saveLlmSettings, previewLlmSettings, llmReady, PROVIDERS } from "./settings.mjs";
+import { createLlm } from "./llm/index.mjs";
 
 const PORT = Number(process.env.AVS_PORT || 3210);
 export const BASE_URL = `http://localhost:${PORT}`;
@@ -70,7 +72,40 @@ async function handle(req, res) {
   if (parts[0] !== "api") return send(res, 404, { error: "not found" });
 
   if (method === "GET" && parts[1] === "config") {
-    return send(res, 200, { hasApiKey: hasApiKey(), tts: await ttsAvailable(), templates: TEMPLATES, formats: FORMATS, voices: VOICES, brands: await listBrands() });
+    const llm = await getLlmSettings();
+    return send(res, 200, { llmConfigured: llmReady(llm), llm: { provider: llm.provider, providerLabel: PROVIDERS[llm.provider].short, model: llm.model }, tts: await ttsAvailable(), templates: TEMPLATES, formats: FORMATS, voices: VOICES, brands: await listBrands() });
+  }
+  if (parts[1] === "settings") {
+    if (method === "GET" && parts.length === 2) return send(res, 200, await publicSettings());
+    if (method === "POST" && parts.length === 2) {
+      try {
+        return send(res, 200, await saveLlmSettings((await readBody(req)).llm ?? {}));
+      } catch (e) {
+        return send(res, 400, { error: e.message });
+      }
+    }
+    if (method === "POST" && parts[2] === "test") {
+      // Tests the form's values (unsaved) on top of the saved settings.
+      const body = await readBody(req);
+      let llm;
+      try {
+        llm = await previewLlmSettings(body.llm ?? {});
+      } catch (e) {
+        return send(res, 200, { ok: false, error: e.message });
+      }
+      if (!llmReady(llm)) {
+        const why = !llm.model ? "Chưa nhập model." : llm.provider === "openai-compatible" && !llm.baseUrl ? "Chưa nhập Base URL." : `Chưa có API key cho ${PROVIDERS[llm.provider].label}.`;
+        return send(res, 200, { ok: false, error: why });
+      }
+      try {
+        return send(res, 200, { ok: true, provider: llm.provider, model: await createLlm(llm).ping() });
+      } catch (e) {
+        const msg = String(e?.message ?? e);
+        const where = llm.baseUrl || PROVIDERS[llm.provider].label;
+        return send(res, 200, { ok: false, error: /connection error|ECONNREFUSED|fetch failed/i.test(msg) ? `Không kết nối được tới ${where}. Kiểm tra máy chủ đã chạy và Base URL đúng chưa.` : msg });
+      }
+    }
+    return send(res, 404, { error: "not found" });
   }
   if (parts[1] !== "projects") return send(res, 404, { error: "not found" });
 
@@ -80,7 +115,7 @@ async function handle(req, res) {
       const body = await readBody(req);
       if (!body.idea?.trim()) return send(res, 400, { error: "Cần nhập ý tưởng video" });
       const p = await pipe.createProject(body);
-      if (hasApiKey()) background(pipe.generateScript(p.id));
+      if (await llmConfigured()) background(pipe.generateScript(p.id));
       return send(res, 200, p);
     }
   }
@@ -137,6 +172,7 @@ export function startServer() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   await startServer();
   console.log(`AI Video Studio: ${BASE_URL}`);
-  console.log(`AI kịch bản: ${hasApiKey() ? "Claude API (đã có key)" : "chưa có ANTHROPIC_API_KEY, dùng chế độ dán kịch bản"}`);
+  const llm = await getLlmSettings();
+  console.log(`AI kịch bản: ${llmReady(llm) ? `${PROVIDERS[llm.provider].label} · ${llm.model}` : "chưa cài đặt (⚙️ Cài đặt), dùng chế độ dán kịch bản"}`);
   console.log(`Giọng đọc: ${(await ttsAvailable()) ? "edge-tts" : "tắt (pip install edge-tts để bật)"}`);
 }

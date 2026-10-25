@@ -1,7 +1,7 @@
 // Project pipeline: idea -> script (AI) -> [human approves] -> voice -> render -> [human approves] -> publish kit.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { writeScript, reviseScript, hasApiKey } from "./ai.mjs";
+import { writeScript, reviseScript, llmConfigured } from "./ai.mjs";
 import { synthesize, ttsAvailable } from "./tts.mjs";
 import { buildTimeline, FORMATS, normalizeSpec } from "./spec.mjs";
 import { loadBrand, defaultBrandId } from "./brand.mjs";
@@ -80,7 +80,7 @@ async function job(p, step, fn) {
 
 export async function generateScript(id) {
   const p = await loadProject(id);
-  if (!hasApiKey()) throw new Error("Chưa có ANTHROPIC_API_KEY. Dùng chế độ dán kịch bản (copy prompt sang Claude rồi dán JSON lại).");
+  if (!(await llmConfigured())) throw new Error("Chưa cài đặt AI (⚙️ Cài đặt). Dùng chế độ dán kịch bản (copy prompt sang Claude rồi dán JSON lại).");
   return job(p, "script", async () => {
     p.spec = await writeScript(await loadBrand(p.brand), { idea: p.idea, template: p.template, sceneCount: p.sceneCount });
     p.status = "script_review";
@@ -99,7 +99,7 @@ export async function setSpec(id, spec, note = "Đã cập nhật kịch bản")
 
 export async function requestScriptChanges(id, feedback) {
   const p = await loadProject(id);
-  if (!hasApiKey()) throw new Error("Chưa có ANTHROPIC_API_KEY để AI sửa kịch bản.");
+  if (!(await llmConfigured())) throw new Error("Chưa cài đặt AI (⚙️ Cài đặt) để AI sửa kịch bản.");
   return job(p, "revise", async () => {
     p.spec = await reviseScript(await loadBrand(p.brand), p.spec, feedback);
     p.status = "script_review";
@@ -184,5 +184,5 @@ export async function rejectVideo(id, feedback) {
   p.status = "script_review";
   log(p, `Video bị trả lại: ${feedback}`);
   await saveProject(p);
-  return feedback?.trim() && hasApiKey() ? requestScriptChanges(id, feedback) : p;
+  return feedback?.trim() && (await llmConfigured()) ? requestScriptChanges(id, feedback) : p;
 }

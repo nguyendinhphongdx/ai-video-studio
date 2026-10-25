@@ -1,9 +1,7 @@
 // AI scriptwriter: idea -> VideoSpec, and spec + feedback -> revised VideoSpec.
-import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { VideoSpecSchema, TEMPLATES, normalizeSpec } from "./spec.mjs";
-
-const MODEL = process.env.AVS_MODEL || "claude-opus-5-5";
+import { getLlmSettings, llmReady } from "./settings.mjs";
+import { createLlm } from "./llm/index.mjs";
 
 export function systemPrompt(brand) {
   return `Bạn là biên kịch video cho kênh "${brand.name}" trên YouTube, Facebook và TikTok.
@@ -26,8 +24,9 @@ ${Object.entries(TEMPLATES).map(([k, v]) => `- ${k}: ${v}`).join("\n")}
 Phần publish: tiêu đề YouTube hấp dẫn có từ khoá (dưới 70 ký tự), mô tả 3-5 câu kèm hashtag, 8-15 tags; bài Facebook thân thiện; caption TikTok ngắn kèm hashtag phổ biến${brand.hashtags.length ? `, luôn có ${brand.hashtags.join(" ")}` : ""}.`;
 }
 
-export function hasApiKey() {
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+/** True when an AI provider is set up in ⚙️ Cài đặt (or .env); otherwise the UI uses paste mode. */
+export async function llmConfigured() {
+  return llmReady(await getLlmSettings());
 }
 
 export function briefPrompt({ idea, template, sceneCount }) {
@@ -47,7 +46,7 @@ Người duyệt yêu cầu sửa: ${feedback}
 Hãy trả lại kịch bản đã sửa theo đúng schema, giữ nguyên những phần không được yêu cầu sửa.`;
 }
 
-/** Prompt to paste into Claude (claude.ai / Claude Code) when no API key is configured. */
+/** Prompt to paste into Claude (claude.ai / Claude Code) when no AI provider is configured. */
 export function manualPrompt(brand, userPrompt) {
   return `${systemPrompt(brand)}
 
@@ -63,19 +62,10 @@ Chỉ trả về MỘT khối JSON đúng cấu trúc sau, không giải thích 
 }
 
 async function ask(brand, userPrompt) {
-  const client = new Anthropic();
-  const response = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    system: systemPrompt(brand),
-    output_config: { effort: "medium", format: zodOutputFormat(VideoSpecSchema) },
-    messages: [{ role: "user", content: userPrompt }],
-  });
-  if (response.stop_reason === "refusal") {
-    throw new Error(`AI từ chối yêu cầu: ${response.stop_details?.explanation ?? "không rõ lý do"}`);
-  }
-  if (!response.parsed_output) throw new Error(`AI không trả về kịch bản hợp lệ (stop_reason=${response.stop_reason})`);
-  return normalizeSpec(response.parsed_output);
+  const llm = await getLlmSettings();
+  if (!llmReady(llm)) throw new Error("Chưa cài đặt AI. Mở ⚙️ Cài đặt để chọn nhà cung cấp và nhập API key, hoặc dùng chế độ dán kịch bản.");
+  const spec = await createLlm(llm).generateSpec({ system: systemPrompt(brand), user: userPrompt, schema: VideoSpecSchema });
+  return normalizeSpec(spec);
 }
 
 export const writeScript = (brand, brief) => ask(brand, briefPrompt(brief));

@@ -16,9 +16,16 @@ Phần mềm làm video theo kiểu **AI làm, người duyệt**, dùng đượ
 4. Trong thư mục này chạy:
    ```bash
    npm install
-   cp .env.example .env      # Windows: copy .env.example .env
+   cp .env.example .env      # không bắt buộc; Windows: copy .env.example .env
    ```
-5. Mở file `.env`, điền `ANTHROPIC_API_KEY` (lấy ở https://console.anthropic.com). Không có key vẫn dùng được, xem "Chế độ dán kịch bản" bên dưới.
+5. Chạy `npm start`, mở http://localhost:3210, bấm **⚙️ Cài đặt** (góc trên bên phải) để chọn AI viết kịch bản:
+   - **Nhà cung cấp**: Claude (Anthropic), OpenAI, Google Gemini, hoặc **OpenAI-compatible** (Ollama, LM Studio, OpenRouter... nhập thêm Base URL; key không bắt buộc).
+   - **Model**: gõ tên hoặc chọn trong gợi ý (VD: `claude-opus-5-5`, `gpt-5`, `gemini-2.5-pro`, `llama3.1`).
+   - **API key**: lấy ở https://console.anthropic.com, https://platform.openai.com/api-keys hoặc https://aistudio.google.com/apikey.
+   - **Mức suy nghĩ** (chỉ với Claude): Thấp / Vừa / Cao.
+
+   Bấm **Kiểm tra kết nối**, rồi **Lưu**. Cài đặt được lưu trong `data/settings.json` trên máy bạn (không đưa lên git) và có hiệu lực ngay, không cần khởi động lại. Key không bao giờ hiện lại đầy đủ trên giao diện.
+   Biến trong `.env` (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `AVS_MODEL`) vẫn dùng được, nhưng chỉ là dự phòng khi ⚙️ Cài đặt để trống. Chưa cài AI vẫn dùng được, xem "Chế độ dán kịch bản" bên dưới.
 
 ## Dùng hằng ngày
 
@@ -44,7 +51,7 @@ npm run make -- --spec examples/be-hoc-mau-sac.json --yes     # dùng kịch b�
 
 ### Chế độ dán kịch bản (không cần API key)
 
-Nếu chưa có `ANTHROPIC_API_KEY`, sau khi tạo dự án bấm **Copy prompt**, dán vào Claude (claude.ai hoặc dự án Claude của bạn), rồi dán JSON Claude trả về vào ô **Dán JSON kịch bản**. Các bước sau giống hệt.
+Nếu chưa cài AI trong ⚙️ Cài đặt, sau khi tạo dự án bấm **Copy prompt**, dán vào Claude (claude.ai hoặc dự án Claude của bạn), rồi dán JSON Claude trả về vào ô **Dán JSON kịch bản**. Các bước sau giống hệt.
 
 ## Thêm kênh mới
 

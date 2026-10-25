@@ -9,6 +9,37 @@ import { nodeReader } from "@remotion/media-parser/node";
 import { narrationLines } from "./spec.mjs";
 
 const run = promisify(execFile);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** An error safe to show in the UI: short Vietnamese `message`, full technical text in `detail` (log only). */
+export class UserError extends Error {
+  constructor(message, detail) {
+    super(message);
+    this.detail = detail;
+  }
+}
+
+const lineName = (key) => (key === "intro" ? "câu mở đầu" : key === "outro" ? "câu kết" : `cảnh ${Number(key) + 1}`);
+
+// Edge TTS is a free online service that throttles bursts of requests: it then answers with no audio
+// (NoAudioReceived) for any text for a while. Space requests out and back off long enough to get past it.
+const LINE_GAP_MS = 600;
+async function synthesizeLine(args, key) {
+  const delays = [2000, 5000, 10000, 20000];
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run(process.env.AVS_EDGE_TTS || "edge-tts", args);
+    } catch (e) {
+      const detail = `${e.message}\n${e.stderr ?? ""}`.trim();
+      if (attempt > delays.length) {
+        const why = /NoAudioReceived/.test(detail) ? "Edge TTS không trả âm thanh" : /ENOENT/.test(detail) ? "không tìm thấy edge-tts" : "Edge TTS bị lỗi";
+        throw new UserError(`Không tạo được giọng đọc cho ${lineName(key)}: ${why}. Thử lại hoặc đổi giọng.`, detail);
+      }
+      console.error(`[tts] ${lineName(key)}: lần ${attempt} lỗi, thử lại sau ${delays[attempt - 1] / 1000}s`);
+      await sleep(delays[attempt - 1]);
+    }
+  }
+}
 
 export const VOICES = {
   "vi-VN-HoaiMyNeural": "Hoài My (nữ, miền Bắc)",
@@ -47,7 +78,8 @@ export async function synthesize(spec, dir, { voice = "vi-VN-HoaiMyNeural", rate
   for (const [i, { key, text }] of lines.entries()) {
     if (!text?.trim()) continue;
     const out = path.join(dir, `${key}.mp3`);
-    await run(process.env.AVS_EDGE_TTS || "edge-tts", ["--voice", voice, `--rate=${rate}`, "--text", text, "--write-media", out]);
+    if (i > 0) await sleep(LINE_GAP_MS);
+    await synthesizeLine(["--voice", voice, `--rate=${rate}`, "--text", text, "--write-media", out], key);
     files[key] = out;
     durations[key] = await audioDuration(out);
     onProgress?.((i + 1) / lines.length);

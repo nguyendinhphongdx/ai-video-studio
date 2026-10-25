@@ -71,7 +71,9 @@ async function job(p, step, fn) {
     await fn(progress);
     p.job = null;
   } catch (e) {
-    p.job = { step, progress: 0, error: String(e?.message ?? e) };
+    // The UI only gets the short message; technical details go to the server log (studio.log).
+    console.error(`[${p.id}] ${step}:`, e?.detail ?? e);
+    p.job = { step, progress: 0, error: String(e?.message ?? e).split("\n")[0].slice(0, 300) };
     p.status = p.status === "producing" ? "script_review" : p.status;
     log(p, `Lỗi ở bước ${step}: ${p.job.error}`);
   }

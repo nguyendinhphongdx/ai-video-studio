@@ -9,7 +9,7 @@ import { renderWithRemotion } from "./render-remotion.mjs";
 import { writeHyperframesProject, renderWithHyperframes } from "./render-hyperframes.mjs";
 
 export const ROOT = path.resolve(import.meta.dirname, "..");
-export const PROJECTS = process.env.AVS_PROJECTS || path.join(ROOT, "projects");
+export const PROJECTS = path.resolve(process.env.AVS_PROJECTS || path.join(ROOT, "projects"));
 
 // status: draft -> script_review -> producing -> video_review -> approved  (error at any step)
 const slug = (s) =>
@@ -27,6 +27,11 @@ export async function listProjects() {
     } catch {}
   }
   return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function deleteProject(id) {
+  await loadProject(id);
+  await fs.rm(dirOf(id), { recursive: true, force: true });
 }
 
 export async function loadProject(id) {
@@ -60,8 +65,9 @@ async function job(p, step, fn) {
   p.job = { step, progress: 0, error: null };
   await saveProject(p);
   let last = 0;
-  const progress = async (v) => {
+  const progress = async (v, label) => {
     p.job.progress = v;
+    if (label) p.job.label = label;
     if (Date.now() - last > 1000) {
       last = Date.now();
       await saveProject(p);
@@ -120,7 +126,7 @@ export async function produce(id, { baseUrl }) {
     const dir = dirOf(id);
     let voice = { files: {}, durations: {} };
     if (await ttsAvailable()) {
-      voice = await synthesize(p.spec, path.join(dir, "audio"), { voice: p.voice, onProgress: (v) => progress(v * 0.15) });
+      voice = await synthesize(p.spec, path.join(dir, "audio"), { voice: p.voice, onProgress: (v) => progress(v * 0.15, "voice") });
       log(p, `Đã lồng tiếng ${Object.keys(voice.files).length} đoạn`);
     } else {
       log(p, "Bỏ qua lồng tiếng (chưa cài edge-tts hoặc AVS_TTS=none)");
@@ -133,7 +139,7 @@ export async function produce(id, { baseUrl }) {
     for (const [i, { engine, format }] of tasks.entries()) {
       const { width, height } = FORMATS[format];
       const outFile = path.join(dir, "renders", `${slug(p.spec.title)}-${format}-${engine}.mp4`);
-      const sub = (v) => progress(0.15 + ((i + v) / tasks.length) * 0.85);
+      const sub = (v) => progress(0.15 + ((i + v) / tasks.length) * 0.85, `render:${engine}:${format}`);
       if (engine === "remotion") {
         const audio = Object.fromEntries(Object.keys(voice.files).map((k) => [k, `${baseUrl}/files/${id}/audio/${k}.mp3`]));
         await renderWithRemotion({ spec: p.spec, brand, timeline, audio, width, height, music: p.music }, outFile, { onProgress: sub });

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as pipe from "./pipeline.mjs";
 import { llmConfigured, manualPrompt, briefPrompt, revisePrompt, parsePastedSpec } from "./ai.mjs";
-import { ttsAvailable, VOICES } from "./tts.mjs";
+import { ttsAvailable, VOICES, previewLine, PREVIEW_DIR } from "./tts.mjs";
 import { TEMPLATES, FORMATS } from "./spec.mjs";
 import { listBrands, loadBrand } from "./brand.mjs";
 import { getLlmSettings, publicSettings, saveLlmSettings, previewLlmSettings, llmReady, PROVIDERS } from "./settings.mjs";
@@ -13,7 +13,7 @@ import { createLlm } from "./llm/index.mjs";
 const PORT = Number(process.env.AVS_PORT || 3210);
 export const BASE_URL = `http://localhost:${PORT}`;
 
-const MIME = { ".html": "text/html; charset=utf-8", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".json": "application/json", ".md": "text/markdown; charset=utf-8", ".png": "image/png", ".js": "text/javascript" };
+const MIME = { ".ttf": "font/ttf", ".html": "text/html; charset=utf-8", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".json": "application/json", ".md": "text/markdown; charset=utf-8", ".png": "image/png", ".js": "text/javascript" };
 
 const send = (res, code, body) => {
   res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
@@ -64,6 +64,12 @@ async function handle(req, res) {
     if (!file.startsWith(path.join(pipe.ROOT, "public", "brands") + path.sep)) return send(res, 403, { error: "forbidden" });
     return serveFile(req, res, file);
   }
+  if (method === "GET" && parts[0] === "fonts" && parts.length === 2 && /^[\w-]+\.ttf$/.test(parts[1])) {
+    return serveFile(req, res, path.join(pipe.ROOT, "public", parts[1]));
+  }
+  if (method === "GET" && parts[0] === "preview" && parts.length === 2 && /^[0-9a-f]{16}\.mp3$/.test(parts[1])) {
+    return serveFile(req, res, path.join(PREVIEW_DIR, parts[1]));
+  }
   if (method === "GET" && parts[0] === "files" && parts.length >= 3) {
     const file = path.resolve(pipe.PROJECTS, ...parts.slice(1).map(decodeURIComponent));
     if (!file.startsWith(pipe.PROJECTS + path.sep)) return send(res, 403, { error: "forbidden" });
@@ -74,6 +80,17 @@ async function handle(req, res) {
   if (method === "GET" && parts[1] === "config") {
     const llm = await getLlmSettings();
     return send(res, 200, { llmConfigured: llmReady(llm), llm: { provider: llm.provider, providerLabel: PROVIDERS[llm.provider].short, model: llm.model }, tts: await ttsAvailable(), templates: TEMPLATES, formats: FORMATS, voices: VOICES, brands: await listBrands() });
+  }
+  if (method === "POST" && parts[1] === "tts" && parts[2] === "preview") {
+    const { text, voice } = await readBody(req);
+    if (!text?.trim()) return send(res, 400, { error: "Chưa có lời đọc" });
+    if (!(await ttsAvailable())) return send(res, 400, { error: "Giọng đọc đang tắt (chưa cài edge-tts)" });
+    try {
+      return send(res, 200, { url: `/preview/${await previewLine(text.trim().slice(0, 500), voice)}` });
+    } catch (e) {
+      console.error("[tts preview]", e?.detail ?? e);
+      return send(res, 502, { error: e.message });
+    }
   }
   if (parts[1] === "settings") {
     if (method === "GET" && parts.length === 2) return send(res, 200, await publicSettings());
@@ -123,6 +140,10 @@ async function handle(req, res) {
   const id = parts[2];
   const action = parts[3];
   if (method === "GET" && !action) return send(res, 200, await pipe.loadProject(id));
+  if (method === "DELETE" && !action) {
+    await pipe.deleteProject(id);
+    return send(res, 200, { ok: true });
+  }
   if (method === "GET" && action === "prompt") {
     const p = await pipe.loadProject(id);
     const feedback = url.searchParams.get("feedback");

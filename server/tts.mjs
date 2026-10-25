@@ -3,6 +3,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
+import crypto from "node:crypto";
 import path from "node:path";
 import { parseMedia } from "@remotion/media-parser";
 import { nodeReader } from "@remotion/media-parser/node";
@@ -19,7 +20,7 @@ export class UserError extends Error {
   }
 }
 
-const lineName = (key) => (key === "intro" ? "câu mở đầu" : key === "outro" ? "câu kết" : `cảnh ${Number(key) + 1}`);
+const lineName = (key) => (key === "intro" ? "câu mở đầu" : key === "outro" ? "câu kết" : key === "preview" ? "câu nghe thử" : `cảnh ${Number(key) + 1}`);
 
 // Edge TTS is a free online service that throttles bursts of requests: it then answers with no audio
 // (NoAudioReceived) for any text for a while. Space requests out and back off long enough to get past it.
@@ -64,6 +65,22 @@ export async function audioDuration(file) {
     acknowledgeRemotionLicense: true,
   });
   return durationInSeconds ?? 0;
+}
+
+export const PREVIEW_DIR = path.resolve(import.meta.dirname, "../data/tts-preview");
+
+/** One line spoken with the given voice, cached by content, so the script can be heard before rendering. */
+export async function previewLine(text, voice = "vi-VN-HoaiMyNeural", rate = "-8%") {
+  if (!VOICES[voice]) throw new UserError("Giọng đọc không hợp lệ");
+  const hash = crypto.createHash("sha1").update(`${voice}|${rate}|${text}`).digest("hex").slice(0, 16);
+  const out = path.join(PREVIEW_DIR, `${hash}.mp3`);
+  try {
+    await fs.access(out);
+  } catch {
+    await fs.mkdir(PREVIEW_DIR, { recursive: true });
+    await synthesizeLine(["--voice", voice, `--rate=${rate}`, "--text", text, "--write-media", out], "preview");
+  }
+  return `${hash}.mp3`;
 }
 
 /**

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Video Studio</title>
+<style>
+  :root { --bg:#F5F7FB; --card:#fff; --ink:#1F2937; --muted:#6B7280; --line:#E5E7EB; --brand:#2F8BE6; --ok:#16A34A; --warn:#D97706; --bad:#DC2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:linear-gradient(90deg,#2F8BE6,#7B61FF); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+  header h1 { margin:0; font-size:20px; }
+  header .chips { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { font-size:12px; padding:3px 10px; border-radius:99px; background:rgba(255,255,255,.2); }
+  main { display:grid; grid-template-columns: 300px 1fr; gap:20px; padding:20px; max-width:1400px; margin:0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input[type=text], input[type=number], textarea, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
+  textarea { resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row label { margin:0; color:var(--ink); display:flex; gap:4px; align-items:center; }
+  button { font:inherit; border:0; border-radius:10px; padding:9px 16px; cursor:pointer; background:#EEF2FF; color:#3730A3; }
+  button.primary { background:var(--brand); color:#fff; font-weight:600; }
+  button.ok { background:var(--ok); color:#fff; font-weight:600; }
+  button:disabled { opacity:.5; cursor:default; }
+  .list { display:flex; flex-direction:column; gap:6px; }
+  .item { padding:10px; border-radius:10px; cursor:pointer; border:1px solid transparent; }
+  .item:hover { background:#F3F4F6; } .item.active { border-color:var(--brand); background:#EFF6FF; }
+  .item .t { font-weight:600; font-size:14px; } .item .s { font-size:12px; color:var(--muted); }
+  .status { font-size:11px; padding:2px 8px; border-radius:99px; background:#E5E7EB; }
+  .status.script_review, .status.video_review { background:#FEF3C7; color:#92400E; }
+  .status.producing { background:#DBEAFE; color:#1E40AF; } .status.approved { background:#DCFCE7; color:#166534; }
+  .steps { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  .step { padding:6px 12px; border-radius:99px; background:#E5E7EB; font-size:13px; color:var(--muted); }
+  .step.done { background:#DCFCE7; color:#166534; } .step.now { background:var(--brand); color:#fff; }
+  .scenes { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+  .scene { border:1px solid var(--line); border-radius:12px; padding:10px; border-top:6px solid var(--c); }
+  .scene .big { font-size:40px; text-align:center; }
+  .scene label { margin-top:6px; }
+  .bar { height:10px; background:#E5E7EB; border-radius:99px; overflow:hidden; } .bar > div { height:100%; background:var(--brand); transition: width .5s; }
+  .err { background:#FEE2E2; color:#991B1B; padding:10px; border-radius:8px; white-space:pre-wrap; font-size:13px; }
+  .videos { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:12px; align-items:start; }
+  video { width:100%; border-radius:10px; background:#000; max-height:560px; }
+  pre { white-space:pre-wrap; background:#F9FAFB; border:1px solid var(--line); padding:10px; border-radius:8px; font-size:13px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .log { font-size:12px; color:var(--muted); max-height:160px; overflow:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 AI Video Studio</h1>
+  <span style="opacity:.85">AI làm, bạn duyệt</span>
+  <div class="chips" id="chips"></div>
+</header>
+<main>
+  <aside>
+    <div class="card">
+      <h2>✨ Video mới</h2>
+      <label>Ý tưởng (1 dòng là đủ)</label>
+      <textarea id="idea" rows="3" placeholder="VD: Bé học đếm từ 1 đến 10 với các con vật"></textarea>
+      <label>Kênh</label>
+      <select id="brand"></select>
+      <label>Mẫu video</label>
+      <select id="template"></select>
+      <label>Số cảnh</label>
+      <input id="sceneCount" type="number" min="3" max="12" placeholder="AI tự chọn" />
+      <label>Khung hình</label>
+      <div class="row" id="formats"></div>
+      <label>Công cụ render</label>
+      <div class="row">
+        <label><input type="checkbox" name="engine" value="remotion" checked /> Remotion</label>
+        <label><input type="checkbox" name="engine" value="hyperframes" /> HyperFrames</label>
+      </div>
+      <label>Giọng đọc</label>
+      <select id="voice"></select>
+      <div class="row" style="margin-top:8px"><label><input type="checkbox" id="music" checked /> Nhạc nền</label></div>
+      <div style="margin-top:12px"><button class="primary" id="create">✨ Tạo kịch bản bằng AI</button></div>
+    </div>
+    <div class="card">
+      <h2>Dự án</h2>
+      <div class="list" id="projects"></div>
+    </div>
+  </aside>
+  <section id="detail"><div class="card muted">Chọn một dự án hoặc tạo video mới ở bên trái.</div></section>
+</main>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const api = async (url, body) => {
+  const res = await fetch(url, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+};
+const STATUS = { draft: "Nháp", script_review: "Chờ duyệt kịch bản", producing: "Đang sản xuất", video_review: "Chờ duyệt video", approved: "Đã duyệt" };
+const STEPS = [["draft", "1. Ý tưởng"], ["script_review", "2. Duyệt kịch bản"], ["producing", "3. Lồng tiếng & render"], ["video_review", "4. Duyệt video"], ["approved", "5. Đăng bài"]];
+let config = null, current = null, timer = null, editing = false;
+
+async function init() {
+  config = await api("/api/config");
+  $("#chips").innerHTML = `<span class="chip">${config.hasApiKey ? "🤖 AI: Claude" : "🤖 AI: dán thủ công"}</span><span class="chip">${config.tts ? "🎙 Giọng đọc: bật" : "🎙 Giọng đọc: tắt"}</span>`;
+  $("#template").innerHTML = Object.entries(config.templates).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  $("#formats").innerHTML = Object.entries(config.formats).map(([k, v], i) => `<label><input type="checkbox" name="format" value="${k}" ${i === 0 ? "checked" : ""}/> ${esc(v.label)}</label>`).join("");
+  $("#brand").innerHTML = config.brands.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join("");
+  $("#brand").onchange = () => { const b = config.brands.find((x) => x.id === $("#brand").value); if (b) $("#voice").value = b.voice; };
+  $("#voice").innerHTML = Object.entries(config.voices).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  if (!config.hasApiKey) $("#create").textContent = "Tạo dự án (dán kịch bản từ Claude)";
+  $("#create").onclick = create;
+  await refreshList();
+  const id = location.hash.slice(1);
+  if (id) open(id);
+}
+
+async function refreshList() {
+  const list = await api("/api/projects");
+  $("#projects").innerHTML = list.length ? list.map((p) => `<div class="item ${current?.id === p.id ? "active" : ""}" data-id="${p.id}">
+    <div class="t">${esc(p.spec?.title || p.idea)}</div>
+    <div class="s"><span class="status ${p.status}">${STATUS[p.status] || p.status}</span> ${p.job && !p.job.error ? "⏳" : ""}${p.job?.error ? "⚠️" : ""}</div></div>`).join("") : `<div class="muted">Chưa có dự án.</div>`;
+  for (const el of document.querySelectorAll(".item")) el.onclick = () => open(el.dataset.id);
+}
+
+async function create() {
+  const checked = (name) => [...document.querySelectorAll(`input[name=${name}]:checked`)].map((x) => x.value);
+  try {
+    const p = await api("/api/projects", {
+      idea: $("#idea").value, brand: $("#brand").value, template: $("#template").value, sceneCount: $("#sceneCount").value || undefined,
+      formats: checked("format"), engines: checked("engine"), voice: $("#voice").value, music: $("#music").checked,
+    });
+    $("#idea").value = "";
+    open(p.id);
+  } catch (e) { alert(e.message); }
+}
+
+async function open(id) {
+  location.hash = id;
+  editing = false;
+  current = await api(`/api/projects/${id}`);
+  render();
+  refreshList();
+}
+
+function poll() {
+  clearTimeout(timer);
+  if (!current) return;
+  const busy = current.job && !current.job.error;
+  timer = setTimeout(async () => {
+    const fresh = await api(`/api/projects/${current.id}`);
+    const changed = fresh.updatedAt !== current.updatedAt;
+    current = fresh;
+    if (changed && !editing) { render(); refreshList(); } else poll();
+  }, busy ? 1500 : 5000);
+}
+
+function stepper(p) {
+  const idx = STEPS.findIndex(([s]) => s === p.status);
+  return `<div class="steps">${STEPS.map(([s, l], i) => `<span class="step ${i < idx ? "done" : i === idx ? "now" : ""}">${l}</span>`).join("")}</div>`;
+}
+
+function jobBox(p) {
+  if (!p.job) return "";
+  if (p.job.error) return `<div class="err">⚠️ ${esc(p.job.error)}</div>`;
+  const label = { script: "AI đang viết kịch bản...", revise: "AI đang sửa kịch bản...", produce: "Đang lồng tiếng và render video..." }[p.job.step] || p.job.step;
+  return `<p>${label} ${Math.round(p.job.progress * 100)}%</p><div class="bar"><div style="width:${Math.max(3, p.job.progress * 100)}%"></div></div>`;
+}
+
+function manualBox(p, feedback) {
+  return `<div class="card"><h2>📋 Chế độ dán kịch bản</h2>
+    <p class="muted">Chưa có ANTHROPIC_API_KEY nên phần mềm không tự gọi AI được. Bấm "Copy prompt", dán vào Claude (claude.ai hoặc dự án này), rồi dán kết quả JSON vào ô dưới.</p>
+    <div class="row"><button id="copyPrompt">📋 Copy prompt</button></div>
+    <label>Dán JSON kịch bản AI trả về</label><textarea id="pasted" rows="6"></textarea>
+    <div style="margin-top:8px"><button class="primary" id="importSpec">Nhập kịch bản</button></div></div>`;
+}
+
+function sceneEditor(s, i) {
+  return `<div class="scene" style="--c:${esc(s.color)}">
+    <div class="big">${esc(s.emoji)}${s.count > 1 ? `<small style="font-size:16px"> ×${s.count}</small>` : ""}</div>
+    <div class="row"><b>Cảnh ${i + 1}</b><input type="color" data-k="color" data-i="${i}" value="${esc(s.color)}" style="margin-left:auto"/></div>
+    <label>Chữ lớn</label><input type="text" data-k="heading" data-i="${i}" value="${esc(s.heading)}" />
+    <div class="row"><div style="flex:1"><label>Emoji</label><input type="text" data-k="emoji" data-i="${i}" value="${esc(s.emoji)}" /></div>
+    <div style="width:80px"><label>Số lượng</label><input type="number" min="1" max="10" data-k="count" data-i="${i}" value="${s.count}" /></div></div>
+    <label>Chú thích</label><input type="text" data-k="caption" data-i="${i}" value="${esc(s.caption)}" />
+    <label>🎙 Lời đọc</label><textarea rows="2" data-k="narration" data-i="${i}">${esc(s.narration)}</textarea></div>`;
+}
+
+function settingsRow(p) {
+  return `<div class="row" style="margin:8px 0 12px">
+    <span class="muted">Xuất ra:</span>
+    ${Object.entries(config.formats).map(([k, v]) => `<label><input type="checkbox" class="set-format" value="${k}" ${p.formats.includes(k) ? "checked" : ""}/> ${esc(v.label)}</label>`).join("")}
+    <span class="muted">bằng</span>
+    ${["remotion", "hyperframes"].map((k) => `<label><input type="checkbox" class="set-engine" value="${k}" ${p.engines.includes(k) ? "checked" : ""}/> ${k === "remotion" ? "Remotion" : "HyperFrames"}</label>`).join("")}</div>`;
+}
+
+function publishBox(spec) {
+  const { youtube, facebook, tiktok } = spec.publish;
+  return `<div class="card"><h2>📣 Nội dung đăng bài (AI viết)</h2>
+    <label>YouTube: tiêu đề</label><pre>${esc(youtube.title)}</pre>
+    <label>YouTube: mô tả</label><pre>${esc(youtube.description)}</pre>
+    <label>YouTube: tags</label><pre>${esc(youtube.tags.join(", "))}</pre>
+    <label>Facebook</label><pre>${esc(facebook.post)}</pre>
+    <label>TikTok / Reels / Shorts</label><pre>${esc(tiktok.caption + " " + tiktok.hashtags.join(" "))}</pre></div>`;
+}
+
+function render() {
+  const p = current;
+  const busy = p.job && !p.job.error;
+  let html = `<div class="card"><h2>${esc(p.spec?.title || p.idea)}</h2><p class="muted"><img src="/brands/${p.brand}/logo.png" style="height:22px;vertical-align:middle;border-radius:4px"> ${esc(config.brands.find((b) => b.id === p.brand)?.name ?? p.brand)} · Ý tưởng: ${esc(p.idea)}</p>${stepper(p)}${jobBox(p)}</div>`;
+
+  if (!p.spec && !busy) html += manualBox(p);
+
+  if (p.spec && p.status === "script_review" && !busy) {
+    html += `<div class="card"><h2>📝 Kịch bản: xem, sửa nếu cần, rồi duyệt</h2>
+      <label>Tên video</label><input type="text" id="f-title" value="${esc(p.spec.title)}" />
+      <label>🎙 Lời mở đầu</label><input type="text" id="f-intro" value="${esc(p.spec.intro_narration)}" />
+      <label>Mẫu</label><select id="f-template">${Object.entries(config.templates).map(([k, v]) => `<option value="${k}" ${p.spec.template === k ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>
+      <h2 style="margin-top:16px">Các cảnh</h2><div class="scenes">${p.spec.scenes.map(sceneEditor).join("")}</div>
+      <label>🎙 Lời kết</label><input type="text" id="f-outro" value="${esc(p.spec.outro_narration)}" />
+      ${settingsRow(p)}
+      <div class="row"><button class="ok" id="approveScript">✅ Duyệt & sản xuất video</button><button id="saveSpec">💾 Lưu chỉnh sửa</button></div>
+      <label>Hoặc nhờ AI sửa (VD: "thêm 2 cảnh về con mèo, lời đọc vui hơn")</label>
+      <div class="row"><input type="text" id="feedback" style="flex:1" /><button id="revise">🤖 AI sửa</button></div>
+      ${config.hasApiKey ? "" : `<p class="muted">Không có API key: nút "AI sửa" sẽ cho bạn prompt để copy sang Claude.</p>`}</div>`;
+    html += publishBox(p.spec);
+  }
+
+  if (p.renders?.length) {
+    html += `<div class="card"><h2>🎞 Video</h2><div class="videos">${p.renders.map((r) => `<div><video controls preload="metadata" src="/files/${p.id}/${r.file}"></video>
+      <div class="muted">${r.engine === "remotion" ? "Remotion" : "HyperFrames"} · ${esc(config.formats[r.format].label)} · <a href="/files/${p.id}/${r.file}" download>Tải về</a></div></div>`).join("")}</div>
+      ${p.status === "video_review" ? `<div class="row" style="margin-top:12px"><button class="ok" id="approveVideo">✅ Duyệt video</button></div>
+      <label>Chưa ưng? Ghi yêu cầu sửa, AI sẽ sửa kịch bản để bạn duyệt lại</label>
+      <div class="row"><input type="text" id="rejectFeedback" style="flex:1" /><button id="rejectVideo">↩️ Yêu cầu sửa</button></div>` : ""}
+      ${p.status === "approved" ? `<p>✅ Đã duyệt. Nội dung đăng bài: <a href="/files/${p.id}/dang-bai.md" target="_blank">dang-bai.md</a>${p.engines.includes("hyperframes") ? `. Muốn chỉnh tay bản HyperFrames: mở thư mục <code>projects/${p.id}/hyperframes-*</code> rồi chạy <code>npm run dev</code>.` : ""}</p>` : ""}</div>`;
+    if (p.status !== "script_review") html += publishBox(p.spec);
+  }
+
+  html += `<div class="card"><h2>Nhật ký</h2><div class="log">${(p.log || []).slice().reverse().map((l) => `<div>${new Date(l.at).toLocaleTimeString("vi-VN")} · ${esc(l.msg)}</div>`).join("")}</div></div>`;
+  $("#detail").innerHTML = html;
+  wire(p);
+  poll();
+}
+
+function collectSpec(p) {
+  const spec = structuredClone(p.spec);
+  spec.title = $("#f-title").value;
+  spec.intro_narration = $("#f-intro").value;
+  spec.outro_narration = $("#f-outro").value;
+  spec.template = $("#f-template").value;
+  for (const el of document.querySelectorAll(".scene [data-k]")) {
+    const sc = spec.scenes[el.dataset.i];
+    sc[el.dataset.k] = el.dataset.k === "count" ? Number(el.value) : el.value;
+  }
+  return spec;
+}
+
+async function copyPrompt(feedback) {
+  const { prompt } = await api(`/api/projects/${current.id}/prompt${feedback ? `?feedback=${encodeURIComponent(feedback)}` : ""}`);
+  await navigator.clipboard.writeText(prompt).catch(() => {});
+  alert("Đã copy prompt. Dán vào Claude, rồi dán JSON trả về vào ô 'Dán JSON kịch bản'.");
+}
+
+function wire(p) {
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = () => fn().catch((e) => alert(e.message)); };
+  for (const el of document.querySelectorAll("#detail input, #detail textarea, #detail select")) el.addEventListener("input", () => (editing = true));
+  on("#copyPrompt", () => copyPrompt());
+  on("#importSpec", async () => { current = await api(`/api/projects/${p.id}/spec`, { text: $("#pasted").value, note: "Đã nhập kịch bản dán từ Claude" }); editing = false; render(); refreshList(); });
+  on("#saveSpec", async () => { current = await api(`/api/projects/${p.id}/spec`, { spec: collectSpec(p), note: "Người duyệt đã sửa kịch bản" }); editing = false; render(); });
+  on("#revise", async () => {
+    const feedback = $("#feedback").value.trim();
+    if (!feedback) return alert("Nhập yêu cầu sửa trước nhé");
+    if (!config.hasApiKey) { $("#detail").insertAdjacentHTML("beforeend", manualBox(p)); $("#copyPrompt").onclick = () => copyPrompt(feedback); wire2(p); return; }
+    await api(`/api/projects/${p.id}/spec`, { spec: collectSpec(p), note: "Lưu trước khi AI sửa" });
+    await api(`/api/projects/${p.id}/revise`, { feedback });
+    editing = false; open(p.id);
+  });
+  on("#approveScript", async () => {
+    const formats = [...document.querySelectorAll(".set-format:checked")].map((x) => x.value);
+    const engines = [...document.querySelectorAll(".set-engine:checked")].map((x) => x.value);
+    if (!formats.length || !engines.length) return alert("Chọn ít nhất 1 khung hình và 1 công cụ render");
+    await api(`/api/projects/${p.id}/spec`, { spec: collectSpec(p), note: "Kịch bản đã được duyệt" });
+    await api(`/api/projects/${p.id}/settings`, { formats, engines });
+    await api(`/api/projects/${p.id}/approve-script`, {});
+    editing = false; open(p.id);
+  });
+  on("#approveVideo", async () => { current = await api(`/api/projects/${p.id}/approve-video`, {}); render(); refreshList(); });
+  on("#rejectVideo", async () => { await api(`/api/projects/${p.id}/reject-video`, { feedback: $("#rejectFeedback").value }); editing = false; open(p.id); });
+}
+function wire2(p) {
+  $("#importSpec").onclick = async () => { try { current = await api(`/api/projects/${p.id}/spec`, { text: $("#pasted").value, note: "Đã nhập kịch bản sửa từ Claude" }); editing = false; render(); } catch (e) { alert(e.message); } };
+}
+
+init();
+</script>
+</body>
+</html>

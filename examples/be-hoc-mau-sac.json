@@ -1,0 +1,22 @@
+{
+  "title": "Bé học màu sắc",
+  "template": "cards",
+  "intro_narration": "Xin chào các bé! Hôm nay chúng mình cùng học màu sắc nhé!",
+  "scenes": [
+    { "heading": "Đỏ", "emoji": "🍎", "count": 1, "caption": "Quả táo màu đỏ", "narration": "Đây là màu đỏ. Quả táo có màu đỏ.", "color": "#FF5252" },
+    { "heading": "Vàng", "emoji": "🍌", "count": 1, "caption": "Quả chuối màu vàng", "narration": "Đây là màu vàng. Quả chuối chín có màu vàng.", "color": "#FFC107" },
+    { "heading": "Xanh lá", "emoji": "🐸", "count": 1, "caption": "Chú ếch màu xanh lá", "narration": "Đây là màu xanh lá. Chú ếch có màu xanh lá.", "color": "#43A047" },
+    { "heading": "Xanh dương", "emoji": "🐳", "count": 1, "caption": "Cá voi màu xanh dương", "narration": "Đây là màu xanh dương. Chú cá voi có màu xanh dương.", "color": "#1E88E5" },
+    { "heading": "Tím", "emoji": "🍇", "count": 1, "caption": "Chùm nho màu tím", "narration": "Đây là màu tím. Chùm nho có màu tím.", "color": "#8E24AA" }
+  ],
+  "outro_narration": "Bé giỏi quá! Nhớ đăng ký kênh Kid Plazza để học thêm nhiều điều hay nhé!",
+  "publish": {
+    "youtube": {
+      "title": "Bé Học Màu Sắc | Đỏ Vàng Xanh Tím | Kid Plazza",
+      "description": "Cùng Kid Plazza học 5 màu sắc cơ bản qua quả táo, quả chuối, chú ếch, cá voi và chùm nho. Video ngắn, vui nhộn, phù hợp cho bé 2-5 tuổi. Đăng ký kênh để xem video mới mỗi tuần nhé! #kidplazza #behocmausac #giaoducmamnon",
+      "tags": ["bé học màu sắc", "học màu sắc", "kid plazza", "video cho bé", "giáo dục mầm non", "màu sắc tiếng việt", "dạy bé", "thiếu nhi"]
+    },
+    "facebook": { "post": "🎨 Bé nhà mình đã biết hết các màu chưa ạ? Cùng Kid Plazza học màu đỏ, vàng, xanh lá, xanh dương và tím qua những hình ảnh quen thuộc nhé! Ba mẹ cho bé xem và hỏi bé cùng đọc theo nha 💛" },
+    "tiktok": { "caption": "Bé học màu sắc cùng Kid Plazza 🍎🍌🐸", "hashtags": ["#kidplazza", "#behoc", "#mausac", "#daycon", "#mamnon"] }
+  }
+}

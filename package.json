@@ -1,0 +1,33 @@
+{
+  "name": "ai-video-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI-centric video studio: idea -> AI script -> human approval -> voice -> Remotion/HyperFrames render -> human approval -> publish kit",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "make": "node --env-file-if-exists=.env cli.mjs",
+    "studio": "remotion studio remotion/index.ts",
+    "check": "tsc -p ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@remotion/bundler": "^4.0.538",
+    "@remotion/cli": "^4.0.538",
+    "@remotion/fonts": "^4.0.538",
+    "@remotion/media-parser": "^4.0.538",
+    "@remotion/renderer": "^4.0.538",
+    "gsap": "^3.14.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "^4.0.538",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "typescript": "^5.9.3"
+  }
+}

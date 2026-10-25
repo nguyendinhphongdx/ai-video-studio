@@ -1,0 +1,60 @@
+{
+  "title": "Vòng đời con ếch",
+  "template": "whiteboard",
+  "intro_narration": "Các bé ơi, cùng xem chú ếch lớn lên thế nào nhé!",
+  "scenes": [
+    {
+      "heading": "Trứng",
+      "emoji": "🥚",
+      "count": 3,
+      "caption": "Ếch mẹ đẻ trứng dưới nước",
+      "narration": "Đầu tiên, ếch mẹ đẻ thật nhiều trứng dưới nước.",
+      "color": "#43A047"
+    },
+    {
+      "heading": "Nòng nọc",
+      "emoji": "🐟",
+      "count": 2,
+      "caption": "Nòng nọc bơi có đuôi",
+      "narration": "Trứng nở ra nòng nọc. Nòng nọc có đuôi để bơi.",
+      "color": "#1E88E5"
+    },
+    {
+      "heading": "Ếch con",
+      "emoji": "🐸",
+      "count": 1,
+      "caption": "Mọc chân, rụng đuôi",
+      "narration": "Nòng nọc mọc chân, đuôi ngắn dần thành ếch con.",
+      "color": "#FB8C00"
+    },
+    {
+      "heading": "Ếch lớn",
+      "emoji": "🐸",
+      "count": 1,
+      "caption": "Ếch nhảy lên bờ",
+      "narration": "Cuối cùng, ếch con lớn lên và nhảy lên bờ.",
+      "color": "#8E24AA"
+    }
+  ],
+  "outro_narration": "Bé đã nhớ chưa nào? Đăng ký kênh Kid Plazza nhé!",
+  "publish": {
+    "youtube": {
+      "title": "Vòng Đời Con Ếch | Kid Plazza",
+      "description": "Bé học vòng đời con ếch. #kidplazza",
+      "tags": [
+        "vòng đời con ếch",
+        "kid plazza"
+      ]
+    },
+    "facebook": {
+      "post": "Bé có biết ếch lớn lên thế nào không?"
+    },
+    "tiktok": {
+      "caption": "Vòng đời con ếch 🐸",
+      "hashtags": [
+        "#kidplazza",
+        "#behoc"
+      ]
+    }
+  }
+}

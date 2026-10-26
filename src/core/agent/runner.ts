@@ -36,7 +36,7 @@ export async function runTask<I, O>(deps: RunnerDeps, task: AgentTask<I, O>, inp
     id: newId(),
     task: task.id,
     taskVersion: task.version,
-    episodeId: ctx.episode.id,
+    episodeId: ctx.episode?.id ?? null,
     seriesId: ctx.series?.series.id ?? null,
     context: compiled.text,
     sections: compiled.sections,

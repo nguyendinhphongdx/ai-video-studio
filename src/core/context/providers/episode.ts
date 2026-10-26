@@ -5,8 +5,9 @@ export const episodeLayer: ContextLayer = {
   title: 'Tập cần làm',
   order: 70,
   maxChars: 3000,
-  render: ({ episode, neighbours }) =>
-    [
+  render: ({ episode, neighbours }) => {
+    if (!episode) return null;
+    return [
       episode.number !== null && `Tập số: ${episode.number}`,
       `Chủ đề: ${episode.topic}`,
       episode.goal && `Mục tiêu: ${episode.goal}`,
@@ -15,5 +16,6 @@ export const episodeLayer: ContextLayer = {
       neighbours.nextTopic && `Tập sau: ${neighbours.nextTopic}`,
     ]
       .filter(Boolean)
-      .join('\n'),
+      .join('\n');
+  },
 };

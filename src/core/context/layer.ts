@@ -9,12 +9,14 @@ import type { EpisodeFormat, Slot } from '../series/format';
 import type { Skill } from '../skills/skill';
 import type { ResolvedBlock } from '../tools/tool';
 
-export type LayerId = 'system' | 'channel' | 'instructions' | 'skill' | 'style' | 'format' | 'memory' | 'episode';
+export type LayerId = 'system' | 'channel' | 'knowledge' | 'instructions' | 'skill' | 'style' | 'format' | 'memory' | 'episode';
 
 /** Everything known about the episode being worked on. Built once per AI call by the workflow. */
 export interface ContextInput {
   channel: Channel;
   series: { series: Series; version: SeriesVersion } | null;
+  /** What the channel knows about its subject (its own knowledge base), or null. */
+  knowledge: { version: number; markdown: string } | null;
   skill: Skill;
   format: EpisodeFormat;
   /** Slots that apply to this episode (conditions evaluated). */
@@ -22,7 +24,8 @@ export interface ContextInput {
   /** Union of blocks allowed by the active "ai" slots. */
   blocks: ResolvedBlock[];
   memory: { season: string | null; recent: EpisodeMemory[] };
-  episode: Episode;
+  /** Null when the AI works at series level (planning a new series). */
+  episode: Episode | null;
   neighbours: { previousTopic: string | null; nextTopic: string | null };
 }
 

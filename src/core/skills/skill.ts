@@ -1,4 +1,4 @@
-// A Skill is a playbook for one kind of video: content/skills/<id>/SKILL.md, versioned with git.
+// A Skill is a playbook for one kind of video: channel_skills rows (installed from market/skills/<id>/SKILL.md or written in the app).
 // Front matter declares the tools/blocks it may use; the body tells the AI how to write the video
 // and mentions tools as @tool or @tool/block. Pure parsing + linting; file IO lives in the server.
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
@@ -13,6 +13,9 @@ const FrontMatter = z.object({
   name: z.string().min(1, 'Skill cần có name'),
   description: z.string().default(''),
   tools: z.array(z.string()).min(1, 'Skill cần ít nhất 1 tool'),
+  version: z.union([z.string(), z.number()]).transform(String).default('1'),
+  tags: z.array(z.string()).default([]),
+  imageStyle: z.string().default(''),
   scenes: z
     .string()
     .regex(/^\d+-\d+$/, 'scenes phải có dạng "4-8"')
@@ -28,6 +31,11 @@ export interface Skill {
   scenes: { min: number; max: number };
   /** Markdown instructions for the AI. */
   body: string;
+  /** Market metadata (also kept when a skill is copied into a channel). */
+  version: string;
+  tags: string[];
+  /** The look of every AI picture of videos made with this skill (English, appended to each scene's subject). Empty: the block's or the channel's style. */
+  imageStyle: string;
 }
 
 export interface SkillIssue {
@@ -40,11 +48,11 @@ export function parseSkill(id: string, markdown: string): Skill {
   if (!m) throw new Error('SKILL.md phải bắt đầu bằng phần khai báo giữa hai dòng ---');
   const fm = FrontMatter.parse(parseYaml(m[1] ?? '') ?? {});
   const [min, max] = fm.scenes.split('-').map(Number) as [number, number];
-  return { id, name: fm.name, description: fm.description, tools: fm.tools.map(normalizeRef), scenes: { min, max }, body: (m[2] ?? '').trim() };
+  return { id, name: fm.name, description: fm.description, tools: fm.tools.map(normalizeRef), scenes: { min, max }, body: (m[2] ?? '').trim(), version: fm.version, tags: fm.tags, imageStyle: fm.imageStyle.trim() };
 }
 
 export function serializeSkill(skill: Omit<Skill, 'id'>): string {
-  const fm = stringifyYaml({ name: skill.name, description: skill.description, tools: skill.tools, scenes: `${skill.scenes.min}-${skill.scenes.max}` });
+  const fm = stringifyYaml({ name: skill.name, description: skill.description, version: skill.version, tags: skill.tags, ...(skill.imageStyle ? { imageStyle: skill.imageStyle } : {}), tools: skill.tools, scenes: `${skill.scenes.min}-${skill.scenes.max}` });
   return `---\n${fm}---\n\n${skill.body.trim()}\n`;
 }
 
@@ -59,6 +67,7 @@ export function lintSkill(skill: Skill, catalog: ToolCatalog): SkillIssue[] {
     if (used.unknown.length) issues.push({ level: 'error', message: `Nhắc tới tool không tồn tại: @${ref}` });
     else if (used.blocks.some((b) => !allowed.has(b.ref))) issues.push({ level: 'warning', message: `@${ref} được nhắc trong hướng dẫn nhưng chưa khai báo trong tools` });
   }
+  if (!skill.imageStyle && declared.blocks.some((b) => b.image && !b.image.style)) issues.push({ level: 'warning', message: 'Skill dùng khối có ảnh AI nhưng chưa có imageStyle: ảnh sẽ theo phong cách chung của kênh, các video khó đồng nhất.' });
   if (skill.scenes.min > skill.scenes.max) issues.push({ level: 'error', message: 'scenes: số nhỏ phải đứng trước' });
   return issues;
 }

@@ -4,6 +4,7 @@
 import { z } from 'zod';
 
 import type { Skill } from '../skills/skill';
+import type { ToolCatalog } from '../tools/catalog';
 
 export const SlotSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Mã khe chỉ gồm chữ thường, số, gạch ngang'),
@@ -16,7 +17,7 @@ export const SlotSchema = z.object({
   scenes: z.object({ min: z.number().int().min(0), max: z.number().int().min(1) }).default({ min: 1, max: 1 }),
   /** Slot-specific instruction for the AI. */
   guide: z.string().default(''),
-  /** Content of a "locked" slot. Strings may use {n} {topic} {next_topic} {series} {title} {channel}. */
+  /** Content of a "locked" slot. Strings may use {n} {topic} {next_topic} {series} {title} {channel} {outro}. */
   locked: z
     .object({ block: z.string(), narration: z.string(), props: z.record(z.string(), z.unknown()) })
     .optional(),
@@ -31,9 +32,25 @@ export type EpisodeFormat = z.infer<typeof EpisodeFormatSchema>;
 
 export const ONE_OFF_SLOT = 'body';
 
-export function formatFromSkill(skill: Skill, sceneCount: number | null): EpisodeFormat {
+const INTRO_REF = 'remotion/title';
+const OUTRO_REF = 'remotion/outro';
+
+/**
+ * A one-off video: the channel's own intro, the skill's content, the channel's own outro. Intro and outro belong
+ * to the channel (its design), so they are locked slots whatever the skill lists, and the AI never writes them.
+ */
+export function formatFromSkill(skill: Skill, sceneCount: number | null, tools?: ToolCatalog): EpisodeFormat {
   const scenes = sceneCount ? { min: sceneCount, max: sceneCount } : skill.scenes;
-  return { durationSec: null, slots: [{ id: ONE_OFF_SLOT, name: 'Nội dung', fill: 'ai', when: 'always', blocks: skill.tools, scenes, guide: '' }] };
+  const blocks = tools ? tools.resolve(skill.tools).blocks.map((b) => b.ref).filter((r) => r !== INTRO_REF && r !== OUTRO_REF) : skill.tools;
+  const base = { when: 'always' as const, blocks: [], guide: '' };
+  return {
+    durationSec: null,
+    slots: [
+      { ...base, id: 'intro', name: 'Mở đầu', fill: 'locked', scenes: { min: 1, max: 1 }, locked: { block: INTRO_REF, narration: '', props: { title: '{title}' } } },
+      { id: ONE_OFF_SLOT, name: 'Nội dung', fill: 'ai', when: 'always', blocks: blocks.length ? blocks : skill.tools, scenes, guide: '' },
+      { ...base, id: 'outro', name: 'Kết của kênh', fill: 'locked', scenes: { min: 1, max: 1 }, locked: { block: OUTRO_REF, narration: '{outro}', props: {} } },
+    ],
+  };
 }
 
 /** Slots that apply to this episode. */
@@ -41,10 +58,10 @@ export function activeSlots(format: EpisodeFormat, episodeNumber: number | null)
   return format.slots.filter((s) => s.when === 'always' || (s.when === 'first' ? episodeNumber === 1 : (episodeNumber ?? 1) > 1));
 }
 
-export type TemplateVars = Partial<Record<'n' | 'topic' | 'next_topic' | 'series' | 'title' | 'channel', string>>;
+export type TemplateVars = Partial<Record<'n' | 'topic' | 'next_topic' | 'series' | 'title' | 'channel' | 'outro', string>>;
 
 export function fillTemplate(text: string, vars: TemplateVars): string {
-  return text.replace(/\{(n|topic|next_topic|series|title|channel)\}/g, (_, k: keyof TemplateVars) => vars[k] ?? '');
+  return text.replace(/\{(n|topic|next_topic|series|title|channel|outro)\}/g, (_, k: keyof TemplateVars) => vars[k] ?? '');
 }
 
 /** Recursively fill templates in string props of a locked scene. */

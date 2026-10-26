@@ -1,9 +1,13 @@
 import type { SkillStore } from '@/core/ports';
 import { lintSkill, parseSkill, SKILL_ID_RE, type Skill, type SkillIssue } from '@/core/skills/skill';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+
+import { ROOT } from '@/server/config';
 import { ApiError, notFound } from '@/server/http/api-error';
 import { toolCatalog } from '@/tools/registry';
 
-import { skillRepository } from './skill.repository';
+import { skillFile, skillRepository } from './skill.repository';
 
 export interface SkillSummary extends Omit<Skill, 'body'> {
   issues: SkillIssue[];
@@ -26,11 +30,23 @@ export const skillService = {
     return out;
   },
 
-  async get(id: string): Promise<{ skill: Skill; markdown: string; issues: SkillIssue[] }> {
+  async get(id: string): Promise<{ skill: Skill; markdown: string; issues: SkillIssue[]; path: string }> {
     const md = await skillRepository.read(id);
     if (!md) throw notFound(`skill "${id}"`);
     const skill = parseSkill(id, md);
-    return { skill, markdown: md, issues: lintSkill(skill, toolCatalog) };
+    return { skill, markdown: md, issues: lintSkill(skill, toolCatalog), path: path.relative(ROOT, skillFile(id)) };
+  },
+
+  /** Opens SKILL.md in the default editor of the machine running the app (local use). */
+  async openInEditor(id: string): Promise<{ ok: true; path: string }> {
+    const { path: rel } = await skillService.get(id);
+    const opener = process.platform === 'darwin' ? ['open', ['-t', skillFile(id)]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', skillFile(id)]] : ['xdg-open', [skillFile(id)]];
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(opener[0] as string, opener[1] as string[], { detached: true, stdio: 'ignore' });
+      child.on('error', () => reject(new ApiError(501, 'cannot_open', `Không mở được trình soạn thảo. Mở tay file ${rel}`)));
+      child.on('spawn', () => (child.unref(), resolve()));
+    });
+    return { ok: true, path: rel };
   },
 
   /** Save raw SKILL.md text; refuses a file that does not parse or uses unknown tools. */

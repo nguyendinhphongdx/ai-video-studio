@@ -5,7 +5,8 @@ import path from 'node:path';
 import { SKILL_ID_RE } from '@/core/skills/skill';
 import { SKILLS_DIR } from '@/server/config';
 
-const fileOf = (id: string) => path.join(SKILLS_DIR, id, 'SKILL.md');
+export const skillFile = (id: string) => path.join(SKILLS_DIR, id, 'SKILL.md');
+const fileOf = skillFile;
 
 export const skillRepository = {
   async ids(): Promise<string[]> {

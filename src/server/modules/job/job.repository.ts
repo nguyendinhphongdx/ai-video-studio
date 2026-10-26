@@ -6,20 +6,21 @@ type Row = Record<string, unknown>;
 
 const toJob = (r: Row): Job => ({
   id: String(r.id),
-  episodeId: String(r.episode_id),
+  episodeId: (r.episode_id as string | null) ?? null,
   kind: String(r.kind) as JobKind,
   payload: json<Record<string, unknown>>(r.payload, {}),
   state: String(r.state) as Job['state'],
   progress: Number(r.progress),
   phase: (r.phase as string | null) ?? null,
   error: (r.error as string | null) ?? null,
+  result: json<unknown>(r.result, null),
   createdAt: String(r.created_at),
   startedAt: (r.started_at as string | null) ?? null,
   finishedAt: (r.finished_at as string | null) ?? null,
 });
 
 export const jobRepository = {
-  insert(episodeId: string, kind: JobKind, payload: Record<string, unknown>): Job {
+  insert(episodeId: string | null, kind: JobKind, payload: Record<string, unknown>): Job {
     const id = newId();
     db()
       .prepare(`INSERT INTO jobs (id, episode_id, kind, payload, state, created_at) VALUES (?, ?, ?, ?, 'queued', ?)`)
@@ -38,6 +39,11 @@ export const jobRepository = {
     const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId) as Row | undefined;
     return r ? toJob(r) : null;
   },
+  /** The running or queued assistant turn of a conversation, if any. */
+  activeAssistant(threadId: string): Job | null {
+    const r = db().prepare(`SELECT * FROM jobs WHERE kind = 'assistant_turn' AND state IN ('queued', 'running') AND payload LIKE ? ORDER BY created_at DESC LIMIT 1`).get(`%"threadId":"${threadId}"%`) as Row | undefined;
+    return r ? toJob(r) : null;
+  },
   listActive(): Job[] {
     return (db().prepare(`SELECT * FROM jobs WHERE state IN ('queued', 'running') ORDER BY created_at`).all() as Row[]).map(toJob);
   },
@@ -53,8 +59,8 @@ export const jobRepository = {
   progress(id: string, progress: number, phase: string | null) {
     db().prepare('UPDATE jobs SET progress = ?, phase = COALESCE(?, phase) WHERE id = ?').run(Math.max(0, Math.min(1, progress)), phase, id);
   },
-  finish(id: string) {
-    db().prepare(`UPDATE jobs SET state = 'done', progress = 1, finished_at = ? WHERE id = ?`).run(now(), id);
+  finish(id: string, result?: unknown) {
+    db().prepare(`UPDATE jobs SET state = 'done', progress = 1, result = ?, finished_at = ? WHERE id = ?`).run(result === undefined ? null : JSON.stringify(result), now(), id);
   },
   fail(id: string, error: string) {
     db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ?`).run(error, now(), id);

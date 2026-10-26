@@ -39,6 +39,12 @@ export const memoryStore: MemoryStore = {
     const r = db().prepare('SELECT season_summary FROM series_memory WHERE series_id = ?').get(seriesId) as { season_summary: string } | undefined;
     return r?.season_summary ?? null;
   },
+  async setSeason(seriesId, summary) {
+    memoryRepository.setSeason(seriesId, summary);
+  },
+  async all(seriesId) {
+    return memoryRepository.list(seriesId).reverse();
+  },
   async save(m) {
     db()
       .prepare(

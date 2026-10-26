@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { BRAND_FONT_IDS, VOICES, type BrandFont } from '@/core/domain';
+import { SceneDesignSchema } from '@/core/domain/design';
 
 const voiceIds = Object.keys(VOICES) as [keyof typeof VOICES, ...(keyof typeof VOICES)[]];
 
@@ -8,6 +9,9 @@ export const ChannelInput = z.object({
   name: z.string().trim().min(1, 'Cần tên kênh').max(60),
   description: z.string().trim().max(500).default(''),
   font: z.enum(BRAND_FONT_IDS as [BrandFont, ...BrandFont[]]).default('Baloo2'),
+  imageStyle: z.string().trim().max(500).default(''),
+  introDesign: SceneDesignSchema.nullable().default(null),
+  outroDesign: SceneDesignSchema.nullable().default(null),
   audience: z.string().trim().min(1, 'Cần mô tả khán giả').max(300),
   style: z.string().trim().min(1, 'Cần mô tả giọng văn').max(500),
   voice: z.enum(voiceIds),

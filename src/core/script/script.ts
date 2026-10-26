@@ -4,7 +4,7 @@
 import { z } from 'zod';
 
 import { UserFacingError } from '../domain/errors';
-import type { PublishKit, Scene } from '../domain/episode';
+import { emptyAssets, type PublishKit, type Scene } from '../domain/episode';
 import { newId } from '../domain/ids';
 import { fillProps, fillTemplate, type Slot, type TemplateVars } from '../series/format';
 import type { ToolCatalog } from '../tools/catalog';
@@ -76,17 +76,42 @@ export function parseDraft(raw: unknown, slots: Slot[], catalog: ToolCatalog): S
   return { title: parsed.title.trim(), slots: out, publish: parsed.publish };
 }
 
+/** The scene a locked slot stands for, filled from the slot's template. */
+export function lockedScene(slot: Slot, vars: TemplateVars, catalog: ToolCatalog): Scene {
+  const block = catalog.block(slot.locked!.block);
+  if (!block) throw new UserFacingError(`Khe khoá "${slot.name}" dùng khối không tồn tại: @${slot.locked!.block}`);
+  return { id: newId(), slotId: slot.id, block: block.ref, locked: true, narration: fillTemplate(slot.locked!.narration, vars), props: cleanProps(block, fillProps(slot.locked!.props, vars)), approved: false, assets: emptyAssets() };
+}
+
+/**
+ * A script written before the format had locked slots (or whose format gained one) gets them now: the channel's
+ * intro and outro appear in their place, and an AI-written scene that only imitated one of them is dropped.
+ * Returns null when nothing needs to change.
+ */
+export function withLockedScenes(slots: Slot[], scenes: Scene[], vars: TemplateVars, catalog: ToolCatalog): Scene[] | null {
+  const locked = slots.filter((s) => s.fill === 'locked' && s.locked);
+  const missing = locked.filter((s) => !scenes.some((x) => x.slotId === s.id));
+  if (!missing.length) return null;
+  const imitated = (x: Scene) => !x.locked && missing.some((s) => normalizeRef(s.locked!.block) === normalizeRef(x.block));
+  const kept = scenes.filter((x) => !imitated(x));
+  const out: Scene[] = [];
+  for (const slot of slots) {
+    if (slot.fill === 'locked' && slot.locked) out.push(...(kept.filter((x) => x.slotId === slot.id).length ? kept.filter((x) => x.slotId === slot.id) : [lockedScene(slot, vars, catalog)]));
+    else out.push(...kept.filter((x) => x.slotId === slot.id));
+  }
+  out.push(...kept.filter((x) => !slots.some((s) => s.id === x.slotId)));
+  return out;
+}
+
 /** Final scene list in slot order, with locked slots filled from the format template. */
 export function assembleScenes(slots: Slot[], draft: ScriptDraft, vars: TemplateVars, catalog: ToolCatalog): Scene[] {
   const scenes: Scene[] = [];
   for (const slot of slots) {
     if (slot.fill === 'locked' && slot.locked) {
-      const block = catalog.block(slot.locked.block);
-      if (!block) throw new UserFacingError(`Khe khoá "${slot.name}" dùng khối không tồn tại: @${slot.locked.block}`);
-      scenes.push({ id: newId(), slotId: slot.id, block: block.ref, locked: true, narration: fillTemplate(slot.locked.narration, vars), props: cleanProps(block, fillProps(slot.locked.props, vars)) });
+      scenes.push(lockedScene(slot, vars, catalog));
       continue;
     }
-    for (const s of draft.slots[slot.id] ?? []) scenes.push({ id: newId(), slotId: slot.id, block: s.block, locked: false, narration: s.narration, props: s.props });
+    for (const s of draft.slots[slot.id] ?? []) scenes.push({ id: newId(), slotId: slot.id, block: s.block, locked: false, narration: s.narration, props: s.props, approved: false, assets: emptyAssets() });
   }
   return scenes;
 }

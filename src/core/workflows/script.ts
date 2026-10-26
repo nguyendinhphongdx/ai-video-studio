@@ -3,6 +3,7 @@ import { runTask } from '../agent/runner';
 import type { Episode } from '../domain/episode';
 import type { CoreDeps, ProgressFn } from '../ports';
 import { applyPublishTemplate, emptyPublishKit } from '../script/publish';
+import { carryOver, imageStyleOf } from '../scenes/assets';
 import { assembleScenes, draftFromScenes, type ScriptDraft } from '../script/script';
 import { reviseEpisodeTask } from '../tasks/revise-episode';
 import { writeEpisodeTask } from '../tasks/write-episode';
@@ -14,11 +15,12 @@ async function save(deps: CoreDeps, episode: Episode, draft: ScriptDraft, note: 
   const vars = templateVars(ctx, draft.title);
   const updated = await deps.episodes.update(episode.id, {
     title: draft.title,
-    scenes: assembleScenes(ctx.slots, draft, vars, deps.tools),
+    scenes: carryOver(episode.scenes, assembleScenes(ctx.slots, draft, vars, deps.tools), { tools: deps.tools, channelStyle: imageStyleOf(ctx), voice: episode.voice }),
     publish: applyPublishTemplate(draft.publish, ctx.series?.version.publish ?? null, vars),
     status: 'script_review',
     // Pin the rules this script was written with.
     seriesVersion: ctx.series ? ctx.series.version.version : null,
+    knowledgeVersion: ctx.knowledge?.version ?? null,
   });
   await deps.episodes.addEvent(episode.id, note);
   await deps.events.publish({ type: 'episode.script_ready', episodeId: episode.id });

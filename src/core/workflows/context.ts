@@ -15,8 +15,9 @@ export async function buildContext(deps: CoreDeps, episode: Episode): Promise<Co
     const s = await deps.series.get(episode.seriesId);
     series = { series: s, version: await deps.series.version(s.id, episode.seriesVersion ?? s.currentVersion) };
   }
-  const skill = await deps.skills.get(series?.version.skillId ?? episode.skillId);
-  const format = series?.version.format ?? formatFromSkill(skill, episode.sceneCount);
+  const skill = await deps.skills.get(episode.channelId, series?.version.skillId ?? episode.skillId);
+  const knowledge = await deps.channels.knowledge(episode.channelId);
+  const format = series?.version.format ?? formatFromSkill(skill, episode.sceneCount, deps.tools);
   const slots = activeSlots(format, episode.number);
   if (!slots.some((s) => s.fill === 'ai')) throw new UserFacingError('Khung tập không có phần nào cho AI viết');
   const blocks = [...new Map(slots.filter((s) => s.fill === 'ai').flatMap((s) => slotBlocks(s, deps.tools)).map((b) => [b.ref, b])).values()];
@@ -33,16 +34,17 @@ export async function buildContext(deps: CoreDeps, episode: Episode): Promise<Co
       };
     }
   }
-  return { channel, series, skill, format, slots, blocks, memory, episode, neighbours };
+  return { channel, series, knowledge, skill, format, slots, blocks, memory, episode, neighbours };
 }
 
 export function templateVars(ctx: ContextInput, title: string): TemplateVars {
   return {
-    n: ctx.episode.number !== null ? String(ctx.episode.number) : '',
-    topic: ctx.episode.topic,
+    n: ctx.episode?.number != null ? String(ctx.episode.number) : '',
+    topic: ctx.episode?.topic ?? '',
     next_topic: ctx.neighbours.nextTopic ?? '',
     series: ctx.series?.series.name ?? '',
     title,
     channel: ctx.channel.name,
+    outro: ctx.channel.outroText,
   };
 }

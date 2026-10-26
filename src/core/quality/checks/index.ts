@@ -1,4 +1,4 @@
-import type { QualityCheck } from '../check';
+import type { QualityCheck, QualityIssue } from '../check';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const norm = (s: string) => s.toLowerCase().normalize('NFC');
@@ -63,5 +63,55 @@ const narrationLength: QualityCheck = {
       .map((s) => ({ check: 'narration-length', level: 'warning' as const, message: 'Lời đọc quá 3 câu', sceneId: s.id })),
 };
 
+/** Scenes of one block must keep changing the props the block lists in varyBy (e.g. the camera shot of a picture). */
+const variety: QualityCheck = {
+  id: 'variety',
+  name: 'Đa dạng bố cục',
+  stages: ['script'],
+  run: ({ scenes, tools }) => {
+    if (!tools) return [];
+    const out: QualityIssue[] = [];
+    const counts = new Map<string, number>();
+    const total = new Map<string, number>();
+    scenes.forEach((s, i) => {
+      for (const key of tools.block(s.block)?.varyBy ?? []) {
+        const value = String(s.props[key] ?? 'auto');
+        const group = `${s.block}|${key}`;
+        total.set(group, (total.get(group) ?? 0) + 1);
+        counts.set(`${group}|${value}`, (counts.get(`${group}|${value}`) ?? 0) + 1);
+        const prev = scenes[i - 1];
+        if (prev && prev.block === s.block && String(prev.props[key] ?? 'auto') === value) out.push({ check: 'variety', level: 'warning', message: `Hai cảnh liền nhau cùng ${key} "${value}": đổi để bố cục không lặp`, sceneId: s.id });
+      }
+    });
+    for (const [k, n] of counts) {
+      const [block, key, value] = k.split('|') as [string, string, string];
+      const all = total.get(`${block}|${key}`) ?? 0;
+      if (value !== 'auto' && n >= 3 && n / all > 0.34) out.push({ check: 'variety', level: 'warning', message: `${key} "${value}" lặp ${n}/${all} cảnh: dùng thêm kiểu khác` });
+    }
+    return out;
+  },
+};
+
+/** Narration is spoken aloud: it should have questions, a changing rhythm, and scenes that do not all open the same way. */
+const spoken: QualityCheck = {
+  id: 'spoken',
+  name: 'Giọng kể tự nhiên',
+  stages: ['script'],
+  run: ({ scenes }) => {
+    const told = scenes.filter((s) => !s.locked && s.narration.trim());
+    if (told.length < 4) return [];
+    const out: QualityIssue[] = [];
+    const words = (s: string) => s.trim().split(/\s+/).length;
+    if (!told.some((s) => s.narration.includes('?'))) out.push({ check: 'spoken', level: 'warning', message: 'Chưa có câu hỏi nào dẫn dắt người xem: lời đọc dễ nghe như bài tường thuật' });
+    const shortLine = told.some((s) => s.narration.split(/[.!?…]+/).some((x) => x.trim() && words(x) <= 5));
+    if (!shortLine) out.push({ check: 'spoken', level: 'warning', message: 'Mọi câu đều dài: thêm vài câu rất ngắn để có nhịp nói' });
+    for (let i = 1; i < told.length; i++) {
+      const open = (s: string) => s.trim().split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+      if (open(told[i]!.narration) === open(told[i - 1]!.narration)) out.push({ check: 'spoken', level: 'warning', message: `Hai cảnh liền nhau cùng mở bằng "${open(told[i]!.narration)}"`, sceneId: told[i]!.id });
+    }
+    return out;
+  },
+};
+
 /** Registered checks. Add a check here. */
-export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength];
+export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken];

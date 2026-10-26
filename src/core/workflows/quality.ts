@@ -19,5 +19,6 @@ export async function scriptIssues(deps: CoreDeps, episode: Episode): Promise<Qu
     bible: ctx.series?.version.bible ?? null,
     sceneSeconds: new Map(timeline.scenes.map((t) => [t.sceneId, t.duration])),
     totalSeconds: timeline.total,
+    tools: deps.tools,
   });
 }

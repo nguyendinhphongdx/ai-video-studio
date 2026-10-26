@@ -1,4 +1,6 @@
+import { imageStyleOf } from '../scenes/assets';
 import { MEDIA_MUSIC_PREFIX } from '../domain/catalog';
+import { fallbackDesign } from '../domain/design';
 import { UserFacingError } from '../domain/errors';
 import type { Render } from '../domain/episode';
 import type { CoreDeps, ProgressFn } from '../ports';
@@ -14,6 +16,11 @@ export async function renderBrand(deps: Pick<CoreDeps, 'media'>, channel: Produc
     name: channel.name,
     font: channel.font,
     logoSrc: channel.logoPath ? await deps.media.dataUri(deps.media.absolute(channel.logoPath)) : null,
+    avatarSrc: channel.avatarPath ? await deps.media.dataUri(deps.media.absolute(channel.avatarPath)) : null,
+    introDesign: channel.introDesign ?? fallbackDesign('intro', channel.palette),
+    outroDesign: channel.outroDesign ?? fallbackDesign('outro', channel.palette),
+    introArtSrc: channel.introArtPath ? await deps.media.dataUri(deps.media.absolute(channel.introArtPath)) : null,
+    outroArtSrc: channel.outroArtPath ? await deps.media.dataUri(deps.media.absolute(channel.outroArtPath)) : null,
     outroText: channel.outroText,
     subscribeText: channel.subscribeText,
     palette: channel.palette,
@@ -23,6 +30,8 @@ export async function renderBrand(deps: Pick<CoreDeps, 'media'>, channel: Produc
 export async function produce(deps: CoreDeps, episodeId: string, progress: ProgressFn): Promise<Render[]> {
   const episode = await deps.episodes.get(episodeId);
   if (!episode.scenes.length) throw new UserFacingError('Kịch bản chưa có cảnh nào');
+  const pending = episode.scenes.filter((s) => !s.approved).length;
+  if (pending) throw new UserFacingError(`Còn ${pending} cảnh chưa duyệt. Duyệt hết các cảnh rồi sản xuất.`);
   for (const s of episode.scenes) if (!deps.tools.block(s.block)) throw new UserFacingError(`Cảnh dùng khối không tồn tại: @${s.block}`);
   const ctx = await buildContext(deps, episode);
   const track = ctx.channel.music;
@@ -31,6 +40,7 @@ export async function produce(deps: CoreDeps, episodeId: string, progress: Progr
     deps,
     episode,
     channel: ctx.channel,
+    imageStyle: imageStyleOf(ctx),
     format: ctx.format,
     slots: ctx.slots,
     bible: ctx.series?.version.bible ?? null,

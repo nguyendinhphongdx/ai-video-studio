@@ -4,6 +4,7 @@ import type { SkillSummary } from '@/server/modules/skill/skill.service';
 import type { ToolInfo, BlockInfo } from '@/server/modules/tool/tool.service';
 import type { CreateEpisodeInput, EpisodeOptionsInput, EpisodeView, SaveScriptInput } from '@/server/modules/episode/episode.types';
 
+export type { SceneAssetView } from '@/server/modules/episode/episode.types';
 export type { AiRun, BlockInfo, CreateEpisodeInput, EpisodeView, SaveScriptInput, SkillSummary, ToolInfo };
 
 const ep = (id: string, rest = '') => `/episodes/${id}${rest}`;
@@ -13,10 +14,13 @@ export const episodeApi = {
   get: (id: string) => api<EpisodeView>(ep(id)),
   create: (input: Partial<CreateEpisodeInput> & Pick<CreateEpisodeInput, 'channelId' | 'topic' | 'formats'>) => api<EpisodeView>('/episodes', { body: input }),
   remove: (id: string) => api<{ ok: true }>(ep(id), { method: 'DELETE' }),
+  changeSkill: (id: string, skillId: string) => api<EpisodeView>(ep(id), { method: 'PATCH', body: { skillId } }),
   updateOptions: (id: string, input: EpisodeOptionsInput) => api<EpisodeView>(ep(id), { method: 'PATCH', body: input }),
   saveScript: (id: string, input: SaveScriptInput) => api<EpisodeView>(ep(id, '/script'), { method: 'PUT', body: input }),
   writeScript: (id: string) => api<EpisodeView>(ep(id, '/script'), { method: 'POST' }),
   revise: (id: string, feedback: string) => api<EpisodeView>(ep(id, '/revise'), { body: { feedback } }),
+  assets: (id: string, body: { sceneIds: string[] | null; image: boolean; voice: boolean }) => api<EpisodeView>(ep(id, '/assets'), { body }),
+  approvals: (id: string, body: { sceneIds: string[] | null; approved: boolean }) => api<EpisodeView>(ep(id, '/approvals'), { body }),
   approveScript: (id: string) => api<EpisodeView>(ep(id, '/approve-script'), { method: 'POST' }),
   approveVideo: (id: string) => api<EpisodeView>(ep(id, '/approve-video'), { method: 'POST' }),
   rejectVideo: (id: string, feedback: string) => api<EpisodeView>(ep(id, '/reject-video'), { body: { feedback } }),
@@ -25,7 +29,7 @@ export const episodeApi = {
   prompt: (id: string, feedback?: string) => api<{ prompt: string }>(ep(id, `/prompt${feedback ? `?feedback=${encodeURIComponent(feedback)}` : ''}`)),
   aiRuns: (id: string) => api<AiRun[]>(ep(id, '/ai-runs')),
   tools: () => api<ToolInfo[]>('/tools'),
-  skills: () => api<SkillSummary[]>('/skills'),
+  skills: (channelId: string) => api<SkillSummary[]>(`/channels/${channelId}/skills`),
   previewVoice: (text: string, voice: string) => api<{ url: string }>('/tts/preview', { body: { text, voice } }),
 };
 

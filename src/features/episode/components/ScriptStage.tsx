@@ -9,6 +9,7 @@ import { useAppConfig } from '@/features/app';
 import { isBusy, useEpisodeAction } from '../hooks/use-episode';
 import { episodeApi, type EpisodeView } from '../services/episode.api';
 
+import { SkillSwitcher } from './SkillSwitcher';
 import { ManualScriptPanel } from './storyboard/ManualScriptPanel';
 import { Storyboard } from './storyboard/Storyboard';
 
@@ -34,10 +35,24 @@ function Writing() {
 export function ScriptStage({ view }: { view: EpisodeView }) {
   const { data: config } = useAppConfig();
   const write = useEpisodeAction(view.episode.id, () => episodeApi.writeScript(view.episode.id));
-  if (view.episode.scenes.length) return <Storyboard view={view} />;
-  if (isBusy(view)) return <Writing />;
+  const switcher = <SkillSwitcher view={view} />;
+  if (view.episode.scenes.length)
+    return (
+      <div className="flex flex-col gap-4">
+        {switcher}
+        <Storyboard view={view} />
+      </div>
+    );
+  if (isBusy(view))
+    return (
+      <div className="flex flex-col gap-4">
+        {switcher}
+        <Writing />
+      </div>
+    );
   return (
     <div className="flex flex-col gap-4">
+      {switcher}
       {config?.llm.ready ? (
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-6">
           <div className="min-w-0 flex-1">

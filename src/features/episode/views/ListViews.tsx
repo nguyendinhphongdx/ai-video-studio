@@ -29,7 +29,7 @@ export function LibraryView() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Thư viện" description={`Mọi video của kênh ${current?.name ?? ''}.`} />
       <Tabs value={filter} onValueChange={setFilter}>
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((f) => (
             <TabsTrigger key={f.id} value={f.id}>
               {f.label}

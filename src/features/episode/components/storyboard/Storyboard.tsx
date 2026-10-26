@@ -1,9 +1,8 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Loader2, Plus, Volume2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, ImageIcon, Loader2, Plus, Volume2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -11,23 +10,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
 import { FPS, type Format } from '@/core/domain/catalog';
-import type { Scene } from '@/core/domain/episode';
+import { emptyAssets, type Scene } from '@/core/domain/episode';
 import { useAppConfig, useCurrentChannel } from '@/features/app';
-import { errorMessage } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 import { isBusy, useEpisodeAction, useTools } from '../../hooks/use-episode';
-import { blockIndex, brandOf, musicSrc, storyboardProps } from '../../lib/preview';
+import { blockIndex, brandOf, musicSrc, storyboardProps, type VoiceLine } from '../../lib/preview';
 import { fmtDuration } from '../../lib/status';
 import { episodeApi, type EpisodeView } from '../../services/episode.api';
 import { StoryboardPlayer } from '../preview';
 
-import { ManualScriptPanel } from './ManualScriptPanel';
-import { ReviseBar } from './ReviseBar';
+import { AskAiButton } from '@/features/assistant/components/AskAiButton';
+
 import { SceneCard } from './SceneCard';
 import { SceneEditor } from './SceneEditor';
 import { useScriptDraft } from './use-script-draft';
-import { useVoicePreview } from './use-voice-preview';
 
 /** One "+" per slot; blocks the slot already uses most come first. */
 function AddSceneButton({ refs, blocks, usage, onAdd }: { refs: string[]; blocks: ReturnType<typeof blockIndex>; usage: string[]; onAdd: (ref: string) => void }) {
@@ -77,26 +74,58 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const blocks = useMemo(() => blockIndex(tools), [tools]);
   const brand = useMemo(() => brandOf(channel), [channel]);
   const { draft, setDraft, dirty, reset, updateScene, removeScene, insertScene, moveScene, toInput } = useScriptDraft(view);
-  const voice = useVoicePreview(view.episode.voice);
-  const [useVoice, setUseVoice] = useState(false);
+  const [useVoice, setUseVoice] = useState(true);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => audio.current?.pause(), []);
   const [editing, setEditing] = useState<string | null>(null);
   const [previewFormat, setPreviewFormat] = useState<Format>(view.episode.formats[0] ?? 'landscape');
   const [seek, setSeek] = useState<{ frame: number; nonce: number } | null>(null);
-  const [manualFeedback, setManualFeedback] = useState<string | null>(null);
 
   const busy = isBusy(view);
+  const assetJob = view.job && view.job.kind === 'scene_assets' && (view.job.state === 'queued' || view.job.state === 'running') ? view.job : null;
+  const assetTargets = (assetJob?.payload.sceneIds as string[] | null | undefined) ?? null;
+  const isWorking = (sceneId: string) => Boolean(assetJob && (assetTargets === null || assetTargets.includes(sceneId)));
   const editable = !busy && (view.episode.status === 'script_review' || view.episode.status === 'draft');
-  const voiceLines = useVoice ? voice.linesFor(draft.scenes) : undefined;
+  // Real pictures and voices that match each scene's current content (stale ones are ignored until regenerated).
+  const voiceLines = useMemo(() => {
+    const m = new Map<string, VoiceLine>();
+    for (const s of draft.scenes) {
+      const a = view.assets[s.id];
+      if (a?.voiceUrl && a.voiceSeconds) m.set(s.id, { url: a.voiceUrl, seconds: a.voiceSeconds });
+    }
+    return m;
+  }, [draft.scenes, view.assets]);
+  const images = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of draft.scenes) {
+      const url = view.assets[s.id]?.imageUrl;
+      if (url) m.set(s.id, url);
+    }
+    return m;
+  }, [draft.scenes, view.assets]);
   const music = view.episode.music ? musicSrc(channel?.music) : null;
-  const preview = useMemo(() => storyboardProps(draft.scenes, blocks, brand, { voice: voiceLines, music }), [draft.scenes, blocks, brand, voiceLines, music]);
+  const preview = useMemo(() => storyboardProps(draft.scenes, blocks, brand, { voice: useVoice ? voiceLines : undefined, images, music }), [draft.scenes, blocks, brand, voiceLines, images, useVoice, music]);
   const total = preview.durationInFrames / FPS;
   const ordinalOf = (s: Scene) => draft.scenes.slice(0, draft.scenes.indexOf(s) + 1).filter((x) => x.block === s.block).length;
 
   const save = useEpisodeAction(id, () => episodeApi.saveScript(id, toInput()), 'Đã lưu kịch bản');
-  const revise = useEpisodeAction(id, (feedback: string) => episodeApi.revise(id, feedback), 'AI đang sửa kịch bản…');
   const options = useEpisodeAction(id, (formats: Format[]) => episodeApi.updateOptions(id, { formats }));
-  const approve = useEpisodeAction(id, async () => {
+  /** Pictures, voices and approvals work on saved scenes, so unsaved edits are saved first. */
+  const saveFirst = async () => {
     if (dirty) await episodeApi.saveScript(id, toInput());
+  };
+  const assets = useEpisodeAction(id, async (a: { sceneIds: string[] | null; image: boolean; voice: boolean }) => {
+    await saveFirst();
+    return episodeApi.assets(id, a);
+  }, 'Đã giao cho worker tạo, kết quả hiện ngay khi xong');
+  const approval = useEpisodeAction(id, async (a: { sceneIds: string[] | null; approved: boolean }) => {
+    await saveFirst();
+    return episodeApi.approvals(id, a);
+  });
+  const autos = useEpisodeAction(id, (o: { autoImages?: boolean; autoVoice?: boolean }) => episodeApi.updateOptions(id, o));
+  const approve = useEpisodeAction(id, async () => {
+    await saveFirst();
     return episodeApi.approveScript(id);
   });
 
@@ -104,22 +133,10 @@ export function Storyboard({ view }: { view: EpisodeView }) {
     approve.mutate(undefined, {
       onSuccess: () => router.push(`${ROUTES.episode(id)}/produce`),
     });
-  const onRevise = async (feedback: string) => {
-    if (!config?.llm.ready) {
-      setManualFeedback(feedback);
-      return;
-    }
-    try {
-      if (dirty) await episodeApi.saveScript(id, toInput());
-      revise.mutate(feedback);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
-  };
   const addScene = (slotId: string, ref: string) => {
     const b = blocks.get(ref);
     if (!b) return;
-    const scene: Scene = { id: newSceneId(), slotId, block: ref, locked: false, narration: 'Lời đọc cho cảnh mới.', props: { ...b.defaults } };
+    const scene: Scene = { id: newSceneId(), slotId, block: ref, locked: false, narration: 'Lời đọc cho cảnh mới.', props: { ...b.defaults }, approved: false, assets: emptyAssets() };
     insertScene(scene, slotId);
     setEditing(scene.id);
   };
@@ -134,6 +151,20 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const general = view.issues.filter((i) => !i.sceneId);
   const editingScene = draft.scenes.find((s) => s.id === editing) ?? null;
   const target = view.durationSec;
+  const approvedCount = draft.scenes.filter((x) => x.approved).length;
+  const missingImages = draft.scenes.filter((x) => view.assets[x.id]?.needsImage && !view.assets[x.id]?.imageUrl).length;
+  const missingVoices = draft.scenes.filter((x) => view.assets[x.id]?.needsVoice && !view.assets[x.id]?.voiceUrl).length;
+  const approvable = draft.scenes.filter((x) => !x.approved && view.assets[x.id]?.ready);
+  const allApproved = !dirty && draft.scenes.length > 0 && approvedCount === draft.scenes.length;
+  const play = (sceneId: string) => {
+    const url = view.assets[sceneId]?.voiceUrl;
+    audio.current?.pause();
+    if (!url || playingId === sceneId) return setPlayingId(null);
+    audio.current = new Audio(url);
+    audio.current.onended = () => setPlayingId(null);
+    setPlayingId(sceneId);
+    void audio.current.play().catch(() => setPlayingId(null));
+  };
 
   return (
     <div className="flex flex-col gap-6 pb-24">
@@ -156,18 +187,9 @@ export function Storyboard({ view }: { view: EpisodeView }) {
                 {f === 'portrait' ? '9:16' : '16:9'}
               </button>
             ))}
-            <Button
-              variant={useVoice ? 'secondary' : 'outline'}
-              size="sm"
-              className="ml-auto"
-              disabled={!config?.tts || voice.loading !== null}
-              onClick={async () => {
-                if (!useVoice) await voice.loadAll(draft.scenes);
-                setUseVoice(!useVoice);
-              }}
-            >
-              {voice.loading ? <Loader2 className="animate-spin" aria-hidden /> : <Volume2 aria-hidden />}
-              {voice.loading ? 'Đang tạo giọng đọc…' : useVoice ? 'Đang dùng giọng thật' : 'Nghe với giọng thật'}
+            <Button variant={useVoice ? 'secondary' : 'outline'} size="sm" className="ml-auto" disabled={!voiceLines.size} onClick={() => setUseVoice(!useVoice)}>
+              <Volume2 aria-hidden />
+              {!voiceLines.size ? 'Chưa có giọng nào' : useVoice ? `Đang nghe giọng thật (${voiceLines.size}/${draft.scenes.length} cảnh)` : 'Nghe với giọng thật'}
             </Button>
           </div>
         </section>
@@ -185,6 +207,50 @@ export function Storyboard({ view }: { view: EpisodeView }) {
             </span>
             <span className="rounded-full bg-muted px-2.5 py-1">Giọng: {config?.voices[view.episode.voice as keyof typeof config.voices] ?? view.episode.voice}</span>
           </div>
+          <div className="flex flex-col gap-3 rounded-xl border bg-card p-3.5" aria-label="Tiến độ duyệt cảnh">
+            <div className="flex items-center justify-between gap-3 text-small font-semibold">
+              <span>
+                {approvedCount}/{draft.scenes.length} cảnh đã duyệt
+              </span>
+              <span className="text-caption font-normal text-muted-foreground">Duyệt hết mới sản xuất (ghép video)</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={approvedCount} aria-valuemin={0} aria-valuemax={draft.scenes.length} aria-label="Cảnh đã duyệt">
+              <div className="h-full rounded-full bg-success transition-all" style={{ width: `${draft.scenes.length ? (approvedCount / draft.scenes.length) * 100 : 0}%` }} />
+            </div>
+            {editable ? (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" disabled={!!assetJob || assets.isPending || !missingImages} onClick={() => assets.mutate({ sceneIds: null, image: true, voice: false })}>
+                  <ImageIcon aria-hidden />
+                  Tạo ảnh còn thiếu{missingImages ? ` (${missingImages})` : ''}
+                </Button>
+                <Button variant="outline" size="sm" disabled={!!assetJob || assets.isPending || !missingVoices} onClick={() => assets.mutate({ sceneIds: null, image: false, voice: true })}>
+                  <Volume2 aria-hidden />
+                  Tạo giọng còn thiếu{missingVoices ? ` (${missingVoices})` : ''}
+                </Button>
+                <Button size="sm" disabled={!!assetJob || approval.isPending || !approvable.length} onClick={() => approval.mutate({ sceneIds: approvable.map((x) => x.id), approved: true })}>
+                  <CircleCheck aria-hidden />
+                  Duyệt các cảnh đã đủ{approvable.length ? ` (${approvable.length})` : ''}
+                </Button>
+              </div>
+            ) : null}
+            {assetJob ? (
+              <p role="status" className="flex items-center gap-2 text-caption text-info">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                Worker đang tạo ảnh/giọng… {Math.round(assetJob.progress * 100)}%
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t pt-2.5 text-small">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className="size-4 accent-primary" checked={view.episode.autoImages} disabled={!editable} onChange={(e) => autos.mutate({ autoImages: e.target.checked })} />
+                Tự tạo ảnh khi AI viết xong
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className="size-4 accent-primary" checked={view.episode.autoVoice} disabled={!editable} onChange={(e) => autos.mutate({ autoVoice: e.target.checked })} />
+                Tự tạo giọng khi AI viết xong
+              </label>
+              <span className="text-caption text-muted-foreground">Tắt thì chỉ tạo khi bạn bấm (tiết kiệm lượt gọi).</span>
+            </div>
+          </div>
           {general.length ? (
             <ul className="flex flex-col gap-1.5">
               {general.map((i, k) => (
@@ -200,11 +266,8 @@ export function Storyboard({ view }: { view: EpisodeView }) {
               Kiểm tra tự động: đạt
             </p>
           )}
-          <ReviseBar onRevise={onRevise} pending={revise.isPending} disabled={!editable} />
         </section>
       </div>
-
-      {manualFeedback !== null ? <ManualScriptPanel id={id} feedback={manualFeedback} /> : null}
 
       {view.slots.map((slot) => {
         const scenes = draft.scenes.filter((s) => s.slotId === slot.id);
@@ -215,11 +278,37 @@ export function Storyboard({ view }: { view: EpisodeView }) {
               <h2 id={`slot-${slot.id}`} className="text-title font-bold">
                 {slot.name}
               </h2>
+              {editable && slot.fill === 'ai' && scenes.length > 1 ? (
+                <span className="ml-auto">
+                  <AskAiButton
+                    label="Biên tập mạch chuyện"
+                    title="Nhờ AI biên tập lại mạch chuyện"
+                    prompt={`Biên tập lại mạch chuyện và lời đọc của video này (dùng revise_script, giữ nguyên ảnh/giọng của cảnh không đổi).\nChủ đề: ${view.episode.topic}\nHiện ${scenes.length} cảnh. Lời đọc đang như sau:\n${scenes.map((x, i) => `${i + 1}. ${x.narration}`).join('\n')}\n\nCần sửa: lời đọc nghe còn gượng, giống văn viết, các cảnh rời rạc. Hãy viết lại để nghe như người đang kể: xen câu dài với câu rất ngắn, nói với người xem ("bạn"), có vài câu hỏi dẫn dắt, mỗi cảnh kết bằng một mồi sang cảnh sau, có một bước ngoặt, và một cảnh kết thật sự trả lời câu hỏi mở đầu (lời chào kênh chỉ đứng sau cảnh kết). Bỏ từ sách vở sáo rỗng, thay bằng chi tiết cụ thể.\n\nThêm yêu cầu riêng: [ví dụ: kể như một cuộc điều tra, thêm một nhân vật cụ thể].`}
+                  />
+                </span>
+              ) : null}
               <span className="text-caption text-muted-foreground">{slot.fill === 'locked' ? 'Khoá theo series' : `${scenes.length} cảnh · cần ${slot.scenes.min === slot.scenes.max ? slot.scenes.min : `${slot.scenes.min}–${slot.scenes.max}`}`}</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {scenes.map((s) => (
-                <SceneCard key={s.id} scene={s} ordinal={ordinalOf(s)} blocks={blocks} brand={brand} issues={issuesFor(s)} voice={voice} onOpen={() => setEditing(s.id)} onJump={() => jump(s)} />
+                <SceneCard
+                  key={s.id}
+                  scene={s}
+                  index={draft.scenes.indexOf(s)}
+                  ordinal={ordinalOf(s)}
+                  blocks={blocks}
+                  brand={brand}
+                  issues={issuesFor(s)}
+                  assets={view.assets[s.id]}
+                  working={isWorking(s.id)}
+                  editable={editable}
+                  playingId={playingId}
+                  onPlay={() => play(s.id)}
+                  onGenerate={(what) => assets.mutate({ sceneIds: [s.id], image: what === 'image', voice: what === 'voice' })}
+                  onApprove={(approved) => approval.mutate({ sceneIds: [s.id], approved })}
+                  onOpen={() => setEditing(s.id)}
+                  onJump={() => jump(s)}
+                />
               ))}
               {canAdd ? <AddSceneButton refs={slot.blocks} blocks={blocks} usage={scenes.map((x) => x.block)} onAdd={(ref) => addScene(slot.id, ref)} /> : null}
             </div>
@@ -230,11 +319,15 @@ export function Storyboard({ view }: { view: EpisodeView }) {
       <SceneEditor
         scene={editingScene}
         ordinal={editingScene ? ordinalOf(editingScene) : 1}
+        position={editingScene ? draft.scenes.indexOf(editingScene) + 1 : 1}
         slot={view.slots.find((s) => s.id === editingScene?.slotId)}
         blocks={blocks}
         brand={brand}
         editable={editable}
-        voice={{ ...voice, narrationSrc: editingScene ? (voice.linesFor([editingScene]).get(editingScene.id)?.url ?? null) : null }}
+        assets={editingScene ? view.assets[editingScene.id] : undefined}
+        working={editingScene ? isWorking(editingScene.id) : false}
+        onGenerate={(what) => editingScene && assets.mutate({ sceneIds: [editingScene.id], image: what === 'image', voice: what === 'voice' })}
+        onApprove={(approved) => editingScene && approval.mutate({ sceneIds: [editingScene.id], approved })}
         onChange={(patch) => editingScene && updateScene(editingScene.id, patch)}
         onMove={(dir) => editingScene && moveScene(editingScene.id, dir)}
         onRemove={() => {
@@ -245,7 +338,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
       />
 
       {editable ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 backdrop-blur md:left-60">
+        <div data-action-bar className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 backdrop-blur md:left-60">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 md:px-12">
             {dirty ? (
               <>
@@ -258,7 +351,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
                 </Button>
               </>
             ) : (
-              <span className="hidden text-small text-muted-foreground sm:inline">Xem từng cảnh, nghe thử, sửa nếu cần.</span>
+              <span className="hidden text-small text-muted-foreground sm:inline">Mỗi cảnh: sửa, tạo ảnh, tạo giọng rồi duyệt.</span>
             )}
             <span className="ml-auto text-small text-muted-foreground">Xuất ra</span>
             {(['landscape', 'portrait'] as Format[]).map((f) => (
@@ -272,9 +365,9 @@ export function Storyboard({ view }: { view: EpisodeView }) {
                 {f === 'portrait' ? '9:16' : '16:9'}
               </button>
             ))}
-            <Button size="lg" className="font-bold" onClick={onApprove} disabled={approve.isPending || !draft.scenes.length}>
+            <Button size="lg" className="font-bold" onClick={onApprove} disabled={approve.isPending || !allApproved} title={allApproved ? undefined : dirty ? 'Lưu thay đổi và duyệt lại các cảnh vừa sửa' : `Còn ${draft.scenes.length - approvedCount} cảnh chưa duyệt`}>
               {approve.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              Duyệt kịch bản → Sản xuất
+              {allApproved ? 'Ghép và sản xuất video' : `Duyệt hết cảnh để sản xuất (${approvedCount}/${draft.scenes.length})`}
             </Button>
           </div>
         </div>

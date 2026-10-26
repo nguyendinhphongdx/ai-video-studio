@@ -1,6 +1,7 @@
 // Builds @remotion/player props from a script, using the same timing rules as the worker
 // (estimated speech length until real voice previews are loaded).
 import { FPS, MEDIA_MUSIC_PREFIX } from '@/core/domain/catalog';
+import { fallbackDesign } from '@/core/domain/design';
 import type { Scene } from '@/core/domain/episode';
 import { estimateSpeechSec, sceneDuration } from '@/core/timeline';
 import type { ChannelView } from '@/features/app';
@@ -20,6 +21,11 @@ export function brandOf(channel: ChannelView | null): SceneBrand {
     name: channel?.name ?? '',
     font: channel?.font ?? 'Baloo2',
     logoSrc: channel?.logoUrl ?? null,
+    avatarSrc: channel?.avatarUrl ?? null,
+    introDesign: channel?.introDesign ?? fallbackDesign('intro', channel?.palette ?? []),
+    outroDesign: channel?.outroDesign ?? fallbackDesign('outro', channel?.palette ?? []),
+    introArtSrc: channel?.introArtUrl ?? null,
+    outroArtSrc: channel?.outroArtUrl ?? null,
     outroText: channel?.outroText ?? '',
     subscribeText: channel?.subscribeText ?? '',
     palette: channel?.palette ?? [],
@@ -47,7 +53,7 @@ export function storyboardProps(
   scenes: Scene[],
   blocks: Map<string, BlockInfo>,
   brand: SceneBrand,
-  opts: { voice?: Map<string, VoiceLine>; music: string | null },
+  opts: { voice?: Map<string, VoiceLine>; images?: Map<string, string>; music: string | null },
 ): { props: StoryboardProps; durationInFrames: number; starts: number[] } {
   const sbScenes: StoryboardScene[] = [];
   const starts: number[] = [];
@@ -59,7 +65,7 @@ export function storyboardProps(
     sbScenes.push({
       key: s.id,
       block: s.block,
-      props: s.props,
+      props: opts.images?.has(s.id) ? { ...s.props, image: opts.images.get(s.id) } : s.props,
       ordinal: scenes.slice(0, i + 1).filter((x) => x.block === s.block).length,
       durationSec: sec,
       narrationSrc: opts.voice?.get(s.id)?.url ?? null,

@@ -28,15 +28,15 @@ export function CreateVideoForm() {
   const qc = useQueryClient();
   const { current } = useCurrentChannel();
   const { data: config } = useAppConfig();
-  const { data: skills } = useSkills();
+  const { data: skills } = useSkills(current?.id);
   const [topic, setTopic] = useState('');
   const [formats, setFormats] = useState<Format[]>(['landscape']);
   const [skillId, setSkillId] = useState<string>('');
 
   useEffect(() => {
+    // Only the channel's own default is preselected: silently picking the first skill gave channels the wrong look.
     if (!skillId && current?.defaultSkillId) setSkillId(current.defaultSkillId);
-    else if (!skillId && skills?.[0]) setSkillId(skills[0].id);
-  }, [current, skills, skillId]);
+  }, [current, skillId]);
 
   const create = useMutation({
     mutationFn: () => episodeApi.create({ channelId: current!.id, topic: topic.trim(), formats, skillId }),
@@ -52,6 +52,7 @@ export function CreateVideoForm() {
   const aiReady = config?.llm.ready ?? true;
   const submit = () => {
     if (topic.trim().length < 3) return toast.error('Gõ ý tưởng video trước nhé');
+    if (!skillId) return toast.error('Chọn kiểu video (skill) trước nhé. Đặt skill mặc định cho kênh để khỏi chọn lại.');
     create.mutate();
   };
 
@@ -117,6 +118,11 @@ export function CreateVideoForm() {
             ))}
           </SelectContent>
         </Select>
+        {skills && !usable.length ? (
+          <Link href={ROUTES.skills} className="text-small font-semibold text-primary hover:underline">
+            Kênh chưa có skill: cài từ market
+          </Link>
+        ) : null}
         <Button size="lg" className="ml-auto h-12 gap-2.5 rounded-xl px-6 text-body font-bold" onClick={submit} disabled={create.isPending || !current}>
           {create.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {aiReady ? 'Tạo video' : 'Tạo & dán kịch bản'}

@@ -20,9 +20,10 @@ import { episodeApi, type EpisodeView } from '../../services/episode.api';
 
 // Same ids as src/core/pipeline/steps (shown in order).
 const STEPS = [
-  { id: 'voice', label: 'Lồng tiếng từng cảnh' },
+  { id: 'images', label: 'Gom ảnh đã duyệt của các cảnh' },
+  { id: 'voice', label: 'Gom giọng đọc đã duyệt' },
   { id: 'render', label: 'Dựng từng cảnh bằng tool của cảnh' },
-  { id: 'assemble', label: 'Ghép video + nhạc nền' },
+  { id: 'assemble', label: 'Ghép các cảnh + nhạc nền thành video' },
   { id: 'thumbnail', label: 'Ảnh thu nhỏ' },
   { id: 'quality', label: 'Kiểm tra tự động' },
 ];

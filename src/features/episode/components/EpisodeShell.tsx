@@ -1,5 +1,6 @@
 'use client';
 
+import { useFollowChannel } from '@/features/app';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Brain, CircleAlert, Loader2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
@@ -63,7 +64,7 @@ function JobBanner({ view }: { view: EpisodeView }) {
   const retry = useEpisodeAction(view.episode.id, () => episodeApi.retry(view.episode.id), 'Đã chạy lại');
   const job = view.job;
   if (!job || job.state !== 'failed') return null;
-  const where = { write_script: 'AI viết kịch bản', revise_script: 'AI sửa kịch bản', produce: 'sản xuất video', summarize: 'ghi bộ nhớ series' }[job.kind];
+  const where = { write_script: 'AI viết kịch bản', revise_script: 'AI sửa kịch bản', produce: 'sản xuất video', summarize: 'ghi bộ nhớ series', generate_art: 'tạo ảnh nền', scene_assets: 'tạo ảnh và giọng đọc', assistant_turn: 'trợ lý' }[job.kind];
   return (
     <div role="alert" className="flex flex-wrap items-start gap-3 rounded-xl bg-danger-soft px-4 py-3.5 text-destructive">
       <CircleAlert className="mt-0.5 size-5 shrink-0" aria-hidden />
@@ -74,6 +75,25 @@ function JobBanner({ view }: { view: EpisodeView }) {
       <Button variant="outline" size="sm" onClick={() => retry.mutate(undefined)} disabled={retry.isPending}>
         {retry.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <RotateCcw aria-hidden />}
         Thử lại
+      </Button>
+    </div>
+  );
+}
+
+/** The channel's knowledge changed after this script was written: offer to write it again with the new knowledge. */
+function KnowledgeBanner({ view }: { view: EpisodeView }) {
+  const rewrite = useEpisodeAction(view.episode.id, () => episodeApi.writeScript(view.episode.id), 'AI đang viết lại theo tri thức mới');
+  const { used, current } = view.knowledge;
+  const editable = view.episode.status === 'script_review' || view.episode.status === 'draft';
+  if (!editable || isBusy(view) || used === null || current === null || current <= used) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-info-soft px-4 py-3 text-small text-info">
+      <span className="min-w-0 flex-1">
+        Tri thức của kênh đã cập nhật (kịch bản này viết với v{used}, hiện là v{current}). Viết lại để dùng tri thức mới; các cảnh hiện tại sẽ được thay.
+      </span>
+      <Button variant="outline" size="sm" onClick={() => rewrite.mutate(undefined)} disabled={rewrite.isPending}>
+        {rewrite.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <RotateCcw aria-hidden />}
+        Viết lại theo tri thức mới
       </Button>
     </div>
   );
@@ -132,6 +152,7 @@ function EventLog({ view }: { view: EpisodeView }) {
 /** Shared frame of the three studio steps. `children` receives the live episode. */
 export function EpisodeShell({ id, stage, children }: { id: string; stage: Stage; children: (view: EpisodeView) => ReactNode }) {
   const { data: view, error } = useEpisode(id);
+  useFollowChannel(view?.episode.channelId);
   if (error) return <p className="text-destructive">{error.message}</p>;
   if (!view) return <Skeleton className="h-96 rounded-2xl" />;
   const e = view.episode;
@@ -139,9 +160,9 @@ export function EpisodeShell({ id, stage, children }: { id: string; stage: Stage
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <Link href={ROUTES.library} className="flex w-fit items-center gap-1.5 text-small text-muted-foreground hover:text-foreground">
+        <Link href={e.seriesId ? ROUTES.seriesOf(e.seriesId) : ROUTES.library} className="flex w-fit items-center gap-1.5 text-small text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" aria-hidden />
-          Thư viện
+          {e.seriesId ? 'Về series' : 'Thư viện'}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -158,6 +179,7 @@ export function EpisodeShell({ id, stage, children }: { id: string; stage: Stage
         <StepNav view={view} stage={stage} />
       </div>
       <JobBanner view={view} />
+      <KnowledgeBanner view={view} />
       {expected !== stage && !isBusy(view) ? (
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-info-soft px-4 py-3 text-small text-info">
           <span className="flex-1">{expected === 'script' ? 'Video đang ở bước kịch bản.' : expected === 'produce' ? 'Video đang ở bước sản xuất / duyệt video.' : 'Video đã sẵn sàng để đăng.'}</span>

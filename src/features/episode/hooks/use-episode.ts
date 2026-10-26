@@ -13,7 +13,7 @@ export const episodeKeys = {
   one: (id: string) => ['episode', id] as const,
   aiRuns: (id: string) => ['episode', id, 'ai-runs'] as const,
   tools: ['tools'] as const,
-  skills: ['skills'] as const,
+  skills: (channelId: string) => ['skills', channelId] as const,
 };
 
 export const isBusy = (v: Pick<EpisodeView, 'job'> | undefined) => Boolean(v?.job && (v.job.state === 'queued' || v.job.state === 'running'));
@@ -37,8 +37,9 @@ export function useTools() {
   return useQuery({ queryKey: episodeKeys.tools, queryFn: episodeApi.tools, staleTime: Infinity });
 }
 
-export function useSkills() {
-  return useQuery({ queryKey: episodeKeys.skills, queryFn: episodeApi.skills, staleTime: 60_000 });
+/** The skills one channel owns (skills never cross channels). */
+export function useSkills(channelId: string | undefined) {
+  return useQuery({ queryKey: episodeKeys.skills(channelId ?? ''), queryFn: () => episodeApi.skills(channelId!), enabled: Boolean(channelId), staleTime: 30_000 });
 }
 
 /** A mutation that returns the updated episode: writes it to the cache and refreshes lists. */

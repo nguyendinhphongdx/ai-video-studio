@@ -48,7 +48,7 @@ export function MainSidebar() {
       ))}
       <div className="mt-auto rounded-xl bg-sidebar-accent px-3 py-3.5 text-caption leading-relaxed text-sidebar-foreground">
         <div className="mb-1 font-semibold text-white">{config ? (config.llm.ready ? `AI: ${config.llm.providerLabel} · ${config.llm.model}` : 'AI: chưa cài đặt') : 'Đang tải…'}</div>
-        <div>{config ? `Giọng đọc: ${config.tts ? 'Edge TTS' : 'tắt'} · ${config.activeJobs ? `${config.activeJobs} việc đang chạy` : 'không có việc chạy'}` : ''}</div>
+        <div>{config ? `Giọng đọc: ${[config.tts && 'Edge', config.ttsGoogle && 'Google'].filter(Boolean).join(' + ') || 'tắt'} · ${config.activeJobs ? `${config.activeJobs} việc đang chạy` : 'không có việc chạy'}` : ''}</div>
       </div>
     </nav>
   );

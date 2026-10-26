@@ -126,10 +126,20 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Grid items default to min-width:auto, so one long label or select stretches the whole column past the screen. */
+  :where(.grid) > * {
+    min-width: 0;
+  }
   body {
     @apply bg-background text-foreground text-body antialiased;
   }
   h1, h2, h3 {
     @apply font-display font-bold tracking-tight text-balance;
   }
+}
+
+/* The assistant panel sits beside the page only when there is room for both (sidebar 240 + page + panel 420); on narrower screens it covers the page. */
+@media (min-width: 1280px) {
+  html[data-assistant='open'] main { padding-right: 420px; }
+  html[data-assistant='open'] [data-action-bar] { right: 420px; }
 }

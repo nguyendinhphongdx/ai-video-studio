@@ -5,6 +5,7 @@
 import type { z } from 'zod';
 
 import type { Format } from '../domain/catalog';
+import type { SceneDesign } from '../domain/design';
 import type { BlockRef } from '../domain/episode';
 
 export type ToolFieldKind = 'text' | 'textarea' | 'emoji' | 'count' | 'color' | 'choice';
@@ -34,6 +35,10 @@ export interface BlockDefinition<Schema extends z.ZodType = z.ZodType> {
   defaults: z.infer<Schema>;
   /** Shortest on-screen time, even with a very short narration. */
   minSeconds: number;
+  /** Blocks that need a generated picture: which prop holds the prompt and the fixed style added to it. */
+  image?: { promptKey: string; style: string; /** Extra picture direction taken from the other props (camera shot, framing). */ compose?: (props: Record<string, unknown>) => string };
+  /** Props that must change from one scene to the next (checked as variety). */
+  varyBy?: string[];
   /**
    * Clamp/clean props after the AI or a person edits them. Keeps numeric limits out of the AI schema
    * (not every provider supports them) while still guaranteeing drawable values.
@@ -84,6 +89,13 @@ export interface RenderBrand {
   /** Font family name, e.g. "Baloo2" (bundled in public/fonts). */
   font: string;
   logoSrc: string | null;
+  /** Host / mascot picture (URL or data URI), or null. */
+  avatarSrc: string | null;
+  /** The channel's own intro/outro designs and their AI art (URLs or data URIs); null = fallback design. */
+  introDesign: SceneDesign | null;
+  outroDesign: SceneDesign | null;
+  introArtSrc: string | null;
+  outroArtSrc: string | null;
   outroText: string;
   subscribeText: string;
   palette: string[];

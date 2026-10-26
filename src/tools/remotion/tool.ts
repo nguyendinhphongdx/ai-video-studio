@@ -2,7 +2,11 @@ import { defineTool } from '@/core/tools/tool';
 
 import { cardsBlock } from './blocks/cards';
 import { outroBlock } from './blocks/outro';
+import { pictureBlock } from './blocks/picture';
+import { quizBlock } from './blocks/quiz';
+import { recapBlock } from './blocks/recap';
 import { titleBlock } from './blocks/title';
+import { voxBlock } from './blocks/vox';
 import { whiteboardBlock } from './blocks/whiteboard';
 
 /**
@@ -14,9 +18,9 @@ export const REMOTION_VERSION = '4.0.538';
 export const remotionTool = defineTool({
   id: 'remotion',
   name: 'Remotion',
-  summary: 'Hoạt hình React: thẻ màu, bảng trắng, mở đầu, kết. Xem trước trực tiếp trong storyboard.',
+  summary: 'Hoạt hình React: thẻ màu, bảng trắng, ôn tập, câu đố, ảnh Vox có chuyển động, mở đầu, kết. Xem trước trực tiếp trong storyboard.',
   version: REMOTION_VERSION,
   requires: 'Chrome Headless Shell (Remotion tự tải lần đầu), ffmpeg',
   previewable: true,
-  blocks: [titleBlock, cardsBlock, whiteboardBlock, outroBlock],
+  blocks: [titleBlock, cardsBlock, whiteboardBlock, recapBlock, quizBlock, pictureBlock, voxBlock, outroBlock],
 });

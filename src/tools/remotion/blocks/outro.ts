@@ -3,18 +3,18 @@ import { z } from 'zod';
 import { defineBlock } from '@/core/tools/tool';
 import type { OutroSceneProps } from '@video/blocks';
 
-import { Look, LOOK_OPTIONS, type Assert, type Same } from './shared';
+import type { Assert, Same } from './shared';
 
-const props = z.object({ look: Look });
+const props = z.object({});
 export type _OutroMatchesComponent = Assert<Same<z.infer<typeof props>, OutroSceneProps>>;
 
 export const outroBlock = defineBlock({
   id: 'outro',
-  name: 'Kết & đăng ký',
-  summary: 'Logo, lời chào cuối và nút Đăng ký của kênh',
-  aiGuide: 'Cảnh kết: logo, câu chào cuối và nút đăng ký lấy từ cài đặt kênh. Dùng đúng 1 lần, ở cảnh cuối. Lời đọc nhắc khán giả đăng ký kênh.',
+  name: 'Kết của kênh',
+  summary: 'Phần kết do chính kênh thiết kế: câu chào cuối, nút đăng ký, logo/avatar',
+  aiGuide: 'Cảnh kết: dùng thiết kế phần kết riêng của kênh (câu chào cuối và nút đăng ký lấy từ cài đặt kênh). Dùng đúng 1 lần, ở cảnh cuối. Lời đọc nhắc khán giả đăng ký kênh.',
   props,
-  fields: [{ key: 'look', label: 'Kiểu nền', kind: 'choice', options: LOOK_OPTIONS }],
-  defaults: { look: 'sky' },
+  fields: [],
+  defaults: {},
   minSeconds: 4,
 });

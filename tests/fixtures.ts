@@ -8,15 +8,15 @@ import { toolCatalog } from '@/tools/registry';
 
 export const channel: Channel = {
   id: 'c1', name: 'Kid Plazza', description: 'Kênh học cho bé', font: 'Baloo2', audience: 'trẻ 2-6 tuổi', style: 'vui vẻ', voice: 'vi-VN-HoaiMyNeural', outroText: 'Hẹn gặp lại!', subscribeText: 'ĐĂNG KÝ',
-  hashtags: ['#kidplazza'], palette: ['#2F8BE6'], music: 'music.wav', logoPath: null, defaultSkillId: 'kids-cards', createdAt: '', updatedAt: '',
+  hashtags: ['#kidplazza'], palette: ['#2F8BE6'], music: 'music.wav', imageStyle: '', introDesign: null, outroDesign: null, introArtPath: null, outroArtPath: null, logoPath: null, avatarPath: null, defaultSkillId: 'kids-cards', createdAt: '', updatedAt: '',
 };
 
-export const skill: Skill = { id: 'kids-cards', name: 'Thẻ màu', description: '', tools: ['remotion/title', 'remotion/cards', 'remotion/outro'], scenes: { min: 3, max: 6 }, body: 'Dùng @remotion/cards.' };
+export const skill: Skill = { id: 'kids-cards', name: 'Thẻ màu', description: '', tools: ['remotion/title', 'remotion/cards', 'remotion/outro'], scenes: { min: 3, max: 6 }, body: 'Dùng @remotion/cards.', version: '1', tags: [], imageStyle: '' };
 
 export const seriesFormat: EpisodeFormat = {
   durationSec: { min: 20, max: 120 },
   slots: [
-    { id: 'intro', name: 'Mở đầu', fill: 'locked', when: 'always', blocks: [], scenes: { min: 1, max: 1 }, guide: '', locked: { block: 'remotion/title', narration: 'Chào các bé! Gà Bông đây. Tập {n}: {topic}!', props: { title: 'Tập {n}', look: 'sky' } } },
+    { id: 'intro', name: 'Mở đầu', fill: 'locked', when: 'always', blocks: [], scenes: { min: 1, max: 1 }, guide: '', locked: { block: 'remotion/title', narration: 'Chào các bé! Gà Bông đây. Tập {n}: {topic}!', props: { title: 'Tập {n}' } } },
     { id: 'recap', name: 'Ôn tập', fill: 'ai', when: 'not-first', blocks: ['remotion/cards'], scenes: { min: 1, max: 1 }, guide: '' },
     { id: 'lesson', name: 'Bài học', fill: 'ai', when: 'always', blocks: ['remotion'], scenes: { min: 2, max: 4 }, guide: '' },
   ],
@@ -30,8 +30,8 @@ export const version: SeriesVersion = {
 
 export function episode(over: Partial<Episode> = {}): Episode {
   return {
-    id: 'e1', channelId: 'c1', seriesId: 's1', seriesVersion: null, number: 3, topic: 'Số 3', goal: 'Đếm đến 3', notes: '', skillId: 'kids-cards', status: 'draft',
-    formats: ['landscape'], voice: 'vi-VN-HoaiMyNeural', music: true, sceneCount: null, title: '', scenes: [], publish: null, createdAt: '', updatedAt: '', ...over,
+    id: 'e1', channelId: 'c1', seriesId: 's1', seriesVersion: null, knowledgeVersion: null, number: 3, topic: 'Số 3', goal: 'Đếm đến 3', notes: '', skillId: 'kids-cards', status: 'draft',
+    formats: ['landscape'], voice: 'vi-VN-HoaiMyNeural', music: true, autoImages: false, autoVoice: false, sceneCount: null, title: '', scenes: [], publish: null, createdAt: '', updatedAt: '', ...over,
   };
 }
 
@@ -39,7 +39,7 @@ export function context(over: Partial<ContextInput> = {}): ContextInput {
   const e = over.episode ?? episode();
   const slots = activeSlots(seriesFormat, e.number);
   return {
-    channel, skill, format: seriesFormat, slots,
+    channel, knowledge: null, skill, format: seriesFormat, slots,
     blocks: slots.filter((s) => s.fill === 'ai').flatMap((s) => slotBlocks(s, toolCatalog)),
     series: { series: { id: 's1', channelId: 'c1', name: 'Bé học đếm', status: 'active', currentVersion: 2, createdAt: '', updatedAt: '' }, version },
     memory: { season: null, recent: [] }, episode: e, neighbours: { previousTopic: 'Số 2', nextTopic: 'Số 4' }, ...over,
@@ -48,3 +48,5 @@ export function context(over: Partial<ContextInput> = {}): ContextInput {
 
 export const cardsScene = (heading: string) => ({ block: 'remotion/cards', narration: `Đây là ${heading}.`, props: { heading, emoji: '⭐', count: 3, caption: 'Ba ngôi sao', color: '#FF6B6B' } });
 export const publish = { youtube: { title: 't', description: 'd', tags: [] }, facebook: { post: 'p' }, tiktok: { caption: 'c', hashtags: ['#x'] } };
+
+export const noAssets = { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null };

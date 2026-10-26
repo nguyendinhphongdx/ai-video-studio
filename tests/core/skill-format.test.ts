@@ -23,8 +23,8 @@ describe('skills', () => {
 
   it('accepts the shipped skills', async () => {
     const fs = await import('node:fs');
-    for (const id of fs.readdirSync('content/skills')) {
-      const skill = parseSkill(id, fs.readFileSync(`content/skills/${id}/SKILL.md`, 'utf8'));
+    for (const id of fs.readdirSync('market/skills')) {
+      const skill = parseSkill(id, fs.readFileSync(`market/skills/${id}/SKILL.md`, 'utf8'));
       expect(lintSkill(skill, toolCatalog).filter((i) => i.level === 'error')).toEqual([]);
     }
   });

@@ -31,7 +31,7 @@ describe('script contract', () => {
     expect(draft.slots.intro).toBeUndefined();
     const scenes = assembleScenes(slots, draft, { n: '3', topic: 'Số 3' }, toolCatalog);
     expect(scenes.map((s) => s.slotId)).toEqual(['intro', 'recap', 'lesson']);
-    expect(scenes[0]).toMatchObject({ locked: true, block: 'remotion/title', narration: 'Chào các bé! Gà Bông đây. Tập 3: Số 3!', props: { title: 'Tập 3', look: 'sky' } });
+    expect(scenes[0]).toMatchObject({ locked: true, block: 'remotion/title', narration: 'Chào các bé! Gà Bông đây. Tập 3: Số 3!', props: { title: 'Tập 3' } });
     expect(draftFromScenes('Số 3', scenes, publish).slots.intro).toBeUndefined();
   });
 

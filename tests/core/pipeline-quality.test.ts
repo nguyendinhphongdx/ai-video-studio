@@ -40,7 +40,7 @@ describe('pipeline steps', () => {
 
 describe('quality checks', () => {
   it('flags missing catchphrases, banned words and slot counts', () => {
-    const scenes = [{ id: 'x', slotId: 'lesson', block: 'remotion/cards', locked: false, narration: 'Có con ma quỷ!', props: {} }];
+    const scenes = [{ id: 'x', slotId: 'lesson', block: 'remotion/cards', locked: false, narration: 'Có con ma quỷ!', props: {}, approved: false, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } }];
     const issues = runChecks(QUALITY_CHECKS, { stage: 'script', episode: episode(), scenes, format: seriesFormat, slots: activeSlots(seriesFormat, 3), bible: version.bible, sceneSeconds: new Map(), totalSeconds: 10 });
     const ids = issues.map((i) => i.check);
     expect(ids).toEqual(expect.arrayContaining(['duration', 'slot-scenes', 'catchphrases', 'avoid']));

@@ -42,7 +42,7 @@ describe('agent runner', () => {
 
   it('records a successful run with the context it used', async () => {
     const runs: AiRun[] = [];
-    const out = await runTask({ llm: { isReady: async () => true, generateObject: async () => ({ object: { a: 'ok' }, model: 'm1' }) }, runs: { record: async (r) => void runs.push(r) }, layers: CONTEXT_LAYERS }, task, { q: 'hi' }, context());
+    const out = await runTask({ llm: { isReady: async () => true, chat: async () => ({ text: '', toolCalls: [], model: 'm1' }), generateObject: async () => ({ object: { a: 'ok' }, model: 'm1' }) }, runs: { record: async (r) => void runs.push(r) }, layers: CONTEXT_LAYERS }, task, { q: 'hi' }, context());
     expect(out).toEqual({ a: 'ok' });
     expect(runs[0]).toMatchObject({ task: 'echo', taskVersion: 3, model: 'm1', prompt: 'hi', error: null, episodeId: 'e1', seriesId: 's1' });
     expect(runs[0]!.sections.map((s) => s.id)).toEqual(['system']);
@@ -50,7 +50,7 @@ describe('agent runner', () => {
 
   it('records failures and turns invalid output into a short user-facing error', async () => {
     const runs: AiRun[] = [];
-    const call = runTask({ llm: { isReady: async () => true, generateObject: async () => ({ object: { b: 1 }, model: 'm1' }) }, runs: { record: async (r) => void runs.push(r) }, layers: CONTEXT_LAYERS }, task, { q: 'hi' }, context());
+    const call = runTask({ llm: { isReady: async () => true, chat: async () => ({ text: '', toolCalls: [], model: 'm1' }), generateObject: async () => ({ object: { b: 1 }, model: 'm1' }) }, runs: { record: async (r) => void runs.push(r) }, layers: CONTEXT_LAYERS }, task, { q: 'hi' }, context());
     await expect(call).rejects.toBeInstanceOf(UserFacingError);
     expect(runs[0]?.error).toBeTruthy();
   });

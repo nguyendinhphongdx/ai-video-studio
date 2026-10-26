@@ -21,10 +21,10 @@ const sampleStoryboard: StoryboardProps = {
   brand: sampleBrand,
   music: 'music.wav',
   scenes: [
-    { key: 'a', block: 'remotion/title', props: { title: 'Bé học đếm', look: 'sky' }, ordinal: 1, durationSec: 3, narrationSrc: null },
+    { key: 'a', block: 'remotion/title', props: { title: 'Bé học đếm' }, ordinal: 1, durationSec: 3, narrationSrc: null },
     { key: 'b', block: 'remotion/cards', props: sampleScene.props, ordinal: 1, durationSec: 4, narrationSrc: null },
     { key: 'c', block: 'remotion/whiteboard', props: { heading: 'Trứng', emoji: '🥚', count: 3, caption: 'Ếch mẹ đẻ trứng', color: '#43A047' }, ordinal: 1, durationSec: 5, narrationSrc: null },
-    { key: 'd', block: 'remotion/outro', props: { look: 'sky' }, ordinal: 1, durationSec: 4, narrationSrc: null },
+    { key: 'd', block: 'remotion/outro', props: {}, ordinal: 1, durationSec: 4, narrationSrc: null },
   ],
 };
 

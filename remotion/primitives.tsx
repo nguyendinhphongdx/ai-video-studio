@@ -4,8 +4,11 @@ import { loadFont } from '@remotion/fonts';
 import { createContext, useContext, type ReactNode } from 'react';
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
+import type { DesignSpec } from './design';
+
 export const ROUND = 'Baloo2';
 export const HAND = 'PatrickHand';
+export const PatrickHandFamily = HAND;
 export const INK = '#2B2B2B';
 export const OUTLINE = '#1E3A6B';
 
@@ -24,6 +27,12 @@ export interface SceneBrand {
   name: string;
   font: string;
   logoSrc: string | null;
+  avatarSrc?: string | null;
+  /** The channel's own intro/outro designs and AI art; null = fallback design. */
+  introDesign?: DesignSpec | null;
+  outroDesign?: DesignSpec | null;
+  introArtSrc?: string | null;
+  outroArtSrc?: string | null;
   outroText: string;
   subscribeText: string;
   palette: string[];
@@ -90,11 +99,25 @@ function Sparkles() {
   );
 }
 
-export function Sky({ color = '#4FC3F7', children }: { color?: string; children?: ReactNode }) {
+function Pattern({ kind, color }: { kind: 'dots' | 'rays' | 'stripes'; color: string }) {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  if (kind === 'dots') {
+    const size = Math.max(width, height) / 22;
+    return <AbsoluteFill style={{ backgroundImage: `radial-gradient(${shade(color, 0.22)} 18%, transparent 20%)`, backgroundSize: `${size}px ${size}px`, backgroundPosition: `${(frame * 0.6) % size}px ${(frame * 0.6) % size}px`, opacity: 0.5 }} />;
+  }
+  if (kind === 'rays') {
+    return <AbsoluteFill style={{ background: `repeating-conic-gradient(from ${frame * 0.4}deg at 50% 45%, ${shade(color, 0.14)} 0 8deg, transparent 8deg 20deg)`, opacity: 0.45 }} />;
+  }
+  const size = Math.max(width, height) / 16;
+  return <AbsoluteFill style={{ background: `repeating-linear-gradient(-45deg, ${shade(color, 0.12)} 0 ${size / 2}px, transparent ${size / 2}px ${size}px)`, backgroundPositionX: `${(frame * 0.8) % size}px`, opacity: 0.45 }} />;
+}
+
+export function Sky({ color = '#4FC3F7', pattern = 'sparkles', children }: { color?: string; pattern?: 'sparkles' | 'dots' | 'rays' | 'stripes'; children?: ReactNode }) {
   const font = useFont();
   return (
     <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 30%, ${shade(color, 0.15)}, ${shade(color, -0.15)})`, fontFamily: font, overflow: 'hidden' }}>
-      <Sparkles />
+      {pattern === 'sparkles' ? <Sparkles /> : <Pattern kind={pattern} color={color} />}
       {children}
     </AbsoluteFill>
   );
@@ -152,6 +175,8 @@ export function BrandLogo({ size, radius, style }: { size: number; radius: numbe
         fontFamily: brand.font || ROUND,
         fontWeight: 800,
         fontSize: size * 0.18,
+        lineHeight: 1.15,
+        wordBreak: 'break-word',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

@@ -33,7 +33,20 @@ export const SaveScriptInput = z.object({
 });
 export type SaveScriptInput = z.infer<typeof SaveScriptInput>;
 
-export const EpisodeOptionsInput = z.object({ formats: formats.optional(), voice: voice.optional(), music: z.boolean().optional() });
+export const EpisodeOptionsInput = z.object({
+  formats: formats.optional(),
+  voice: voice.optional(),
+  music: z.boolean().optional(),
+  /** Topic, goal and notes can change until production starts (roadmap editing). */
+  topic: z.string().trim().min(3, 'Chủ đề tập quá ngắn').max(300).optional(),
+  goal: z.string().trim().max(300).optional(),
+  notes: z.string().trim().max(1000).optional(),
+  /** Switch a one-off video to another skill: the script is cleared and written again. */
+  skillId: z.string().min(1).optional(),
+  /** Make pictures / voices for every scene right after a script is written. */
+  autoImages: z.boolean().optional(),
+  autoVoice: z.boolean().optional(),
+});
 export type EpisodeOptionsInput = z.infer<typeof EpisodeOptionsInput>;
 
 export interface RenderView extends Render {
@@ -50,6 +63,25 @@ export interface SlotView {
   scenes: { min: number; max: number };
 }
 
+/** What a scene has now, as the scenes screen needs it. Urls are only given for assets that match the scene's current content. */
+export interface SceneAssetView {
+  imageUrl: string | null;
+  voiceUrl: string | null;
+  voiceSeconds: number | null;
+  needsImage: boolean;
+  needsVoice: boolean;
+  /** A file exists but no longer matches the prompt/text (regenerate to use it). */
+  imageStale: boolean;
+  voiceStale: boolean;
+  /** Can be approved. */
+  ready: boolean;
+}
+
+export const SceneAssetsInput = z.object({ sceneIds: z.array(z.string()).max(60).nullable().default(null), image: z.boolean().default(false), voice: z.boolean().default(false) });
+export type SceneAssetsInput = z.infer<typeof SceneAssetsInput>;
+export const ApprovalInput = z.object({ sceneIds: z.array(z.string()).max(60).nullable().default(null), approved: z.boolean() });
+export type ApprovalInput = z.infer<typeof ApprovalInput>;
+
 /** Everything a screen needs about one episode. */
 export interface EpisodeView {
   episode: Episode;
@@ -60,6 +92,10 @@ export interface EpisodeView {
   issues: QualityIssue[];
   /** Active slots of this episode's format (empty in list views). */
   slots: SlotView[];
+  /** Knowledge version the script was written with vs the channel's current one; they differ when the knowledge changed since. */
+  knowledge: { used: number | null; current: number | null };
+  /** Per scene id: picture, voice and whether it can be approved. */
+  assets: Record<string, SceneAssetView>;
   /** Target duration from the series format, if any. */
   durationSec: { min: number; max: number } | null;
 }

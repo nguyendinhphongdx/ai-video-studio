@@ -24,6 +24,9 @@ export const episodeStore: EpisodeStore = {
   async addEvent(episodeId, message) {
     episodeRepository.addEvent(episodeId, message);
   },
+  async updateScene(episodeId, sceneId, patch) {
+    episodeRepository.updateScene(episodeId, sceneId, patch);
+  },
   async listInSeries(seriesId) {
     return episodeRepository.list({ seriesId });
   },

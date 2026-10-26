@@ -77,6 +77,8 @@ export function cleanProps(block: BlockDefinition, props: unknown): Record<strin
 /** Brand data a renderer needs, with assets already resolved to URLs it can load. */
 export interface RenderBrand {
   name: string;
+  /** Font family name, e.g. "Baloo2" (bundled in public/fonts). */
+  font: string;
   logoSrc: string | null;
   outroText: string;
   subscribeText: string;

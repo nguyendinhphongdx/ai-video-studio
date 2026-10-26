@@ -6,7 +6,7 @@ export const channelLayer: ContextLayer = {
   order: 10,
   maxChars: 1500,
   render: ({ channel }) => `Tên kênh: ${channel.name}
-Khán giả: ${channel.audience}
+${channel.description ? `Kênh nói về: ${channel.description}\n` : ''}Khán giả: ${channel.audience}
 Giọng văn: ${channel.style}
 Hashtag của kênh: ${channel.hashtags.join(' ') || '(chưa có)'}`,
 };

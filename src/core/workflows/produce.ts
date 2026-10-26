@@ -1,3 +1,4 @@
+import { MEDIA_MUSIC_PREFIX } from '../domain/catalog';
 import { UserFacingError } from '../domain/errors';
 import type { Render } from '../domain/episode';
 import type { CoreDeps, ProgressFn } from '../ports';
@@ -11,6 +12,7 @@ import { buildContext } from './context';
 export async function renderBrand(deps: Pick<CoreDeps, 'media'>, channel: ProductionContext['channel']): Promise<RenderBrand> {
   return {
     name: channel.name,
+    font: channel.font,
     logoSrc: channel.logoPath ? await deps.media.dataUri(deps.media.absolute(channel.logoPath)) : null,
     outroText: channel.outroText,
     subscribeText: channel.subscribeText,
@@ -23,7 +25,8 @@ export async function produce(deps: CoreDeps, episodeId: string, progress: Progr
   if (!episode.scenes.length) throw new UserFacingError('Kịch bản chưa có cảnh nào');
   for (const s of episode.scenes) if (!deps.tools.block(s.block)) throw new UserFacingError(`Cảnh dùng khối không tồn tại: @${s.block}`);
   const ctx = await buildContext(deps, episode);
-  const music = episode.music && ctx.channel.music !== 'none' ? deps.media.asset(`audio/${ctx.channel.music}`) : null;
+  const track = ctx.channel.music;
+  const music = !episode.music || track === 'none' ? null : track.startsWith(MEDIA_MUSIC_PREFIX) ? deps.media.absolute(track.slice(MEDIA_MUSIC_PREFIX.length)) : deps.media.asset(`audio/${track}`);
   const production: ProductionContext = {
     deps,
     episode,

@@ -57,7 +57,7 @@ export interface StoryboardScene {
 export interface StoryboardProps {
   scenes: StoryboardScene[];
   brand: SceneBrand;
-  /** File under public/audio/, or null for no music. */
+  /** A file under public/audio/ ("music.wav") or a URL, or null for no music. */
   music: string | null;
   [key: string]: unknown;
 }
@@ -69,7 +69,7 @@ export function Storyboard({ scenes, brand, music }: StoryboardProps) {
   return (
     <BrandContext.Provider value={brand}>
       <AbsoluteFill style={{ background: '#000' }}>
-        {music ? <Audio src={staticFile(`audio/${music}`)} loop volume={0.12} /> : null}
+        {music ? <Audio src={/^(https?:|\/|data:)/.test(music) ? music : staticFile(`audio/${music}`)} loop volume={0.12} /> : null}
         {scenes.map((s) => {
           const len = Math.max(1, Math.round(s.durationSec * fps));
           const seq = (

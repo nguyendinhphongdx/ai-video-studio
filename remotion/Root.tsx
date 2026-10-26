@@ -4,7 +4,7 @@ import { SceneClip, Storyboard, type SceneClipProps, type StoryboardProps } from
 
 const FPS = 30;
 
-const sampleBrand = { name: 'Kid Plazza', logoSrc: null, outroText: 'Hẹn gặp lại các bé nhé!', subscribeText: '🔔 ĐĂNG KÝ KÊNH', palette: ['#5B3DF5'] };
+const sampleBrand = { name: 'Kid Plazza', font: 'Baloo2', logoSrc: null, outroText: 'Hẹn gặp lại các bé nhé!', subscribeText: '🔔 ĐĂNG KÝ KÊNH', palette: ['#5B3DF5'] };
 
 const sampleScene: SceneClipProps = {
   block: 'remotion/cards',

@@ -1,6 +1,6 @@
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
-import { Board, BrandLogo, INK, OUTLINE, ROUND, Sky, outline, useBrand, useLayout } from '../primitives';
+import { Board, BrandLogo, INK, OUTLINE, Sky, outline, useBrand, useFont, useLayout } from '../primitives';
 
 export interface OutroSceneProps {
   look: 'sky' | 'board';
@@ -13,12 +13,13 @@ export function OutroScene({ look }: OutroSceneProps) {
   const { u } = useLayout();
   const brand = useBrand();
   const board = look === 'board';
+  const font = useFont();
   const logo = spring({ frame, fps, config: { damping: 10 } });
   const btn = spring({ frame: frame - 20, fps, config: { damping: 8 } });
   const Bg = board ? Board : Sky;
   return (
     <Bg>
-      <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 40 * u, fontFamily: ROUND }}>
+      <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 40 * u, fontFamily: font }}>
         <BrandLogo size={440 * u} radius={40 * u} style={{ transform: `scale(${logo})`, boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }} />
         <div
           style={{

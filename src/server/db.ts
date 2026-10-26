@@ -158,6 +158,8 @@ const MIGRATIONS = [
   CREATE INDEX events_episode ON episode_events(episode_id, id);
   `,
   `ALTER TABLE renders ADD COLUMN thumbnail_path TEXT;`,
+  `ALTER TABLE channels ADD COLUMN description TEXT NOT NULL DEFAULT '';
+   ALTER TABLE channels ADD COLUMN font TEXT NOT NULL DEFAULT 'Baloo2';`,
 ];
 
 function open(): DatabaseSync {

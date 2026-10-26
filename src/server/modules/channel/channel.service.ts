@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DEFAULT_VOICE, type Channel } from '@/core/domain';
+import { DEFAULT_VOICE, MEDIA_MUSIC_PREFIX, type Channel } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
 import type { ChannelStore } from '@/core/ports';
 import { now } from '@/server/db';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
 import { SEED_DIR } from '@/server/config';
-import { mediaUrl, saveChannelLogo } from '@/server/adapters/media/media.service';
+import { mediaUrl, removeChannelMedia, saveChannelFile } from '@/server/adapters/media/media.service';
 
 import { channelRepository } from './channel.repository';
 import type { ChannelInput } from './channel.types';
@@ -20,6 +20,8 @@ const view = (c: Channel): ChannelView => ({ ...c, logoUrl: c.logoPath ? mediaUr
 
 const LOGO_TYPES: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
 const MAX_LOGO_BYTES = 4 * 1024 * 1024;
+const MUSIC_TYPES: Record<string, string> = { 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav' };
+const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
 
 /** First run: create the channels shipped in seed/channels/<id>/ (brand.json + logo.png). */
 let seeded = false;
@@ -39,6 +41,8 @@ async function ensureSeeded() {
     channelRepository.insert({
       id,
       name: b.name ?? slug,
+      description: b.description ?? '',
+      font: b.font ?? 'Baloo2',
       audience: b.audience ?? 'khán giả Việt Nam',
       style: b.style ?? 'câu ngắn, dễ hiểu, giọng thân thiện',
       voice: b.voice ?? DEFAULT_VOICE,
@@ -47,7 +51,7 @@ async function ensureSeeded() {
       hashtags: b.hashtags ?? [],
       palette: b.palette ?? ['#5B3DF5', '#FFC53D', '#FF5C8A'],
       music: b.music ?? 'music.wav',
-      logoPath: fs.existsSync(logo) ? await saveChannelLogo(id, fs.readFileSync(logo), '.png') : null,
+      logoPath: fs.existsSync(logo) ? await saveChannelFile(id, 'logo', fs.readFileSync(logo), '.png') : null,
       defaultSkillId: b.defaultSkillId ?? null,
       createdAt: ts,
       updatedAt: ts,
@@ -87,8 +91,19 @@ export const channelService = {
     const ext = LOGO_TYPES[file.type];
     if (!ext) throw new ApiError(400, 'validation_error', 'Logo phải là ảnh PNG, JPG hoặc WEBP');
     if (file.size > MAX_LOGO_BYTES) throw new ApiError(400, 'validation_error', 'Logo tối đa 4MB');
-    const logoPath = await saveChannelLogo(id, Buffer.from(await file.arrayBuffer()), ext);
+    const logoPath = await saveChannelFile(id, 'logo', Buffer.from(await file.arrayBuffer()), ext);
     const next = { ...c, logoPath, updatedAt: now() };
+    channelRepository.update(next);
+    return view(next);
+  },
+
+  async setMusic(id: string, file: File): Promise<ChannelView> {
+    const c = await channelService.get(id);
+    const ext = MUSIC_TYPES[file.type] ?? (/\.(mp3|wav)$/i.exec(file.name)?.[0].toLowerCase() as string | undefined);
+    if (!ext) throw new ApiError(400, 'validation_error', 'Nhạc nền phải là file MP3 hoặc WAV');
+    if (file.size > MAX_MUSIC_BYTES) throw new ApiError(400, 'validation_error', 'Nhạc nền tối đa 20MB');
+    const rel = await saveChannelFile(id, 'music', Buffer.from(await file.arrayBuffer()), ext);
+    const next = { ...c, music: `${MEDIA_MUSIC_PREFIX}${rel.split(path.sep).join('/')}`, updatedAt: now() };
     channelRepository.update(next);
     return view(next);
   },
@@ -97,6 +112,7 @@ export const channelService = {
     await channelService.get(id);
     if (channelRepository.projectCount(id) > 0) throw conflict('Kênh đang có video. Xoá các video của kênh trước.');
     channelRepository.remove(id);
+    await removeChannelMedia(id);
   },
 };
 

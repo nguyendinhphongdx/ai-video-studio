@@ -7,7 +7,7 @@ import { slotBlocks } from '@/core/script/script';
 import { toolCatalog } from '@/tools/registry';
 
 export const channel: Channel = {
-  id: 'c1', name: 'Kid Plazza', audience: 'trẻ 2-6 tuổi', style: 'vui vẻ', voice: 'vi-VN-HoaiMyNeural', outroText: 'Hẹn gặp lại!', subscribeText: 'ĐĂNG KÝ',
+  id: 'c1', name: 'Kid Plazza', description: 'Kênh học cho bé', font: 'Baloo2', audience: 'trẻ 2-6 tuổi', style: 'vui vẻ', voice: 'vi-VN-HoaiMyNeural', outroText: 'Hẹn gặp lại!', subscribeText: 'ĐĂNG KÝ',
   hashtags: ['#kidplazza'], palette: ['#2F8BE6'], music: 'music.wav', logoPath: null, defaultSkillId: 'kids-cards', createdAt: '', updatedAt: '',
 };
 

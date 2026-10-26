@@ -17,15 +17,19 @@ export function ensureFonts() {
   void loadFont({ family: HAND, url: staticFile('fonts/PatrickHand-Regular.ttf') });
 }
 
+/** Display font of the channel (falls back to the rounded default). */
+export const useFont = () => useContext(BrandContext).font || ROUND;
+
 export interface SceneBrand {
   name: string;
+  font: string;
   logoSrc: string | null;
   outroText: string;
   subscribeText: string;
   palette: string[];
 }
 
-export const BrandContext = createContext<SceneBrand>({ name: '', logoSrc: null, outroText: '', subscribeText: '', palette: [] });
+export const BrandContext = createContext<SceneBrand>({ name: '', font: ROUND, logoSrc: null, outroText: '', subscribeText: '', palette: [] });
 export const useBrand = () => useContext(BrandContext);
 
 /** Sizes are designed on a 1080px short side; `u` scales them to any format. */
@@ -87,8 +91,9 @@ function Sparkles() {
 }
 
 export function Sky({ color = '#4FC3F7', children }: { color?: string; children?: ReactNode }) {
+  const font = useFont();
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 30%, ${shade(color, 0.15)}, ${shade(color, -0.15)})`, fontFamily: ROUND, overflow: 'hidden' }}>
+    <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 30%, ${shade(color, 0.15)}, ${shade(color, -0.15)})`, fontFamily: font, overflow: 'hidden' }}>
       <Sparkles />
       {children}
     </AbsoluteFill>
@@ -144,7 +149,7 @@ export function BrandLogo({ size, radius, style }: { size: number; radius: numbe
         borderRadius: radius,
         background: brand.palette[0] ?? '#5B3DF5',
         color: '#fff',
-        fontFamily: ROUND,
+        fontFamily: brand.font || ROUND,
         fontWeight: 800,
         fontSize: size * 0.18,
         display: 'flex',

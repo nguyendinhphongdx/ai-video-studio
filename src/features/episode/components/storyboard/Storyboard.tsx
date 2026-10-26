@@ -17,7 +17,7 @@ import { errorMessage } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 import { isBusy, useEpisodeAction, useTools } from '../../hooks/use-episode';
-import { blockIndex, brandOf, storyboardProps } from '../../lib/preview';
+import { blockIndex, brandOf, musicSrc, storyboardProps } from '../../lib/preview';
 import { fmtDuration } from '../../lib/status';
 import { episodeApi, type EpisodeView } from '../../services/episode.api';
 import { StoryboardPlayer } from '../preview';
@@ -87,7 +87,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const busy = isBusy(view);
   const editable = !busy && (view.episode.status === 'script_review' || view.episode.status === 'draft');
   const voiceLines = useVoice ? voice.linesFor(draft.scenes) : undefined;
-  const music = channel && channel.music !== 'none' && view.episode.music ? channel.music : null;
+  const music = view.episode.music ? musicSrc(channel?.music) : null;
   const preview = useMemo(() => storyboardProps(draft.scenes, blocks, brand, { voice: voiceLines, music }), [draft.scenes, blocks, brand, voiceLines, music]);
   const total = preview.durationInFrames / FPS;
   const ordinalOf = (s: Scene) => draft.scenes.slice(0, draft.scenes.indexOf(s) + 1).filter((x) => x.block === s.block).length;

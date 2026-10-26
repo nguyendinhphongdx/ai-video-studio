@@ -1,0 +1,8 @@
+// Craft requirements appended to every script-writing task, whatever the kind of channel.
+export const STORY_BRIEF = `Yêu cầu về mạch chuyện (bắt buộc, cho mọi thể loại kênh):
+- Mạch chuyện phải cuốn: mở bằng điều khiến người xem muốn biết câu trả lời ngay; mỗi cảnh kết bằng một mồi dẫn sang cảnh sau (câu hỏi chưa trả lời, mâu thuẫn, điều sắp hé lộ), không để cảnh nào khép kín như một mục riêng.
+- Leo thang: mỗi cảnh đẩy câu chuyện lên (lạ hơn, lớn hơn, sâu hơn, gần hơn). Có một bước ngoặt làm đảo hiểu biết ban đầu. Kết trả lời đúng câu hỏi mở đầu rồi mở thêm một hàm ý.
+- Cụ thể thay vì khái quát: một chi tiết, con số, hình ảnh, nhân vật cụ thể đáng nhớ hơn mười câu chung chung. Nối các cảnh bằng quan hệ nguyên nhân - hệ quả ("vì vậy", "nhưng", "và rồi"), không liệt kê.
+- Viết để NGHE (lời đọc được máy đọc thành tiếng): như một người đang kể chuyện, không như bách khoa. Xen câu dài với câu rất ngắn (2-5 chữ), nói thẳng với người xem ("bạn"), có ít nhất vài câu hỏi dẫn dắt, dùng từ nói hằng ngày; tránh từ sách vở/báo chí sáo rỗng (kinh ngạc, can đảm, khủng khiếp, chấn động...) và tránh mở hai cảnh liền nhau cùng một kiểu. Tự đọc to từng cảnh trong đầu: chỗ nào nghe gượng thì viết lại.
+- Có cảnh kết thật sự trả lời câu hỏi mở đầu và để lại một hàm ý. Lời chào/đăng ký của kênh (nếu có) chỉ đứng SAU cảnh kết đó, không thay thế nó. Đừng kết bằng thêm một dữ kiện mới.
+- Đa dạng hình thức: các cảnh liên tiếp phải khác nhau về bố cục, cỡ cảnh, góc nhìn và kiểu khối. Dùng hết các lựa chọn (kiểu khung, bố cục, chuyển động) mà khối cho phép, không lặp một lựa chọn hai cảnh liền nhau và không dùng một lựa chọn quá hai lần. Mỗi video một cách mở và kết khác với các tập trước.`;

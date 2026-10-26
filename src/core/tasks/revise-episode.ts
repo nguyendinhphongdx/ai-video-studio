@@ -1,4 +1,5 @@
 import { defineTask } from '../agent/task';
+import { STORY_BRIEF } from './story';
 import { parseDraft, scriptSchema, type ScriptDraft } from '../script/script';
 import type { ToolCatalog } from '../tools/catalog';
 
@@ -18,6 +19,8 @@ ${JSON.stringify(current, null, 2)}
 
 Người duyệt yêu cầu sửa: ${feedback}
 
-Hãy trả lại kịch bản đã sửa theo đúng schema, giữ nguyên những phần không được yêu cầu sửa.`,
+Hãy trả lại kịch bản đã sửa theo đúng schema, giữ nguyên những phần không được yêu cầu sửa.
+
+${STORY_BRIEF}`,
     parse: (raw, _, ctx) => parseDraft(raw, ctx.slots, catalog),
   });

@@ -36,6 +36,16 @@ export const llm: LlmPort = {
   async isReady() {
     return isReady(await settingsService.llm());
   },
+  async chat(input) {
+    const settings = await settingsService.llm();
+    if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key.');
+    try {
+      return { ...(await clientFor(settings).chat(input)), model: settings.model };
+    } catch (e) {
+      if (e instanceof UserFacingError) throw e;
+      throw new UserFacingError(`AI lỗi: ${describeLlmError(e, settings)}`, String((e as Error)?.stack ?? e));
+    }
+  },
   async generateObject(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key, hoặc dùng chế độ dán kịch bản.');

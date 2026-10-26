@@ -6,7 +6,7 @@ import { UserFacingError } from '@/core/domain/errors';
 import { extractJson } from '@/core/script/script';
 import type { LlmSettings } from '@/server/modules/settings/settings.types';
 
-import type { LlmClient } from './llm.types';
+import { toolSchema, type LlmClient } from './llm.types';
 
 /** Strict structured output rejects $schema and the safe-integer bounds zod adds to .int(). */
 function strictSchema(schema: z.ZodType): Record<string, unknown> {
@@ -56,6 +56,39 @@ export function openaiClient(llm: LlmSettings): LlmClient {
       // Servers without structured output: plain JSON mode with the schema in the prompt.
       messages[1] = { role: 'user', content: `${user}\n\nChỉ trả về MỘT object JSON đúng JSON Schema sau, không giải thích thêm:\n${JSON.stringify(json)}` };
       return extractJson(await complete(messages, { type: 'json_object' }));
+    },
+    async chat({ system, messages, tools }) {
+      const out: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
+      for (const m of messages) {
+        if (m.role === 'user') out.push({ role: 'user', content: m.content });
+        else if (m.role === 'assistant')
+          out.push({
+            role: 'assistant',
+            content: m.content || null,
+            // Gemini 3 rejects a replayed call without its thought signature, which rides in extra_content.
+            ...(m.toolCalls?.length ? { tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function' as const, function: { name: c.name, arguments: JSON.stringify(c.args) }, ...(c.meta ? { extra_content: c.meta } : {}) })) as OpenAI.ChatCompletionMessageToolCall[] } : {}),
+          });
+        else out.push({ role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content });
+      }
+      const r = await client.chat.completions.create({
+        model: llm.model,
+        messages: out,
+        ...(tools.length ? { tools: tools.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: toolSchema(t.schema, (s) => toJSONSchema(s) as Record<string, unknown>) } })) } : {}),
+      });
+      const choice = r.choices[0];
+      if (choice?.message?.refusal) throw new UserFacingError(`AI từ chối yêu cầu: ${choice.message.refusal}`);
+      const toolCalls = (choice?.message?.tool_calls ?? []).flatMap((c) => {
+        if (c.type !== 'function') return [];
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(c.function.arguments || '{}') as Record<string, unknown>;
+        } catch {
+          // A model that sends broken JSON gets an empty call; the tool's own validation explains what is missing.
+        }
+        const extra = (c as unknown as { extra_content?: Record<string, unknown> }).extra_content;
+        return [{ id: c.id, name: c.function.name, args, ...(extra ? { meta: extra } : {}) }];
+      });
+      return { text: (choice?.message?.content ?? '').trim(), toolCalls };
     },
     async ping() {
       const r = await client.chat.completions.create({ model: llm.model, messages: [{ role: 'user', content: 'Trả lời đúng một chữ: OK' }] });

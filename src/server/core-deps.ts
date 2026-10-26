@@ -4,6 +4,7 @@ import { CONTEXT_LAYERS } from '@/core/context/providers';
 import type { CoreDeps, RendererCatalog } from '@/core/ports';
 import { QUALITY_CHECKS } from '@/core/quality/checks';
 import { validateRegistries } from '@/core/registry';
+import { images } from '@/server/adapters/image/image.service';
 import { llm } from '@/server/adapters/llm/llm.service';
 import { media } from '@/server/adapters/media/media.service';
 import { tts } from '@/server/adapters/tts/tts.service';
@@ -36,6 +37,7 @@ export function createCoreDeps(renderers: RendererCatalog = noRenderers): CoreDe
     layers: CONTEXT_LAYERS,
     checks: QUALITY_CHECKS,
     llm,
+    images,
     tts,
     media,
     video,

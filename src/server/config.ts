@@ -7,5 +7,6 @@ export const DB_FILE = path.join(DATA_DIR, 'app.db');
 export const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 export const MEDIA_DIR = path.join(DATA_DIR, 'media');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
-export const SKILLS_DIR = path.join(ROOT, 'content', 'skills');
+/** The market: skills shipped with the app, copied into a channel when installed. Not read at runtime by videos. */
+export const MARKET_SKILLS_DIR = path.join(ROOT, 'market', 'skills');
 export const SEED_DIR = path.join(ROOT, 'seed');

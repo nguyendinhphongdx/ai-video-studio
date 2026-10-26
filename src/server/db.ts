@@ -160,6 +160,96 @@ const MIGRATIONS = [
   `ALTER TABLE renders ADD COLUMN thumbnail_path TEXT;`,
   `ALTER TABLE channels ADD COLUMN description TEXT NOT NULL DEFAULT '';
    ALTER TABLE channels ADD COLUMN font TEXT NOT NULL DEFAULT 'Baloo2';`,
+  // Jobs may belong to a series (plan_series) instead of an episode, and may carry a result.
+  `
+  CREATE TABLE jobs_next (
+    id TEXT PRIMARY KEY,
+    episode_id TEXT REFERENCES episodes(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '{}',
+    state TEXT NOT NULL,
+    progress REAL NOT NULL DEFAULT 0,
+    phase TEXT,
+    error TEXT,
+    result TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+  );
+  INSERT INTO jobs_next (id, episode_id, kind, payload, state, progress, phase, error, created_at, started_at, finished_at)
+    SELECT id, episode_id, kind, payload, state, progress, phase, error, created_at, started_at, finished_at FROM jobs;
+  DROP TABLE jobs;
+  ALTER TABLE jobs_next RENAME TO jobs;
+  CREATE INDEX jobs_queue ON jobs(state, created_at);
+  CREATE INDEX jobs_episode ON jobs(episode_id, created_at DESC);
+  `,
+  // Existing channels keep the playful intro they had; new ones default to "clean" (set in ChannelInput).
+  `ALTER TABLE channels ADD COLUMN intro_look TEXT NOT NULL DEFAULT 'sky';
+   ALTER TABLE channels ADD COLUMN avatar_path TEXT;`,
+  `ALTER TABLE channels ADD COLUMN image_style TEXT NOT NULL DEFAULT '';`,
+  // Each channel owns its intro/outro design (JSON) and optional AI art. intro_look from migration 4 is no longer used.
+  `ALTER TABLE channels ADD COLUMN intro_design TEXT;
+   ALTER TABLE channels ADD COLUMN outro_design TEXT;
+   ALTER TABLE channels ADD COLUMN intro_art_path TEXT;
+   ALTER TABLE channels ADD COLUMN outro_art_path TEXT;`,
+  // Skills and knowledge belong to a channel. Skills are installed from the market (files) or written by the person or the AI.
+  `
+  CREATE TABLE channel_skills (
+    channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    skill_id TEXT NOT NULL,
+    markdown TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'custom',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (channel_id, skill_id)
+  );
+  CREATE TABLE channel_knowledge_versions (
+    channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    markdown TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (channel_id, version)
+  );
+  ALTER TABLE episodes ADD COLUMN knowledge_version INTEGER;
+  `,
+  // Per-scene work: each scene keeps its own picture, voice and approval; production only joins approved scenes.
+  `
+  ALTER TABLE scenes ADD COLUMN approved INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE scenes ADD COLUMN image_path TEXT;
+  ALTER TABLE scenes ADD COLUMN image_hash TEXT;
+  ALTER TABLE scenes ADD COLUMN voice_path TEXT;
+  ALTER TABLE scenes ADD COLUMN voice_seconds REAL;
+  ALTER TABLE scenes ADD COLUMN voice_hash TEXT;
+  ALTER TABLE episodes ADD COLUMN auto_images INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE episodes ADD COLUMN auto_voice INTEGER NOT NULL DEFAULT 0;
+  `,
+  // The assistant: one conversation per thread, every step stored (so a turn can pause for approval and resume).
+  `
+  CREATE TABLE assistant_threads (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    mode TEXT NOT NULL DEFAULT 'auto',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE assistant_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id TEXT NOT NULL REFERENCES assistant_threads(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    tool_calls TEXT NOT NULL DEFAULT '[]',
+    tool_call_id TEXT,
+    tool_name TEXT,
+    status TEXT NOT NULL DEFAULT 'done',
+    summary TEXT NOT NULL DEFAULT '',
+    data TEXT,
+    focus TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX assistant_messages_thread ON assistant_messages(thread_id, id);
+  `,
 ];
 
 function open(): DatabaseSync {

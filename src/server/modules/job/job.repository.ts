@@ -1,12 +1,12 @@
 import type { Job, JobKind } from '@/core/domain';
-import { newId } from '@/core/pipeline';
+import { newId } from '@/core/domain/ids';
 import { db, json, now, transaction } from '@/server/db';
 
 type Row = Record<string, unknown>;
 
 const toJob = (r: Row): Job => ({
   id: String(r.id),
-  projectId: String(r.project_id),
+  episodeId: String(r.episode_id),
   kind: String(r.kind) as JobKind,
   payload: json<Record<string, unknown>>(r.payload, {}),
   state: String(r.state) as Job['state'],
@@ -19,23 +19,23 @@ const toJob = (r: Row): Job => ({
 });
 
 export const jobRepository = {
-  insert(projectId: string, kind: JobKind, payload: Record<string, unknown>): Job {
+  insert(episodeId: string, kind: JobKind, payload: Record<string, unknown>): Job {
     const id = newId();
     db()
-      .prepare(`INSERT INTO jobs (id, project_id, kind, payload, state, created_at) VALUES (?, ?, ?, ?, 'queued', ?)`)
-      .run(id, projectId, kind, JSON.stringify(payload), now());
+      .prepare(`INSERT INTO jobs (id, episode_id, kind, payload, state, created_at) VALUES (?, ?, ?, ?, 'queued', ?)`)
+      .run(id, episodeId, kind, JSON.stringify(payload), now());
     return jobRepository.find(id)!;
   },
   find(id: string): Job | null {
     const r = db().prepare('SELECT * FROM jobs WHERE id = ?').get(id) as Row | undefined;
     return r ? toJob(r) : null;
   },
-  active(projectId: string): Job | null {
-    const r = db().prepare(`SELECT * FROM jobs WHERE project_id = ? AND state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(projectId) as Row | undefined;
+  active(episodeId: string): Job | null {
+    const r = db().prepare(`SELECT * FROM jobs WHERE episode_id = ? AND state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(episodeId) as Row | undefined;
     return r ? toJob(r) : null;
   },
-  latest(projectId: string): Job | null {
-    const r = db().prepare('SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId) as Row | undefined;
+  latest(episodeId: string): Job | null {
+    const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId) as Row | undefined;
     return r ? toJob(r) : null;
   },
   /** Atomically take the oldest queued job. */
@@ -56,7 +56,7 @@ export const jobRepository = {
   fail(id: string, error: string) {
     db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ?`).run(error, now(), id);
   },
-  /** Jobs left 'running' by a worker that died; returns them so their projects can be reset. */
+  /** Jobs left 'running' by a worker that died; returns them so their episodes can be reset. */
   failInterrupted(message: string): Job[] {
     const rows = (db().prepare(`SELECT * FROM jobs WHERE state = 'running'`).all() as Row[]).map(toJob);
     for (const j of rows) jobRepository.fail(j.id, message);

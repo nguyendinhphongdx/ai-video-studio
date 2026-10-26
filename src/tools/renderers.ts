@@ -1,20 +1,11 @@
-// Server-only renderer registry. Every tool in the catalog must have a renderer here.
+// Server-only: tool id -> renderer. Every registered tool must have one (checked at startup).
 import type { RendererCatalog } from '@/core/ports';
-import type { ToolRenderer } from '@/core/tool';
+import type { ToolRenderer } from '@/core/tools/tool';
 
-import { renderRemotionScene } from './engines/remotion';
-import { hyperframesCardsRenderer } from './hyperframes-cards/render';
-import { TOOLS } from './index';
+import { hyperframesRenderer } from './hyperframes/renderer';
+import { remotionRenderer } from './remotion/renderer';
 
-const remotion = (toolId: string): ToolRenderer => ({ toolId, render: renderRemotionScene });
-
-const RENDERERS = new Map<string, ToolRenderer>([
-  ...TOOLS.filter((t) => t.engine === 'remotion').map((t) => [t.id, remotion(t.id)] as const),
-  [hyperframesCardsRenderer.toolId, hyperframesCardsRenderer],
-]);
-
-const missing = TOOLS.filter((t) => !RENDERERS.has(t.id)).map((t) => t.id);
-if (missing.length) throw new Error(`Tools without a renderer: ${missing.join(', ')}`);
+const RENDERERS = new Map<string, ToolRenderer>([remotionRenderer, hyperframesRenderer].map((r) => [r.toolId, r]));
 
 export const rendererCatalog: RendererCatalog = {
   get(toolId) {
@@ -24,4 +15,4 @@ export const rendererCatalog: RendererCatalog = {
   },
 };
 
-export { closeRemotion } from './engines/remotion';
+export { closeRemotion } from './remotion/renderer';

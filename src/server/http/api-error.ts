@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
-import { UserFacingError } from '@/core/domain';
+import { UserFacingError } from '@/core/domain/errors';
 import { createLogger } from '@/server/logger';
 
 const logger = createLogger('api');

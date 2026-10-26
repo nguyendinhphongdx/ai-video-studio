@@ -2,12 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { DEFAULT_VOICE, type Channel } from '@/core/domain';
-import { newId } from '@/core/pipeline';
+import { newId } from '@/core/domain/ids';
 import type { ChannelStore } from '@/core/ports';
 import { now } from '@/server/db';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
 import { SEED_DIR } from '@/server/config';
-import { mediaUrl, saveChannelLogo } from '@/server/modules/media/media.service';
+import { mediaUrl, saveChannelLogo } from '@/server/adapters/media/media.service';
 
 import { channelRepository } from './channel.repository';
 import type { ChannelInput } from './channel.types';
@@ -46,6 +46,7 @@ async function ensureSeeded() {
       subscribeText: b.subscribeText ?? '🔔 ĐĂNG KÝ KÊNH',
       hashtags: b.hashtags ?? [],
       palette: b.palette ?? ['#5B3DF5', '#FFC53D', '#FF5C8A'],
+      music: b.music ?? 'music.wav',
       logoPath: fs.existsSync(logo) ? await saveChannelLogo(id, fs.readFileSync(logo), '.png') : null,
       defaultSkillId: b.defaultSkillId ?? null,
       createdAt: ts,

@@ -13,6 +13,7 @@ const toChannel = (r: Row): Channel => ({
   subscribeText: String(r.subscribe_text),
   hashtags: json<string[]>(r.hashtags, []),
   palette: json<string[]>(r.palette, []),
+  music: String(r.music),
   logoPath: (r.logo_path as string | null) ?? null,
   defaultSkillId: (r.default_skill_id as string | null) ?? null,
   createdAt: String(r.created_at),
@@ -33,23 +34,23 @@ export const channelRepository = {
   insert(c: Channel) {
     db()
       .prepare(
-        `INSERT INTO channels (id, name, audience, style, voice, outro_text, subscribe_text, hashtags, palette, logo_path, default_skill_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO channels (id, name, audience, style, voice, outro_text, subscribe_text, hashtags, palette, music, logo_path, default_skill_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(c.id, c.name, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.logoPath, c.defaultSkillId, c.createdAt, c.updatedAt);
+      .run(c.id, c.name, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.createdAt, c.updatedAt);
   },
   update(c: Channel) {
     db()
       .prepare(
-        `UPDATE channels SET name = ?, audience = ?, style = ?, voice = ?, outro_text = ?, subscribe_text = ?, hashtags = ?, palette = ?,
+        `UPDATE channels SET name = ?, audience = ?, style = ?, voice = ?, outro_text = ?, subscribe_text = ?, hashtags = ?, palette = ?, music = ?,
          logo_path = ?, default_skill_id = ?, updated_at = ? WHERE id = ?`,
       )
-      .run(c.name, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.logoPath, c.defaultSkillId, c.updatedAt, c.id);
+      .run(c.name, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.updatedAt, c.id);
   },
   remove(id: string) {
     db().prepare('DELETE FROM channels WHERE id = ?').run(id);
   },
   projectCount(id: string): number {
-    return (db().prepare('SELECT COUNT(*) AS n FROM projects WHERE channel_id = ?').get(id) as { n: number }).n;
+    return (db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ?').get(id) as { n: number }).n;
   },
 };

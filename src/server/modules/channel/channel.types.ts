@@ -12,6 +12,7 @@ export const ChannelInput = z.object({
   outroText: z.string().trim().max(80),
   subscribeText: z.string().trim().max(40),
   hashtags: z.array(z.string().trim().regex(/^#\S+$/, 'Hashtag phải bắt đầu bằng #')).max(10),
+  music: z.string().regex(/^(none|[\w-]+\.(wav|mp3))$/, 'Nhạc nền không hợp lệ'),
   palette: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Màu dạng #RRGGBB')).min(1).max(6),
   defaultSkillId: z.string().nullable(),
 });

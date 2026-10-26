@@ -1,26 +1,9 @@
-import { mentionedTools, parseSkill, SKILL_ID_RE, type Skill } from '@/core/skill';
 import type { SkillStore } from '@/core/ports';
+import { lintSkill, parseSkill, SKILL_ID_RE, type Skill, type SkillIssue } from '@/core/skills/skill';
 import { ApiError, notFound } from '@/server/http/api-error';
-import { toolCatalog } from '@/tools';
+import { toolCatalog } from '@/tools/registry';
 
 import { skillRepository } from './skill.repository';
-
-export interface SkillIssue {
-  level: 'error' | 'warning';
-  message: string;
-}
-
-/** Problems a person should fix before using the skill. */
-export function lintSkill(skill: Skill): SkillIssue[] {
-  const issues: SkillIssue[] = [];
-  for (const id of skill.tools) if (!toolCatalog.get(id)) issues.push({ level: 'error', message: `Tool không tồn tại: @${id}` });
-  for (const id of mentionedTools(skill.body)) {
-    if (!toolCatalog.get(id)) issues.push({ level: 'error', message: `Nhắc tới tool không tồn tại: @${id}` });
-    else if (!skill.tools.includes(id)) issues.push({ level: 'warning', message: `@${id} được nhắc trong hướng dẫn nhưng chưa khai báo trong tools` });
-  }
-  if (skill.scenes.min > skill.scenes.max) issues.push({ level: 'error', message: 'scenes: số nhỏ phải đứng trước' });
-  return issues;
-}
 
 export interface SkillSummary extends Omit<Skill, 'body'> {
   issues: SkillIssue[];
@@ -33,10 +16,11 @@ export const skillService = {
       const md = await skillRepository.read(id);
       if (!md) continue;
       try {
-        const { body: _body, ...meta } = parseSkill(id, md);
-        out.push({ ...meta, issues: lintSkill(parseSkill(id, md)) });
+        const skill = parseSkill(id, md);
+        const { body: _body, ...meta } = skill;
+        out.push({ ...meta, issues: lintSkill(skill, toolCatalog) });
       } catch (e) {
-        out.push({ id, name: id, description: '', tools: [], scenes: { min: 0, max: 0 }, music: 'none', issues: [{ level: 'error', message: (e as Error).message }] });
+        out.push({ id, name: id, description: '', tools: [], scenes: { min: 0, max: 0 }, issues: [{ level: 'error', message: (e as Error).message }] });
       }
     }
     return out;
@@ -46,7 +30,7 @@ export const skillService = {
     const md = await skillRepository.read(id);
     if (!md) throw notFound(`skill "${id}"`);
     const skill = parseSkill(id, md);
-    return { skill, markdown: md, issues: lintSkill(skill) };
+    return { skill, markdown: md, issues: lintSkill(skill, toolCatalog) };
   },
 
   /** Save raw SKILL.md text; refuses a file that does not parse or uses unknown tools. */
@@ -61,7 +45,7 @@ export const skillService = {
     } catch (e) {
       throw new ApiError(400, 'validation_error', (e as Error).message);
     }
-    const errors = lintSkill(skill).filter((i) => i.level === 'error');
+    const errors = lintSkill(skill, toolCatalog).filter((i) => i.level === 'error');
     if (errors.length) throw new ApiError(400, 'validation_error', errors.map((e) => e.message).join('; '));
     await skillRepository.write(id, markdown);
     return skillService.get(id);

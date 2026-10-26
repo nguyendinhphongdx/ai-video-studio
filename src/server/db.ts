@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { DATA_DIR, DB_FILE } from './config';
 
+// Append new migrations; never edit one that has shipped.
 const MIGRATIONS = [
   `
   CREATE TABLE channels (
@@ -17,47 +18,92 @@ const MIGRATIONS = [
     subscribe_text TEXT NOT NULL,
     hashtags TEXT NOT NULL DEFAULT '[]',
     palette TEXT NOT NULL DEFAULT '[]',
+    music TEXT NOT NULL DEFAULT 'music.wav',
     logo_path TEXT,
     default_skill_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-  CREATE TABLE projects (
+  CREATE TABLE series (
     id TEXT PRIMARY KEY,
     channel_id TEXT NOT NULL REFERENCES channels(id),
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    current_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE series_versions (
+    series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
     skill_id TEXT NOT NULL,
-    idea TEXT NOT NULL,
-    title TEXT NOT NULL DEFAULT '',
+    bible TEXT NOT NULL,
+    format TEXT NOT NULL,
+    publish TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (series_id, version)
+  );
+  CREATE TABLE episodes (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES channels(id),
+    series_id TEXT REFERENCES series(id),
+    series_version INTEGER,
+    number INTEGER,
+    topic TEXT NOT NULL,
+    goal TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    skill_id TEXT NOT NULL,
     status TEXT NOT NULL,
     formats TEXT NOT NULL,
     voice TEXT NOT NULL,
     music INTEGER NOT NULL,
     scene_count INTEGER,
+    title TEXT NOT NULL DEFAULT '',
     publish TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-  CREATE INDEX projects_created ON projects(created_at DESC);
+  CREATE INDEX episodes_created ON episodes(created_at DESC);
+  CREATE UNIQUE INDEX episodes_series_number ON episodes(series_id, number) WHERE series_id IS NOT NULL AND number IS NOT NULL;
   CREATE TABLE scenes (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
-    tool TEXT NOT NULL,
+    slot_id TEXT NOT NULL,
+    block TEXT NOT NULL,
+    locked INTEGER NOT NULL DEFAULT 0,
     narration TEXT NOT NULL,
     props TEXT NOT NULL
   );
-  CREATE INDEX scenes_project ON scenes(project_id, position);
+  CREATE INDEX scenes_episode ON scenes(episode_id, position);
   CREATE TABLE renders (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     format TEXT NOT NULL,
     file_path TEXT NOT NULL,
     duration_sec REAL NOT NULL,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE episode_memory (
+    episode_id TEXT PRIMARY KEY REFERENCES episodes(id) ON DELETE CASCADE,
+    series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+    number INTEGER,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    concepts TEXT NOT NULL,
+    examples TEXT NOT NULL,
+    vocabulary TEXT NOT NULL,
+    jokes TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE series_memory (
+    series_id TEXT PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+    season_summary TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
   CREATE TABLE jobs (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     payload TEXT NOT NULL DEFAULT '{}',
     state TEXT NOT NULL,
@@ -69,14 +115,47 @@ const MIGRATIONS = [
     finished_at TEXT
   );
   CREATE INDEX jobs_queue ON jobs(state, created_at);
-  CREATE INDEX jobs_project ON jobs(project_id, created_at DESC);
-  CREATE TABLE project_events (
+  CREATE INDEX jobs_episode ON jobs(episode_id, created_at DESC);
+  CREATE TABLE step_runs (
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+    step TEXT NOT NULL,
+    inputs_hash TEXT NOT NULL,
+    outputs TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (episode_id, step)
+  );
+  CREATE TABLE ai_runs (
+    id TEXT PRIMARY KEY,
+    episode_id TEXT REFERENCES episodes(id) ON DELETE CASCADE,
+    series_id TEXT,
+    task TEXT NOT NULL,
+    task_version INTEGER NOT NULL,
+    model TEXT,
+    context TEXT NOT NULL,
+    sections TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    output TEXT,
+    error TEXT,
+    duration_ms INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX ai_runs_episode ON ai_runs(episode_id, created_at DESC);
+  CREATE TABLE outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    handled_at TEXT,
+    error TEXT
+  );
+  CREATE INDEX outbox_pending ON outbox(handled_at, id);
+  CREATE TABLE episode_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     at TEXT NOT NULL,
     message TEXT NOT NULL
   );
-  CREATE INDEX events_project ON project_events(project_id, id);
+  CREATE INDEX events_episode ON episode_events(episode_id, id);
   `,
 ];
 

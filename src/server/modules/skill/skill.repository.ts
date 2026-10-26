@@ -1,8 +1,8 @@
-// Skills are files: skills/<id>/SKILL.md, versioned with git. The file is the only source of truth.
+// Skills are files: content/skills/<id>/SKILL.md, versioned with git. The file is the only source of truth.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { SKILL_ID_RE } from '@/core/skill';
+import { SKILL_ID_RE } from '@/core/skills/skill';
 import { SKILLS_DIR } from '@/server/config';
 
 const fileOf = (id: string) => path.join(SKILLS_DIR, id, 'SKILL.md');

@@ -1,23 +1,23 @@
 import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from 'remotion';
 
 import { BrandContext, SceneFade, ensureFonts, type SceneBrand } from './primitives';
-import { SCENES } from './scenes';
+import { BLOCKS } from './blocks';
 
 ensureFonts();
 
 /** Narration starts a little after the picture (keep in sync with NARRATION_DELAY_SEC in src/core/timeline.ts). */
 const NARRATION_DELAY_FRAMES = 6;
 
-function Missing({ toolId }: { toolId: string }) {
+function Missing({ block }: { block: string }) {
   return (
     <AbsoluteFill style={{ background: '#1f2937', color: '#e5e7eb', justifyContent: 'center', alignItems: 'center', fontSize: 48, fontFamily: 'sans-serif' }}>
-      @{toolId}: xem sau khi render
+      @{block}: xem sau khi render
     </AbsoluteFill>
   );
 }
 
 export interface SceneClipProps {
-  toolId: string;
+  block: string;
   props: Record<string, unknown>;
   ordinal: number;
   brand: SceneBrand;
@@ -29,12 +29,12 @@ export interface SceneClipProps {
 }
 
 /** One scene = one clip. The worker renders these and joins them. */
-export function SceneClip({ toolId, props, ordinal, brand, narrationSrc }: SceneClipProps) {
-  const draw = SCENES[toolId];
+export function SceneClip({ block, props, ordinal, brand, narrationSrc }: SceneClipProps) {
+  const draw = BLOCKS[block];
   return (
     <BrandContext.Provider value={brand}>
       <AbsoluteFill style={{ background: '#000' }}>
-        <SceneFade>{draw ? draw(props, ordinal) : <Missing toolId={toolId} />}</SceneFade>
+        <SceneFade>{draw ? draw(props, ordinal) : <Missing block={block} />}</SceneFade>
         {narrationSrc ? (
           <Sequence from={NARRATION_DELAY_FRAMES} layout="none">
             <Audio src={narrationSrc} />
@@ -47,7 +47,7 @@ export function SceneClip({ toolId, props, ordinal, brand, narrationSrc }: Scene
 
 export interface StoryboardScene {
   key: string;
-  toolId: string;
+  block: string;
   props: Record<string, unknown>;
   ordinal: number;
   durationSec: number;
@@ -74,7 +74,7 @@ export function Storyboard({ scenes, brand, music }: StoryboardProps) {
           const len = Math.max(1, Math.round(s.durationSec * fps));
           const seq = (
             <Sequence key={s.key} from={from} durationInFrames={len} premountFor={fps}>
-              <SceneFade>{SCENES[s.toolId] ? SCENES[s.toolId]!(s.props, s.ordinal) : <Missing toolId={s.toolId} />}</SceneFade>
+              <SceneFade>{BLOCKS[s.block] ? BLOCKS[s.block]!(s.props, s.ordinal) : <Missing block={s.block} />}</SceneFade>
               {s.narrationSrc ? (
                 <Sequence from={NARRATION_DELAY_FRAMES} layout="none">
                   <Audio src={s.narrationSrc} />

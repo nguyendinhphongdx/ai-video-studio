@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2023"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -16,12 +20,32 @@
     "esModuleInterop": true,
     "allowJs": false,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@video/*": ["./remotion/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@video/*": [
+        "./remotion/*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "src", "remotion", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "projects", "data"]
+  "include": [
+    "next-env.d.ts",
+    "src",
+    "remotion",
+    "tests",
+    "vitest.config.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "projects",
+    "data"
+  ]
 }

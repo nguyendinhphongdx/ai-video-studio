@@ -68,6 +68,9 @@ export function ScenePlayer({ block, props, ordinal, brand, durationSec, narrati
       compositionWidth={1920}
       compositionHeight={1080}
       autoPlay
+      // Browsers only autoplay muted media; scenes without narration have nothing to hear anyway.
+      initiallyMuted={!narrationSrc}
+      initialFrame={Math.min(20, Math.max(0, Math.round(durationSec * FPS) - 1))}
       loop
       controls
       acknowledgeRemotionLicense

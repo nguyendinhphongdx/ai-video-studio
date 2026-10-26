@@ -1,10 +1,9 @@
-import { Boxes } from 'lucide-react';
 import type { Metadata } from 'next';
 
-import { ComingSoon } from '@/components/common/ComingSoon';
+import { ToolsView } from '@/features/tool/views/ToolsView';
 
 export const metadata: Metadata = { title: 'Tools' };
 
-export default function Page() {
-  return <ComingSoon title="Tools" description="Công cụ dựng và các khối cảnh của từng công cụ." icon={Boxes} stage="Giai đoạn 5" />;
+export default function ToolsPage() {
+  return <ToolsView />;
 }

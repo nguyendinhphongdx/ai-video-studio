@@ -7,7 +7,8 @@ import path from 'node:path';
 import { UserFacingError } from '@/core/domain/errors';
 import type { SceneRenderContext, SceneRenderInput, ToolRenderer } from '@/core/tools/tool';
 
-const HF_VERSION = '0.8.192';
+import { HYPERFRAMES_VERSION as HF_VERSION } from './tool';
+
 const ROOT = process.cwd();
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

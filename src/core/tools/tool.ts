@@ -45,6 +45,10 @@ export interface ToolDefinition {
   id: string;
   name: string;
   summary: string;
+  /** Version of the engine this tool runs on. */
+  version: string;
+  /** What the machine needs for this tool to render (shown on the Tools page). */
+  requires?: string;
   /** Whether its blocks play live in the storyboard (@remotion/player). */
   previewable: boolean;
   blocks: BlockDefinition[];

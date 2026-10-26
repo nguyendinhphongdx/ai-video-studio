@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createToolCatalog } from '@/core/tools/catalog';
 import { mentionsIn } from '@/core/tools/mention';
 import { toolCatalog } from '@/tools/registry';
-import { remotionTool } from '@/tools/remotion/tool';
+import { REMOTION_VERSION, remotionTool } from '@/tools/remotion/tool';
 
 describe('tool catalog', () => {
   it('expands a tool mention into all its blocks', () => {
@@ -24,6 +24,11 @@ describe('tool catalog', () => {
 
   it('finds tool and block mentions in text', () => {
     expect(mentionsIn('Mở bằng @remotion/title, rồi (@remotion) và email a@b.com')).toEqual(['remotion/title', 'remotion']);
+  });
+
+  it('declares the installed Remotion version', async () => {
+    const fs = await import('node:fs');
+    expect(REMOTION_VERSION).toBe(JSON.parse(fs.readFileSync('node_modules/remotion/package.json', 'utf8')).version);
   });
 
   it('every block has editor fields that exist in its defaults', () => {

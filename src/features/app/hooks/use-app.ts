@@ -17,6 +17,14 @@ export function useAppConfig() {
   return useQuery({ queryKey: queryKeys.config, queryFn: appApi.config, refetchInterval: 15_000 });
 }
 
+/** A page about one channel's video or series makes that channel the current one, so the top bar and the assistant talk about the same channel. */
+export function useFollowChannel(channelId: string | undefined) {
+  const { setChannelId } = useChannelStore();
+  useEffect(() => {
+    if (channelId) setChannelId(channelId);
+  }, [channelId, setChannelId]);
+}
+
 /** Channels plus the current one (falls back to the first channel). */
 export function useCurrentChannel() {
   const { channelId, setChannelId } = useChannelStore();

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { voiceReady } from '@/core/domain/catalog';
 import { useAppConfig } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
 
@@ -47,12 +48,13 @@ export function TtsSettingsCard() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="tts-provider">Dịch vụ giọng đọc</Label>
-          <Select value="edge" disabled>
+          <Select value={voice.startsWith('gemini-') ? 'google' : 'edge'} disabled>
             <SelectTrigger id="tts-provider" className="h-11 w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="edge">Edge TTS (miễn phí, tiếng Việt)</SelectItem>
+              <SelectItem value="google">Google Gemini TTS (Google API key)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -71,12 +73,25 @@ export function TtsSettingsCard() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" className="size-11" onClick={play} disabled={!config?.tts} aria-label={playing ? 'Dừng' : 'Nghe thử'}>
+            <Button variant="outline" size="icon" className="size-11" onClick={play} disabled={!config || !voiceReady(voice, config)} aria-label={playing ? 'Dừng' : 'Nghe thử'}>
               {playing ? <Square aria-hidden /> : <Play aria-hidden />}
             </Button>
           </div>
         </div>
       </div>
+      {config ? (
+        config.ttsGoogle ? (
+          <div className="flex items-center gap-2.5 rounded-lg bg-success-soft px-3.5 py-3 text-small font-semibold text-success">
+            <CircleCheck className="size-4 shrink-0" aria-hidden />
+            Giọng Google sẵn sàng (đã có Google API key)
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 rounded-lg bg-muted px-3.5 py-3 text-small text-muted-foreground">
+            <CircleAlert className="size-4 shrink-0" aria-hidden />
+            Giọng Google cần Google API key: nhập ở mục “Tạo ảnh AI” phía trên (dùng chung một key) hoặc đặt GEMINI_API_KEY trong .env.
+          </div>
+        )
+      ) : null}
       {config ? (
         config.tts ? (
           <div className="flex items-center gap-2.5 rounded-lg bg-success-soft px-3.5 py-3 text-small font-semibold text-success">
@@ -92,7 +107,7 @@ export function TtsSettingsCard() {
       ) : null}
       <div className="flex items-center gap-2.5 rounded-lg bg-warning-soft px-3.5 py-3 text-small text-warning">
         <CircleAlert className="size-4 shrink-0" aria-hidden />
-        Dịch vụ miễn phí đôi khi chậm khi tạo nhiều video liên tiếp; hệ thống tự thử lại.
+        Edge miễn phí nhưng đôi khi chậm khi tạo nhiều video liên tiếp. Giọng Google tự nhiên hơn nhưng tính vào hạn mức Gemini API của bạn; hệ thống tự thử lại khi bị giới hạn lượt gọi.
       </div>
     </section>
   );

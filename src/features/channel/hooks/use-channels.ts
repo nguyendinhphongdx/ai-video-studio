@@ -11,7 +11,7 @@ import { channelApi, type ChannelView } from '../services/channel.api';
 const one = (id: string) => ['channel', id] as const;
 
 export function useChannel(id: string) {
-  return useQuery({ queryKey: one(id), queryFn: () => channelApi.get(id) });
+  return useQuery({ queryKey: one(id), queryFn: () => channelApi.get(id), refetchInterval: 4000 });
 }
 
 /** Mutation returning the updated channel: refreshes the channel and the switcher list. */

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Music, Play, Square, Trash2, Upload } from 'lucide-react';
+import { Loader2, Music, Play, Square, Trash2, Upload, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ROUTES } from '@/constants/routes';
-import { BRAND_FONT_IDS, BRAND_FONTS, MEDIA_MUSIC_PREFIX } from '@/core/domain/catalog';
+import { BRAND_FONT_IDS, BRAND_FONTS, MEDIA_MUSIC_PREFIX, voiceReady } from '@/core/domain/catalog';
 import { queryKeys, useAppConfig } from '@/features/app';
 import { useSkills } from '@/features/episode/hooks/use-episode';
 import { musicSrc } from '@/features/episode/lib/preview';
@@ -23,9 +23,19 @@ import { errorMessage } from '@/lib/api/client';
 import { useChannelAction } from '../hooks/use-channels';
 import { channelApi, toInput, type ChannelInput, type ChannelView } from '../services/channel.api';
 
+import { ChannelArtPanel } from './ChannelArtPanel';
 import { BrandPreview } from './BrandPreview';
 import { HashtagInput } from './HashtagInput';
+import { KnowledgeCard } from './KnowledgeCard';
 import { PaletteEditor } from './PaletteEditor';
+
+const IMAGE_STYLE_PRESETS = [
+  { label: 'Ảnh chụp thực tế', value: 'photorealistic documentary photograph, natural lighting, shallow depth of field, authentic and candid, no text, no watermark' },
+  { label: 'Minh hoạ phẳng', value: 'flat vector illustration, pastel palette, soft shadows, simple shapes, friendly and clean, no text' },
+  { label: 'Hoạt hình 3D', value: 'cute 3D animated render, soft studio lighting, rounded shapes, vibrant but harmonious colours, no text' },
+  { label: 'Màu nước', value: 'hand-painted watercolor illustration, soft edges, paper texture, warm muted colours, no text' },
+  { label: 'Điện ảnh tối', value: 'cinematic dark moody still, dramatic rim lighting, teal and orange grade, high contrast, film grain, no text' },
+];
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -73,25 +83,33 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: config } = useAppConfig();
-  const { data: skills } = useSkills();
+  const { data: skills } = useSkills(channel.id);
   const [form, setForm] = useState<ChannelInput>(toInput(channel));
   const [baseline, setBaseline] = useState(JSON.stringify(toInput(channel)));
   const dirty = JSON.stringify(form) !== baseline;
   const logoInput = useRef<HTMLInputElement>(null);
   const musicInput = useRef<HTMLInputElement>(null);
   const sample = useSample();
+  const avatarInput = useRef<HTMLInputElement>(null);
 
-  // Uploads change the channel on the server; keep unrelated edits.
+  // The channel also changes on the server (uploads, the assistant): take the new values for every field the person has not touched, keep their edits.
   useEffect(() => {
     const server = toInput(channel);
-    setForm((f) => ({ ...f, music: server.music }));
-    setBaseline((b) => JSON.stringify({ ...(JSON.parse(b) as ChannelInput), music: server.music }));
-  }, [channel.music]); // eslint-disable-line react-hooks/exhaustive-deps
+    const base = JSON.parse(baseline) as ChannelInput;
+    setForm((f) => {
+      const next = { ...f } as Record<string, unknown>;
+      for (const k of Object.keys(server) as (keyof ChannelInput)[]) if (JSON.stringify(f[k]) === JSON.stringify(base[k])) next[k] = server[k];
+      return next as unknown as ChannelInput;
+    });
+    setBaseline(JSON.stringify(server));
+  }, [channel.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setForm((f) => ({ ...f, [k]: v }));
   const save = useChannelAction(channel.id, () => channelApi.update(channel.id, form), 'Đã lưu kênh');
   const logo = useChannelAction(channel.id, (f: File) => channelApi.uploadLogo(channel.id, f), 'Đã đổi logo');
   const music = useChannelAction(channel.id, (f: File) => channelApi.uploadMusic(channel.id, f), 'Đã tải nhạc nền lên');
+  const avatar = useChannelAction(channel.id, (f: File) => channelApi.uploadAvatar(channel.id, f), 'Đã đổi avatar');
+  const removeAvatar = useChannelAction(channel.id, () => channelApi.removeAvatar(channel.id), 'Đã xoá avatar');
   const remove = useMutation({
     mutationFn: () => channelApi.remove(channel.id),
     onSuccess: () => {
@@ -149,7 +167,10 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
           </Field>
         </Card>
 
+        <KnowledgeCard channelId={channel.id} />
+
         <Card title="Thương hiệu">
+          <ChannelArtPanel channel={channel} form={form} setForm={setForm} />
           <div className="flex flex-wrap items-center gap-4">
             {channel.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -169,6 +190,42 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
               <span className="text-caption text-muted-foreground">Ảnh vuông PNG/JPG/WEBP, tối đa 4MB. Lưu ngay khi tải.</span>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-4">
+            {channel.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={channel.avatarUrl} alt="Avatar hiện tại" className="size-20 rounded-full border object-cover shadow-card" />
+            ) : (
+              <span className="grid size-20 place-items-center rounded-full bg-muted text-muted-foreground">
+                <UserRound className="size-8" aria-hidden />
+              </span>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-small font-semibold">Avatar (nhân vật hoặc người dẫn)</span>
+              <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => (e.target.files?.[0] && avatar.mutate(e.target.files[0]), (e.target.value = ''))} />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => avatarInput.current?.click()} disabled={avatar.isPending}>
+                  {avatar.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Upload aria-hidden />}
+                  {channel.avatarUrl ? 'Đổi avatar' : 'Tải avatar lên'}
+                </Button>
+                {channel.avatarUrl ? (
+                  <Button variant="ghost" onClick={() => removeAvatar.mutate(undefined)} disabled={removeAvatar.isPending}>
+                    Xoá avatar
+                  </Button>
+                ) : null}
+              </div>
+              <span className="text-caption text-muted-foreground">Hiện trong cảnh mở đầu và kết, thay cho logo lớn. PNG/JPG/WEBP, tối đa 4MB, lưu ngay khi tải.</span>
+            </div>
+          </div>
+          <Field id="ch-imgstyle" label="Phong cách ảnh AI" hint="Mô tả chất liệu, ánh sáng, màu của ảnh AI (tiếng Anh càng tốt). Áp cho mọi cảnh dùng ảnh AI; để trống thì dùng phong cách mặc định gọn, trung tính. Kiểu Vox đã có phong cách riêng.">
+            <Textarea id="ch-imgstyle" rows={2} maxLength={500} value={form.imageStyle} onChange={(e) => set('imageStyle', e.target.value)} placeholder="VD: flat vector illustration, pastel palette, soft shadows, friendly characters" />
+            <div className="flex flex-wrap gap-1.5">
+              {IMAGE_STYLE_PRESETS.map((p) => (
+                <button key={p.label} type="button" onClick={() => set('imageStyle', p.value)} className="min-h-8 rounded-full bg-muted px-3 text-caption text-slate-700 hover:bg-accent hover:text-accent-foreground">
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </Field>
           <Field id="ch-palette" label="Bảng màu" hint="Màu đầu tiên là màu chính; AI chọn màu cảnh hài hoà với bảng màu.">
             <PaletteEditor value={form.palette} onChange={(v) => set('palette', v)} />
           </Field>
@@ -188,9 +245,9 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
               </Select>
             </Field>
             <Field id="ch-voice" label="Giọng đọc mặc định">
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 <Select value={form.voice} onValueChange={(v) => set('voice', v as ChannelInput['voice'])}>
-                  <SelectTrigger id="ch-voice" className="h-11 flex-1">
+                  <SelectTrigger id="ch-voice" className="h-11 min-w-0 flex-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -206,7 +263,7 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
                   size="icon"
                   className="size-11"
                   aria-label="Nghe thử giọng"
-                  disabled={!config?.tts}
+                  disabled={!config || !voiceReady(form.voice, config)}
                   onClick={() => sample.toggle('voice', async () => (await episodeApi.previewVoice(`Xin chào, đây là kênh ${form.name || 'của bạn'}!`, form.voice)).url)}
                 >
                   {sample.playing === 'voice' ? <Square aria-hidden /> : <Play aria-hidden />}
@@ -274,12 +331,12 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
 
       <aside className="flex flex-col gap-3 rounded-2xl border bg-card p-5 lg:sticky lg:top-4">
         <h2 className="text-title font-bold">Xem trước với thương hiệu đang sửa</h2>
-        <p className="text-caption text-muted-foreground">Chạy trực tiếp bằng @remotion/player: đổi màu, font, câu chào là thấy ngay, chưa cần lưu.</p>
-        <BrandPreview input={form} logoUrl={channel.logoUrl} sampleTitle="Bé học màu sắc" />
+        <p className="text-caption text-muted-foreground">Chạy trực tiếp bằng @remotion/player: đổi thiết kế, màu, font, câu chào là thấy ngay, chưa cần lưu.</p>
+        <BrandPreview input={form} logoUrl={channel.logoUrl} avatarUrl={channel.avatarUrl} introArtUrl={channel.introArtUrl} outroArtUrl={channel.outroArtUrl} sampleTitle="Tiêu đề video mẫu" />
       </aside>
 
       {dirty ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 backdrop-blur md:left-60">
+        <div data-action-bar className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 backdrop-blur md:left-60">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:px-12">
             <span className="text-small font-semibold text-warning">● Có thay đổi chưa lưu</span>
             <Button variant="ghost" className="ml-auto" onClick={() => setForm(JSON.parse(baseline) as ChannelInput)}>

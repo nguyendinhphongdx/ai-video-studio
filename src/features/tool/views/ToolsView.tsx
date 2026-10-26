@@ -12,7 +12,7 @@ import { ScenePlayer } from '@/features/episode/components/preview';
 import { useTools } from '@/features/episode/hooks/use-episode';
 import { brandOf } from '@/features/episode/lib/preview';
 import type { BlockInfo, ToolInfo } from '@/features/episode/services/episode.api';
-import { skillApi } from '@/features/skill/services/skill.api';
+import { skillApi, skillKeys } from '@/features/skill/services/skill.api';
 
 const FIELD_KIND: Record<string, string> = { text: 'chữ', textarea: 'đoạn văn', emoji: 'emoji', count: 'số lượng', color: 'màu', choice: 'lựa chọn' };
 
@@ -45,7 +45,7 @@ function BlockCard({ tool, block, usedBy, brand }: { tool: ToolInfo; block: Bloc
           <summary className="cursor-pointer font-semibold text-muted-foreground">Hướng dẫn cho AI</summary>
           <p className="mt-1 text-slate-700">{block.aiGuide}</p>
         </details>
-        <p className="text-caption text-muted-foreground">{usedBy.length ? `Dùng trong skill: ${usedBy.join(', ')}` : 'Chưa có skill nào dùng'}</p>
+        <p className="text-caption text-muted-foreground">{usedBy.length ? `Dùng trong skill: ${usedBy.join(', ')}` : 'Chưa có skill nào của kênh này dùng'}</p>
       </div>
     </article>
   );
@@ -53,8 +53,8 @@ function BlockCard({ tool, block, usedBy, brand }: { tool: ToolInfo; block: Bloc
 
 export function ToolsView() {
   const { data: tools, isLoading } = useTools();
-  const { data: skills } = useQuery({ queryKey: ['skills'], queryFn: skillApi.list });
   const { current } = useCurrentChannel();
+  const { data: skills } = useQuery({ queryKey: skillKeys.list(current?.id ?? ''), queryFn: () => skillApi.list(current!.id), enabled: Boolean(current) });
   const brand = brandOf(current);
   // A skill uses a block if it lists the block or its whole tool.
   const usedBy = (tool: ToolInfo, block: BlockInfo) => (skills ?? []).filter((s) => s.tools.includes(block.ref) || s.tools.includes(tool.id)).map((s) => s.name);
@@ -68,7 +68,7 @@ export function ToolsView() {
       {(tools ?? []).map((tool) => (
         <section key={tool.id} aria-labelledby={`tool-${tool.id}`} className="flex flex-col gap-4 rounded-2xl border bg-card p-6">
           <div className="flex flex-wrap items-start gap-3">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-[16rem] flex-1">
               <div className="flex flex-wrap items-baseline gap-2">
                 <h2 id={`tool-${tool.id}`} className="text-h3 font-bold">
                   {tool.name}

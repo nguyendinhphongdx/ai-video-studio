@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ROUTES } from '@/constants/routes';
 import { queryKeys, useCurrentChannel } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
+import { useAssistantStore } from '@/stores/assistant-store';
 
 import { ChannelEditor } from '../components/ChannelEditor';
 import { useChannel } from '../hooks/use-channels';
@@ -26,11 +28,13 @@ function NewChannelDialog() {
   const qc = useQueryClient();
   const { setChannelId } = useCurrentChannel();
   const [name, setName] = useState('');
+  const [about, setAbout] = useState('');
   const create = useMutation({
-    mutationFn: () => channelApi.create({ ...NEW_CHANNEL, name: name.trim() }),
+    mutationFn: () => channelApi.create({ ...NEW_CHANNEL, name: name.trim(), description: about.trim() }),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: queryKeys.channels });
       setChannelId(c.id);
+      if (about.trim()) useAssistantStore.getState().ask('Mình vừa tạo kênh này. Hãy thiết kế bộ nhận diện riêng cho kênh: mở đầu, kết, bảng màu, font, câu chào cuối và phong cách ảnh phù hợp với mô tả của kênh.');
       router.push(`${ROUTES.channels}/${c.id}`);
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -46,7 +50,7 @@ function NewChannelDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Tạo kênh mới</DialogTitle>
-          <DialogDescription>Đặt tên trước; logo, màu và giọng văn chỉnh ở bước sau.</DialogDescription>
+          <DialogDescription>Đặt tên và mô tả ngắn; trợ lý sẽ thiết kế mở đầu, kết, màu và font cho kênh, bạn chỉnh lại bằng cách nói chuyện với trợ lý.</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-1.5"
@@ -57,6 +61,10 @@ function NewChannelDialog() {
         >
           <Label htmlFor="new-ch">Tên kênh</Label>
           <Input id="new-ch" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Mẹo vặt nấu ăn" maxLength={60} />
+          <Label htmlFor="new-about" className="mt-3">
+            Kênh nói về gì? (không bắt buộc)
+          </Label>
+          <Textarea id="new-about" rows={3} value={about} onChange={(e) => setAbout(e.target.value)} maxLength={500} placeholder="VD: Giải thích các sự kiện lịch sử, kinh tế bằng đồ hoạ cho người trẻ. Có mô tả, trợ lý sẽ tự thiết kế mở đầu, màu và font cho bạn." />
           <DialogFooter className="mt-4">
             <Button type="submit" disabled={!name.trim() || create.isPending}>
               {create.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}

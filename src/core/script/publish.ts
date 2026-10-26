@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import type { PublishKit } from '../domain/episode';
+import { FORMATS } from '../domain/catalog';
+import type { Episode, PublishKit, Render } from '../domain/episode';
 import type { PublishTemplate } from '../domain/series';
 import { fillTemplate, type TemplateVars } from '../series/format';
 
@@ -30,3 +31,28 @@ export function applyPublishTemplate(kit: PublishKit, template: PublishTemplate 
 }
 
 export const emptyPublishKit = (): PublishKit => ({ youtube: { title: '', description: '', tags: [] }, facebook: { post: '' }, tiktok: { caption: '', hashtags: [] } });
+
+/** Markdown publish kit, offered as a download next to the videos. */
+export function publishMarkdown(episode: Episode, renders: Render[]): string {
+  const kit = episode.publish;
+  if (!kit) return `# ${episode.title || episode.topic}\n`;
+  return `# ${episode.title}
+
+## Video
+${renders.map((r) => `- ${r.filePath} (${FORMATS[r.format].label})`).join('\n')}
+
+## YouTube
+**Tiêu đề:** ${kit.youtube.title}
+
+**Mô tả:**
+${kit.youtube.description}
+
+**Tags:** ${kit.youtube.tags.join(', ')}
+
+## Facebook
+${kit.facebook.post}
+
+## TikTok / Reels / Shorts
+${kit.tiktok.caption} ${kit.tiktok.hashtags.join(' ')}
+`;
+}

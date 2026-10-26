@@ -38,6 +38,9 @@ export const jobRepository = {
     const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId) as Row | undefined;
     return r ? toJob(r) : null;
   },
+  listActive(): Job[] {
+    return (db().prepare(`SELECT * FROM jobs WHERE state IN ('queued', 'running') ORDER BY created_at`).all() as Row[]).map(toJob);
+  },
   /** Atomically take the oldest queued job. */
   claimNext(): Job | null {
     return transaction(() => {

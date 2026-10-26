@@ -7,7 +7,8 @@ export async function parseJsonBody<T extends z.ZodType>(req: Request, schema: T
   const result = schema.safeParse(body);
   if (!result.success) {
     const issue = result.error.issues[0];
-    throw new ApiError(400, 'validation_error', issue ? `${issue.path.join('.') || 'Dữ liệu'}: ${issue.message}` : 'Dữ liệu không hợp lệ.');
+    // Schemas carry Vietnamese messages; the field path is only useful in logs.
+    throw new ApiError(400, 'validation_error', issue?.message ?? 'Dữ liệu không hợp lệ.');
   }
   return result.data;
 }

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // Isomorphic: the settings page imports these to build its form.
 export const PROVIDERS = {
   anthropic: {
@@ -63,3 +65,14 @@ export interface LlmSettingsInput {
   effort?: Effort;
   clearKey?: boolean;
 }
+
+export const LlmSettingsInputSchema = z.object({
+  provider: z.enum(PROVIDER_IDS as [ProviderId, ...ProviderId[]]).optional(),
+  model: z.string().max(200).optional(),
+  apiKey: z.string().max(500).optional(),
+  baseUrl: z.string().max(500).optional(),
+  effort: z.enum(EFFORTS).optional(),
+  clearKey: z.boolean().optional(),
+}) satisfies z.ZodType<LlmSettingsInput>;
+
+export type LlmTestResult = { ok: true; model: string } | { ok: false; error: string };

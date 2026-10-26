@@ -10,6 +10,8 @@ export interface ProductionContext {
   deps: CoreDeps;
   episode: Episode;
   channel: Channel;
+  /** Picture style of this video (skill's, else the channel's). */
+  imageStyle: string;
   format: EpisodeFormat;
   slots: Slot[];
   bible: SeriesBible | null;
@@ -18,6 +20,11 @@ export interface ProductionContext {
   dir: string;
   /** Background music file, or null. */
   music: string | null;
+}
+
+export interface ImagesOutput {
+  /** Absolute image file per scene id, only for scenes whose block needs a picture. */
+  files: Record<string, string>;
 }
 
 export interface VoiceOutput {

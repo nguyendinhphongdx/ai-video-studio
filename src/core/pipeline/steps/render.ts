@@ -4,18 +4,19 @@ import { FORMATS } from '../../domain/catalog';
 import { UserFacingError } from '../../domain/errors';
 import { buildTimeline } from '../../timeline';
 import type { PipelineStep } from '../step';
-import type { ProductionContext, RenderOutput, VoiceOutput } from '../production';
+import type { ImagesOutput, ProductionContext, RenderOutput, VoiceOutput } from '../production';
 
 /** One clip per scene per format, each drawn by the scene's own tool. */
 export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
   id: 'render',
   label: 'Dựng cảnh',
-  after: ['voice'],
+  after: ['voice', 'images'],
   weight: 75,
   inputs: ({ episode, channel }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt }),
   reusable: async ({ deps }, out) => (await Promise.all(Object.values(out.clips).flat().map((f) => deps.media.exists(f)))).every(Boolean),
   async run({ deps, episode, brand, dir }, prev, progress) {
     const voice = prev.voice as VoiceOutput;
+    const images = prev.images as ImagesOutput;
     const scenes = episode.scenes;
     const minSeconds = (ref: string) => {
       const b = deps.tools.block(ref);
@@ -25,6 +26,9 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
     const timeline = buildTimeline(scenes, minSeconds, (s) => voice.lines[s.id]?.seconds ?? 0);
     const narration = new Map<string, string>();
     for (const [id, line] of Object.entries(voice.lines)) narration.set(id, await deps.media.dataUri(line.file));
+
+    const pictures = new Map<string, string>();
+    for (const [id, file] of Object.entries(images.files)) pictures.set(id, await deps.media.dataUri(file));
 
     const clips: RenderOutput['clips'] = {};
     const total = episode.formats.length * scenes.length;
@@ -38,7 +42,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         await deps.renderers.get(block.tool.id).render(
           {
             block: block.ref,
-            props: scene.props,
+            props: pictures.has(scene.id) ? { ...scene.props, image: pictures.get(scene.id) } : scene.props,
             ordinal: scenes.slice(0, si + 1).filter((x) => x.block === scene.block).length,
             brand,
             format,

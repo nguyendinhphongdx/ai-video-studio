@@ -3,6 +3,17 @@ import type { Format, VoiceId } from './catalog';
 /** "remotion/cards": a block of a tool. */
 export type BlockRef = string;
 
+/** What was generated for one scene. Paths are media-relative; a hash says which prompt/voice/text it was made for. */
+export interface SceneAssets {
+  imagePath: string | null;
+  imageHash: string | null;
+  voicePath: string | null;
+  voiceSeconds: number | null;
+  voiceHash: string | null;
+}
+
+export const emptyAssets = (): SceneAssets => ({ imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null });
+
 /** One shot. `block` picks the renderer; `props` follow that block's schema. */
 export interface Scene {
   id: string;
@@ -13,6 +24,9 @@ export interface Scene {
   locked: boolean;
   narration: string;
   props: Record<string, unknown>;
+  /** The person approved this scene (picture and voice included). Any edit or regeneration withdraws the approval. */
+  approved: boolean;
+  assets: SceneAssets;
 }
 
 export interface PublishKit {
@@ -31,6 +45,8 @@ export interface Episode {
   seriesId: string | null;
   /** Series version pinned when the script was written. */
   seriesVersion: number | null;
+  /** Version of the channel's knowledge the script was written with (null before the first script). */
+  knowledgeVersion: number | null;
   number: number | null;
   /** What this video is about, e.g. "Số 5 và những ngôi sao". */
   topic: string;
@@ -43,6 +59,9 @@ export interface Episode {
   formats: Format[];
   voice: VoiceId;
   music: boolean;
+  /** Generate pictures / voices for every scene as soon as a script is written, instead of one scene at a time. */
+  autoImages: boolean;
+  autoVoice: boolean;
   /** Desired scene count for one-off videos; null lets the skill decide. */
   sceneCount: number | null;
   title: string;

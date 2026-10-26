@@ -41,7 +41,15 @@ function enqueue(episodeId: string, kind: JobKind, payload: Record<string, unkno
 }
 
 function baseView(e: Episode): EpisodeView {
-  return { episode: e, job: visibleJob(e.id), renders: episodeRepository.renders(e.id).map((r) => ({ ...r, url: mediaUrl(r.filePath) })), events: episodeRepository.events(e.id), issues: [] };
+  return {
+    episode: e,
+    job: visibleJob(e.id),
+    renders: episodeRepository.renders(e.id).map((r) => ({ ...r, url: mediaUrl(r.filePath), thumbnailUrl: r.thumbnailPath ? mediaUrl(r.thumbnailPath) : null })),
+    events: episodeRepository.events(e.id),
+    issues: [],
+    slots: [],
+    durationSec: null,
+  };
 }
 
 const editable = (e: Episode) => e.status === 'draft' || e.status === 'script_review';
@@ -53,7 +61,15 @@ export const episodeService = {
 
   async get(id: string): Promise<EpisodeView> {
     const e = loadEpisode(id);
-    return { ...baseView(e), issues: await scriptIssues(appDeps, e).catch(() => []) };
+    const ctx = await buildContext(appDeps, e);
+    const slots = ctx.slots.map((s) => ({
+      id: s.id,
+      name: s.name,
+      fill: s.fill,
+      blocks: s.fill === 'ai' ? slotBlocks(s, appDeps.tools).map((b) => b.ref) : [],
+      scenes: s.scenes,
+    }));
+    return { ...baseView(e), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec };
   },
 
   async create(input: CreateEpisodeInput): Promise<EpisodeView> {

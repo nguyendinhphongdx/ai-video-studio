@@ -69,6 +69,8 @@ export interface MediaPort {
 }
 
 export interface VideoPort {
+  /** Writes one frame of a video as an image. */
+  frame(videoFile: string, atSec: number, outFile: string): Promise<void>;
   concat(clips: string[], outFile: string, opts: { width: number; height: number; music?: { file: string; volume: number } }): Promise<number>;
 }
 

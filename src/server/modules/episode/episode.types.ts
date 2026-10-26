@@ -38,6 +38,16 @@ export type EpisodeOptionsInput = z.infer<typeof EpisodeOptionsInput>;
 
 export interface RenderView extends Render {
   url: string;
+  thumbnailUrl: string | null;
+}
+
+/** A format slot as the storyboard needs it (which blocks can be added where). */
+export interface SlotView {
+  id: string;
+  name: string;
+  fill: 'locked' | 'ai';
+  blocks: string[];
+  scenes: { min: number; max: number };
 }
 
 /** Everything a screen needs about one episode. */
@@ -48,4 +58,8 @@ export interface EpisodeView {
   renders: RenderView[];
   events: EpisodeEvent[];
   issues: QualityIssue[];
+  /** Active slots of this episode's format (empty in list views). */
+  slots: SlotView[];
+  /** Target duration from the series format, if any. */
+  durationSec: { min: number; max: number } | null;
 }

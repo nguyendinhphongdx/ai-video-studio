@@ -157,6 +157,7 @@ const MIGRATIONS = [
   );
   CREATE INDEX events_episode ON episode_events(episode_id, id);
   `,
+  `ALTER TABLE renders ADD COLUMN thumbnail_path TEXT;`,
 ];
 
 function open(): DatabaseSync {

@@ -21,6 +21,10 @@ async function hasAudio(file: string): Promise<boolean> {
 }
 
 export const video: VideoPort = {
+  async frame(videoFile, atSec, outFile) {
+    await fs.mkdir(path.dirname(outFile), { recursive: true });
+    await run('ffmpeg', ['-y', '-loglevel', 'error', '-ss', atSec.toFixed(2), '-i', videoFile, '-frames:v', '1', '-q:v', '3', outFile]);
+  },
   async concat(clips, outFile, { width, height, music }) {
     if (!clips.length) throw new Error('No clips to join');
     await fs.mkdir(path.dirname(outFile), { recursive: true });

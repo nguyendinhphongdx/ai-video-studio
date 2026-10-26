@@ -1,7 +1,7 @@
 import { UserFacingError } from '../domain/errors';
 import type { Render } from '../domain/episode';
 import type { CoreDeps, ProgressFn } from '../ports';
-import type { AssembleOutput, ProductionContext } from '../pipeline/production';
+import type { AssembleOutput, ProductionContext, ThumbnailOutput } from '../pipeline/production';
 import { runPipeline } from '../pipeline/step';
 import { PRODUCTION_STEPS } from '../pipeline/steps';
 import type { RenderBrand } from '../tools/tool';
@@ -36,7 +36,8 @@ export async function produce(deps: CoreDeps, episodeId: string, progress: Progr
     music,
   };
   const outputs = await runPipeline(PRODUCTION_STEPS, production, { episodeId, store: deps.stepRuns, progress });
-  const saved = await deps.episodes.replaceRenders(episodeId, (outputs.assemble as AssembleOutput).renders);
+  const { thumbnails } = outputs.thumbnail as ThumbnailOutput;
+  const saved = await deps.episodes.replaceRenders(episodeId, (outputs.assemble as AssembleOutput).renders.map((r) => ({ ...r, thumbnailPath: thumbnails[r.format] ?? null })));
   await deps.episodes.update(episodeId, { status: 'video_review' });
   await deps.episodes.addEvent(episodeId, 'Video đã sẵn sàng, chờ duyệt');
   await deps.events.publish({ type: 'episode.produced', episodeId });

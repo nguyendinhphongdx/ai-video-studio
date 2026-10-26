@@ -39,7 +39,7 @@ export function publishMarkdown(episode: Episode, renders: Render[]): string {
   return `# ${episode.title}
 
 ## Video
-${renders.map((r) => `- ${r.filePath} (${FORMATS[r.format].label})`).join('\n')}
+${renders.map((r) => `- ${r.filePath.split(/[\\/]/).pop()} (${FORMATS[r.format].label})`).join('\n')}
 
 ## YouTube
 **Tiêu đề:** ${kit.youtube.title}

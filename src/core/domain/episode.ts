@@ -57,6 +57,8 @@ export interface Render {
   episodeId: string;
   format: Format;
   filePath: string;
+  /** Still frame for the publish screen and library cards. */
+  thumbnailPath: string | null;
   durationSec: number;
   createdAt: string;
 }

@@ -43,6 +43,7 @@ const toRender = (r: Row): Render => ({
   episodeId: String(r.episode_id),
   format: String(r.format) as Format,
   filePath: String(r.file_path),
+  thumbnailPath: (r.thumbnail_path as string | null) ?? null,
   durationSec: Number(r.duration_sec),
   createdAt: String(r.created_at),
 });
@@ -113,8 +114,8 @@ export const episodeRepository = {
   replaceRenders(episodeId: string, renders: Omit<Render, 'id' | 'episodeId' | 'createdAt'>[]): Render[] {
     transaction(() => {
       db().prepare('DELETE FROM renders WHERE episode_id = ?').run(episodeId);
-      const ins = db().prepare('INSERT INTO renders (id, episode_id, format, file_path, duration_sec, created_at) VALUES (?, ?, ?, ?, ?, ?)');
-      for (const r of renders) ins.run(newId(), episodeId, r.format, r.filePath, r.durationSec, now());
+      const ins = db().prepare('INSERT INTO renders (id, episode_id, format, file_path, thumbnail_path, duration_sec, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      for (const r of renders) ins.run(newId(), episodeId, r.format, r.filePath, r.thumbnailPath, r.durationSec, now());
     });
     return episodeRepository.renders(episodeId);
   },

@@ -33,3 +33,8 @@ export interface RenderOutput {
 export interface AssembleOutput {
   renders: { format: Episode['formats'][number]; filePath: string; durationSec: number }[];
 }
+
+export interface ThumbnailOutput {
+  /** Media-relative image path per format. */
+  thumbnails: Record<string, string>;
+}

@@ -76,3 +76,39 @@ export const LlmSettingsInputSchema = z.object({
 }) satisfies z.ZodType<LlmSettingsInput>;
 
 export type LlmTestResult = { ok: true; model: string } | { ok: false; error: string };
+
+// ---- image generation (Vox-style scenes) -------------------------------------------------------
+export const IMAGE_PROVIDERS = {
+  gemini: { label: 'Google Gemini (Nano Banana, dùng Google API key)', defaultModel: 'gemini-2.5-flash-image', models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'], envKey: 'GEMINI_API_KEY', keyUrl: 'https://aistudio.google.com/apikey', llmProvider: 'gemini' },
+  openai: { label: 'OpenAI (gpt-image)', defaultModel: 'gpt-image-1', models: ['gpt-image-1'], envKey: 'OPENAI_API_KEY', keyUrl: 'https://platform.openai.com/api-keys', llmProvider: 'openai' },
+} as const;
+export type ImageProviderId = keyof typeof IMAGE_PROVIDERS;
+export const IMAGE_PROVIDER_IDS = Object.keys(IMAGE_PROVIDERS) as ImageProviderId[];
+
+/** Effective image settings, secret included. Server only. */
+export interface ImageSettings {
+  provider: ImageProviderId;
+  model: string;
+  apiKey: string;
+}
+
+export interface PublicImageSettings extends Omit<ImageSettings, 'apiKey'> {
+  apiKey: string;
+  hasKey: boolean;
+  keySource: 'settings' | 'env' | 'llm' | null;
+  ready: boolean;
+}
+
+export interface ImageSettingsInput {
+  provider?: ImageProviderId;
+  model?: string;
+  apiKey?: string;
+  clearKey?: boolean;
+}
+
+export const ImageSettingsInputSchema = z.object({
+  provider: z.enum(IMAGE_PROVIDER_IDS as [ImageProviderId, ...ImageProviderId[]]).optional(),
+  model: z.string().max(200).optional(),
+  apiKey: z.string().max(500).optional(),
+  clearKey: z.boolean().optional(),
+}) satisfies z.ZodType<ImageSettingsInput>;

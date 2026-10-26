@@ -52,8 +52,8 @@ export async function removeChannelMedia(channelId: string) {
   await fs.rm(path.join(MEDIA_DIR, 'channels', channelId), { recursive: true, force: true });
 }
 
-/** Replaces the channel's previous file of this kind (logo or music); returns the media-relative path. */
-export async function saveChannelFile(channelId: string, kind: 'logo' | 'music', data: Buffer, ext: string): Promise<string> {
+/** Replaces the channel's previous file of this kind (logo, avatar or music); returns the media-relative path. */
+export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
   const dir = path.join(MEDIA_DIR, 'channels', channelId, kind);
   await fs.rm(dir, { recursive: true, force: true });
   await fs.mkdir(dir, { recursive: true });

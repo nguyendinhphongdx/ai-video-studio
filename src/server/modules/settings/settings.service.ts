@@ -6,11 +6,25 @@ import path from 'node:path';
 import { ApiError } from '@/server/http/api-error';
 import { SETTINGS_FILE } from '@/server/config';
 
-import { EFFORTS, PROVIDERS, type LlmSettings, type LlmSettingsInput, type ProviderId, type PublicLlmSettings } from './settings.types';
+import {
+  EFFORTS,
+  IMAGE_PROVIDERS,
+  PROVIDERS,
+  type ImageProviderId,
+  type ImageSettings,
+  type ImageSettingsInput,
+  type LlmSettings,
+  type LlmSettingsInput,
+  type ProviderId,
+  type PublicImageSettings,
+  type PublicLlmSettings,
+} from './settings.types';
 
 type Saved = Partial<LlmSettings>;
 
-async function readAll(): Promise<{ llm?: Saved }> {
+type SavedImage = Partial<ImageSettings>;
+
+async function readAll(): Promise<{ llm?: Saved; image?: SavedImage }> {
   try {
     return JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
   } catch {
@@ -36,6 +50,32 @@ function resolve(saved: Saved = {}): LlmSettings {
     baseUrl: saved.baseUrl || p.baseUrl,
     effort: saved.effort && EFFORTS.includes(saved.effort) ? saved.effort : 'medium',
   };
+}
+
+/** Image key: its own setting, else the env var, else the AI key when the writing provider is the same company. */
+function resolveImage(saved: SavedImage = {}, llm: LlmSettings): ImageSettings & { source: PublicImageSettings['keySource'] } {
+  const provider: ImageProviderId = saved.provider && saved.provider in IMAGE_PROVIDERS ? saved.provider : 'gemini';
+  const p = IMAGE_PROVIDERS[provider];
+  const fromEnv = process.env[p.envKey] ?? '';
+  const fromLlm = llm.provider === p.llmProvider ? llm.apiKey : '';
+  const apiKey = saved.apiKey || fromEnv || fromLlm;
+  return { provider, model: saved.model || p.defaultModel, apiKey, source: saved.apiKey ? 'settings' : fromEnv ? 'env' : fromLlm ? 'llm' : null };
+}
+
+export function mergeImage(saved: SavedImage = {}, input: ImageSettingsInput = {}): SavedImage {
+  const next: SavedImage = { ...saved };
+  if (input.provider !== undefined) {
+    if (saved.provider && saved.provider !== input.provider) {
+      delete next.apiKey;
+      delete next.model;
+    }
+    next.provider = input.provider;
+  }
+  if (input.model !== undefined) next.model = input.model.trim();
+  const key = input.apiKey?.trim() ?? '';
+  if (input.clearKey) delete next.apiKey;
+  else if (key && !key.includes('…')) next.apiKey = key;
+  return next;
 }
 
 export function isReady(llm: LlmSettings): boolean {
@@ -68,6 +108,39 @@ export function mergeLlm(saved: Saved = {}, input: LlmSettingsInput = {}): Saved
 }
 
 export const settingsService = {
+  /** Google API key for Gemini TTS: the one saved for image generation, else GEMINI_API_KEY, else the key of a Gemini writing model. */
+  async googleKey(): Promise<string> {
+    const all = await readAll();
+    const saved = !all.image?.provider || all.image.provider === 'gemini' ? all.image?.apiKey : '';
+    const llm = resolve(all.llm);
+    return saved || process.env.GEMINI_API_KEY || (llm.provider === 'gemini' ? llm.apiKey : '') || '';
+  },
+
+  async image(): Promise<ImageSettings> {
+    const all = await readAll();
+    const { source: _source, ...settings } = resolveImage(all.image, resolve(all.llm));
+    return settings;
+  },
+
+  async publicImage(): Promise<PublicImageSettings> {
+    const all = await readAll();
+    const { source, ...img } = resolveImage(all.image, resolve(all.llm));
+    return { ...img, apiKey: maskKey(img.apiKey), hasKey: Boolean(img.apiKey), keySource: source, ready: Boolean(img.apiKey && img.model) };
+  },
+
+  /** Settings as they would be after saving `input`, without saving (for the test button). */
+  async previewImage(input: ImageSettingsInput): Promise<ImageSettings> {
+    const all = await readAll();
+    const { source: _source, ...settings } = resolveImage(mergeImage(all.image, input), resolve(all.llm));
+    return settings;
+  },
+
+  async saveImage(input: ImageSettingsInput): Promise<PublicImageSettings> {
+    const all = await readAll();
+    await writeAll({ ...all, image: mergeImage(all.image, input) });
+    return settingsService.publicImage();
+  },
+
   /** Read fresh on every call so a save applies without restarting the app or the worker. */
   async llm(): Promise<LlmSettings> {
     return resolve((await readAll()).llm);

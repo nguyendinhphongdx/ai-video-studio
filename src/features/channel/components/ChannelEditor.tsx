@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Music, Play, Square, Trash2, Upload, UserRound } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -88,7 +88,12 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: config } = useAppConfig();
-  const [tab, setTab] = useState<'info' | 'brand' | 'skills' | 'more'>('info');
+  // The tab lives in the URL (?tab=), so a reload or a shared link opens the same one.
+  const search = useSearchParams();
+  const pathname = usePathname();
+  const asked = search.get('tab');
+  const tab = (['info', 'brand', 'skills', 'more'] as const).find((t) => t === asked) ?? 'info';
+  const setTab = (t: typeof tab) => router.replace(`${pathname}?tab=${t}`, { scroll: false });
   const [form, setForm] = useState<ChannelInput>(toInput(channel));
   const [baseline, setBaseline] = useState(JSON.stringify(toInput(channel)));
   const dirty = JSON.stringify(form) !== baseline;
@@ -111,6 +116,8 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
 
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setForm((f) => ({ ...f, [k]: v }));
   const save = useChannelAction(channel.id, () => channelApi.update(channel.id, form), 'Đã lưu kênh');
+  // The default style is saved the moment it is picked, with the saved values of everything else (unsaved edits elsewhere stay unsaved).
+  const setDefault = useChannelAction(channel.id, (skillId: string) => channelApi.update(channel.id, { ...(JSON.parse(baseline) as ChannelInput), defaultSkillId: skillId }), 'Đã đặt làm kiểu video mặc định');
   const logo = useChannelAction(channel.id, (f: File) => channelApi.uploadLogo(channel.id, f), 'Đã đổi logo');
   const music = useChannelAction(channel.id, (f: File) => channelApi.uploadMusic(channel.id, f), 'Đã tải nhạc nền lên');
   const avatar = useChannelAction(channel.id, (f: File) => channelApi.uploadAvatar(channel.id, f), 'Đã đổi avatar');
@@ -304,7 +311,7 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
         </Card>
         ) : null}
 
-        {tab === 'skills' ? <ChannelSkillsCard channelId={channel.id} defaultSkillId={form.defaultSkillId} onDefault={(id) => set('defaultSkillId', id)} brand={brandOf({ ...channel, palette: form.palette, font: form.font, name: form.name })} context={channelContext(form)} /> : null}
+        {tab === 'skills' ? <ChannelSkillsCard channelId={channel.id} defaultSkillId={channel.defaultSkillId} onDefault={(id) => setDefault.mutate(id)} brand={brandOf({ ...channel, palette: form.palette, font: form.font, name: form.name })} context={channelContext(form)} /> : null}
 
         {tab === 'more' ? (
           <>

@@ -10,10 +10,10 @@ const Frame = z.object({
   w: z.number().describe('Rộng, 1-100 (% chiều rộng)'),
   h: z.number().describe('Cao, 1-100 (% chiều cao)'),
 });
-const Anim = z.enum(['none', 'fade', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'pop', 'wipe', 'type', 'float', 'pulse']);
+const Anim = z.enum(['none', 'fade', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'pop', 'wipe', 'type', 'float', 'pulse', 'materialize', 'stamp', 'glitch', 'blur-in', 'drop', 'spin-in', 'crash-in']);
 
 const placement = {
-  anim: Anim.describe('Hiệu ứng xuất hiện (type chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện)'),
+  anim: Anim.describe('Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)'),
   delay: z.number().describe('Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt'),
   land: Frame.describe('Vị trí khi video ngang 16:9'),
   port: Frame.describe('Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)'),
@@ -35,11 +35,21 @@ export const DesignLayerSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('shape'),
     ...placement,
-    shape: z.enum(['rect', 'ellipse', 'line', 'ring']),
+    shape: z.enum(['rect', 'ellipse', 'line', 'ring', 'glow', 'rays', 'grid']).describe('glow = quầng sáng mềm (fill là màu sáng, đặt phía sau chữ); rays = tia toả từ tâm; grid = lưới đường kẻ mảnh'),
     fill: Hex,
     opacity: z.number().describe('0-1'),
     radius: z.number().describe('Bo góc hình chữ nhật, 0-50 (%)'),
     rotate: z.number().describe('Xoay, -45 đến 45 độ'),
+  }),
+  z.object({
+    kind: z.literal('marquee'),
+    ...placement,
+    text: z.string().describe('Cụm chữ lặp lại chạy ngang như bảng đèn chạy (tối đa 40 ký tự, thường in hoa)'),
+    size: z.number().describe('Cỡ chữ, 3-30 (% cạnh ngắn của khung hình); chữ lớn làm hoạ tiết nền'),
+    color: Hex,
+    outline: z.boolean().describe('true = chữ rỗng chỉ có viền (hợp làm nền, không tranh với chữ chính)'),
+    direction: z.enum(['left', 'right']).describe('Hướng chạy; dùng hai dòng ngược hướng để có nhịp'),
+    opacity: z.number().describe('0-1; hoạ tiết nền thường 0.15-0.5'),
   }),
   z.object({ kind: z.literal('logo'), ...placement, circle: z.boolean().describe('Cắt tròn') }),
   z.object({ kind: z.literal('avatar'), ...placement, circle: z.boolean(), ring: Hex.describe('Màu viền, "" nếu không viền') }),
@@ -85,6 +95,8 @@ export function normalizeDesign(design: SceneDesign, palette: string[]): SceneDe
         // A near-opaque panel over the whole frame on top of the AI art would hide it: keep it a veil.
         const covers = artAt >= 0 && index > artAt && base.land.w >= 90 && base.land.h >= 90;
         return { ...l, ...base, fill: hex(l.fill, accent), opacity: Math.min(clamp(l.opacity, 0, 1, 1), covers ? 0.45 : 1), radius: clamp(l.radius, 0, 50, 0), rotate: clamp(l.rotate, -45, 45, 0) };
+      case 'marquee':
+        return { ...l, ...base, text: l.text.slice(0, 40), size: clamp(l.size, 3, 30, 12), color: hex(l.color, accent), opacity: clamp(l.opacity, 0, 1, 0.3) };
       case 'avatar':
         return { ...l, ...base, ring: l.ring ? hex(l.ring, '#FFFFFF') : '' };
       case 'art':

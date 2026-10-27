@@ -56,6 +56,12 @@ export function serializeSkill(skill: Omit<Skill, 'id'>): string {
   return `---\n${fm}---\n\n${skill.body.trim()}\n`;
 }
 
+/** The same skill allowing exactly these tools/blocks (the front matter is rewritten; the instructions are kept). */
+export function withTools(id: string, markdown: string, tools: string[]): string {
+  const { id: _id, ...skill } = { ...parseSkill(id, markdown), id };
+  return serializeSkill({ ...skill, tools });
+}
+
 /** Problems to fix before the skill can be used. Errors block saving. */
 export function lintSkill(skill: Skill, catalog: ToolCatalog): SkillIssue[] {
   const issues: SkillIssue[] = [];

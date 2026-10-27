@@ -46,3 +46,9 @@ export function channelToolkit(skills: SkillRefs[], tools: ToolRef[]): Toolkit {
     updates: skills.filter((s) => s.update).map((s) => s.name),
   };
 }
+
+/** The scene types a skill's tool list stands for (a ref is a block, or a whole tool). */
+export function blocksOf(refs: string[], tools: ToolRef[]): BlockLike[] {
+  const all = tools.flatMap((t) => t.blocks);
+  return all.filter((b) => refs.some((r) => r === b.ref || tools.some((t) => t.id === r && t.blocks.includes(b))));
+}

@@ -13,7 +13,12 @@ export interface SceneAssetsRequest {
   sceneIds: string[] | null;
   image: boolean;
   voice: boolean;
+  /** Make it again even though the current one still matches the scene ("Tạo lại"); a new picture then differs from the old one. */
+  force?: boolean;
 }
+
+/** Appended on a redo so the model does not paint the same picture again. */
+const REDO_HINTS = ['Take a different camera angle and a different arrangement of the elements.', 'Reframe the shot: move closer or farther, change the subject placement and the background details.', 'Use a fresh composition with a different viewpoint and different supporting objects.', 'Show the same idea from another side, with a different layout and scale of the subject.'];
 
 export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req: SceneAssetsRequest, progress: ProgressFn): Promise<{ images: number; voices: number }> {
   const episode = await deps.episodes.get(episodeId);
@@ -28,8 +33,8 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
   for (const [i, s] of episode.scenes.entries()) {
     if (!scenes.includes(s)) continue;
     const r = readiness(s, readyCtx);
-    if (req.image && r.needsImage && !r.imageFresh) work.push({ kind: 'image', index: i, sceneId: s.id });
-    if (req.voice && r.needsVoice && !r.voiceFresh) work.push({ kind: 'voice', index: i, sceneId: s.id });
+    if (req.image && r.needsImage && (!r.imageFresh || req.force)) work.push({ kind: 'image', index: i, sceneId: s.id });
+    if (req.voice && r.needsVoice && (!r.voiceFresh || req.force)) work.push({ kind: 'voice', index: i, sceneId: s.id });
   }
   if (!work.length) return { images: 0, voices: 0 };
   if (work.some((w) => w.kind === 'image') && !(await deps.images.isReady())) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, nhập Google API key ở mục Tạo ảnh AI.');
@@ -40,8 +45,10 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
     const scene = episode.scenes[w.index]!;
     if (w.kind === 'image') {
       const spec = imageSpec(scene, deps.tools, readyCtx.channelStyle)!;
-      const file = path.join(dir, 'images', `${scene.id}-${spec.hash}.png`);
-      await deps.images.generate(spec.prompt, file, { sceneId: scene.id });
+      // A redo writes a new file (the old name is cached by the browser) and asks for another composition.
+      const redo = Boolean(req.force);
+      const file = path.join(dir, 'images', `${scene.id}-${spec.hash}${redo ? `-${Date.now().toString(36)}` : ''}.png`);
+      await deps.images.generate(redo ? `${spec.prompt} ${REDO_HINTS[Date.now() % REDO_HINTS.length]}` : spec.prompt, file, { sceneId: scene.id });
       await deps.episodes.updateScene(episodeId, scene.id, { imagePath: deps.media.relative(file), imageHash: spec.hash, approved: false });
       images++;
     } else if (needsVoice(scene)) {

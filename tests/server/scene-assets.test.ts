@@ -92,6 +92,22 @@ describe('scene pictures and voices', () => {
     expect(await generateSceneAssets(deps, id, { sceneIds: null, image: true, voice: true }, () => {})).toEqual({ images: 0, voices: 0 });
   });
 
+  it('"Tạo lại" makes a new, different picture even when the current one still matches the scene', async () => {
+    env.images.length = 0;
+    const { id, ids } = await newEpisode([pic('a', 'a market at dawn')]);
+    const deps = fakeDeps();
+    await generateSceneAssets(deps, id, { sceneIds: [ids.a!], image: true, voice: false }, () => {});
+    const first = (await s.episodes.episodeService.get(id)).episode.scenes.find((x) => x.id === ids.a!)!.assets.imagePath;
+    expect(await generateSceneAssets(deps, id, { sceneIds: [ids.a!], image: true, voice: false }, () => {})).toEqual({ images: 0, voices: 0 });
+    expect(await generateSceneAssets(deps, id, { sceneIds: [ids.a!], image: true, voice: false, force: true }, () => {})).toEqual({ images: 1, voices: 0 });
+    const again = (await s.episodes.episodeService.get(id)).episode.scenes.find((x) => x.id === ids.a!)!.assets.imagePath;
+    expect(again).not.toBe(first);
+    expect(env.images).toHaveLength(2);
+    expect(env.images[1]).toContain(env.images[0]!);
+    expect(env.images[1]).not.toBe(env.images[0]);
+    expect((await s.episodes.episodeService.get(id)).assets[ids.a!]).toMatchObject({ ready: false, needsImage: true });
+  });
+
   it('refuses to generate pictures without a configured provider', async () => {
     const { id } = await newEpisode([pic('a', 'a market')]);
     env.imageReady = false;

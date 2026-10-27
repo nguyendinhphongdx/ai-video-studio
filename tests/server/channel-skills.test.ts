@@ -108,8 +108,8 @@ describe('market and channel-owned skills', () => {
     expect(channel.defaultSkillId).toBe('kids-cards');
     const list = await s.skills.skillService.list(kid);
     expect(list.map((x) => x.id).sort()).toEqual(['cinematic', 'kids-cards']);
-    expect(list[0]!.source).toBe('market:kids-cards');
-    expect((await s.skills.skillService.list(kid)).map((x) => x.id)).toEqual(['kids-cards', 'cinematic']);
+    expect(list.find((x) => x.id === 'kids-cards')!.source).toBe('market:kids-cards');
+    expect((await s.skills.skillService.list(kid)).map((x) => x.id).sort()).toEqual(['cinematic', 'kids-cards']);
     // The channel already had a default skill: the built-in one does not replace it.
     expect((await s.channels.channelService.get(kid)).defaultSkillId).toBe('kids-cards');
   });

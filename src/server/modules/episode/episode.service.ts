@@ -262,7 +262,7 @@ export const episodeService = {
     if (input.sceneIds?.some((sid) => !e.scenes.some((s) => s.id === sid))) throw new UserFacingError('Có cảnh không thuộc video này');
     if (input.image && !(await appDeps.images.isReady())) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, nhập Google API key ở mục Tạo ảnh AI.');
     if (input.voice && !(await voiceAvailable(e.voice))) throw new UserFacingError('Giọng đọc đang chọn chưa dùng được (chưa cài edge-tts hoặc chưa có Google API key). Mở Cài đặt.');
-    enqueue(id, 'scene_assets', { sceneIds: input.sceneIds, image: input.image, voice: input.voice });
+    enqueue(id, 'scene_assets', { sceneIds: input.sceneIds, image: input.image, voice: input.voice, force: input.force ?? false });
     return episodeService.get(id);
   },
 

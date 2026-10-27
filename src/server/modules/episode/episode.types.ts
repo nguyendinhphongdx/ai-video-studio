@@ -77,7 +77,7 @@ export interface SceneAssetView {
   ready: boolean;
 }
 
-export const SceneAssetsInput = z.object({ sceneIds: z.array(z.string()).max(60).nullable().default(null), image: z.boolean().default(false), voice: z.boolean().default(false) });
+export const SceneAssetsInput = z.object({ sceneIds: z.array(z.string()).max(60).nullable().default(null), image: z.boolean().default(false), voice: z.boolean().default(false), force: z.boolean().optional() });
 export type SceneAssetsInput = z.infer<typeof SceneAssetsInput>;
 export const ApprovalInput = z.object({ sceneIds: z.array(z.string()).max(60).nullable().default(null), approved: z.boolean() });
 export type ApprovalInput = z.infer<typeof ApprovalInput>;

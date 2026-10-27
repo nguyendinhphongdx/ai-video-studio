@@ -126,7 +126,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const saveFirst = async () => {
     if (dirty) await episodeApi.saveScript(id, toInput());
   };
-  const assets = useEpisodeAction(id, async (a: { sceneIds: string[] | null; image: boolean; voice: boolean }) => {
+  const assets = useEpisodeAction(id, async (a: { sceneIds: string[] | null; image: boolean; voice: boolean; force?: boolean }) => {
     await saveFirst();
     return episodeApi.assets(id, a);
   }, 'Đã giao cho worker tạo, kết quả hiện ngay khi xong');
@@ -337,7 +337,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
                   editable={editable}
                   playingId={playingId}
                   onPlay={() => play(s.id)}
-                  onGenerate={(what) => assets.mutate({ sceneIds: [s.id], image: what === 'image', voice: what === 'voice' })}
+                  onGenerate={(what) => assets.mutate({ sceneIds: [s.id], image: what === 'image', voice: what === 'voice', force: true })}
                   onApprove={(approved) => approval.mutate({ sceneIds: [s.id], approved })}
                   onOpen={() => setEditing(s.id)}
                   onJump={() => jump(s)}
@@ -405,7 +405,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
         editable={editable}
         assets={editingScene ? view.assets[editingScene.id] : undefined}
         working={editingScene ? isWorking(editingScene.id) : false}
-        onGenerate={(what) => editingScene && assets.mutate({ sceneIds: [editingScene.id], image: what === 'image', voice: what === 'voice' })}
+        onGenerate={(what) => editingScene && assets.mutate({ sceneIds: [editingScene.id], image: what === 'image', voice: what === 'voice', force: true })}
         onApprove={(approved) => editingScene && approval.mutate({ sceneIds: [editingScene.id], approved })}
         onChange={(patch) => editingScene && updateScene(editingScene.id, patch)}
         onMove={(dir) => editingScene && moveScene(editingScene.id, dir)}

@@ -188,11 +188,11 @@ export const generateSceneAssets = defineTool({
   name: 'generate_scene_assets',
   description: 'Tạo ảnh AI và/hoặc giọng đọc cho các cảnh (sceneIds; bỏ trống = mọi cảnh). Chỉ tạo phần còn thiếu hoặc lỗi thời. LUÔN gọi MỘT lần cho cả video (không gọi từng cảnh) và báo chi phí ước tính (estimate_cost) trước. Tốn tiền ảnh/giọng, chạy nền. Cảnh được tạo lại sẽ mất trạng thái duyệt.',
   risk: 'paid',
-  schema: z.object({ episodeId: z.string(), sceneIds: z.array(z.string()).nullable().default(null), image: z.boolean().default(true), voice: z.boolean().default(true) }),
-  summarize: async (a, ctx) => `Tạo ${[a.image && 'ảnh', a.voice && 'giọng'].filter(Boolean).join(' và ')} cho ${a.sceneIds ? `${a.sceneIds.length} cảnh` : 'mọi cảnh'} của video ${await label(ctx, a.episodeId)}`,
-  async run({ episodeId, sceneIds, image, voice }, ctx) {
+  schema: z.object({ episodeId: z.string(), sceneIds: z.array(z.string()).nullable().default(null), image: z.boolean().default(true), voice: z.boolean().default(true), force: z.boolean().default(false).describe('true = làm lại cả khi ảnh/giọng hiện tại vẫn khớp cảnh (khi người dùng bảo tạo lại, đổi ảnh khác)') }),
+  summarize: async (a, ctx) => `${a.force ? 'Làm lại' : 'Tạo'} ${[a.image && 'ảnh', a.voice && 'giọng'].filter(Boolean).join(' và ')} cho ${a.sceneIds ? `${a.sceneIds.length} cảnh` : 'mọi cảnh'} của video ${await label(ctx, a.episodeId)}`,
+  async run({ episodeId, sceneIds, image, voice, force }, ctx) {
     await ownEpisode(ctx, episodeId);
-    await episodeService.requestAssets(episodeId, { sceneIds, image, voice });
+    await episodeService.requestAssets(episodeId, { sceneIds, image, voice, force });
     return { ok: true, message: 'Đã giao worker tạo. Dùng get_episode để kiểm tra khi cần (cột image/voice của từng cảnh).' };
   },
 });

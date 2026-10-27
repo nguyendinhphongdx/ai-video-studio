@@ -61,8 +61,8 @@ export function ToolsView() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Tools"
-        description="Công cụ dựng video đã đăng ký và các khối cảnh của từng công cụ. Tool là code trong src/tools/<tool>/, không phải cấu hình; skill gọi chúng bằng @tool hoặc @tool/khối."
+        title="Công cụ dựng"
+        description="Phần nâng cao: các loại cảnh mà video có thể dùng, với xem trước trực tiếp. Bạn thường không cần mở trang này; trợ lý và kiểu video tự chọn loại cảnh phù hợp. (Kỹ thuật: tool là code trong src/tools/<tool>/; skill gọi chúng bằng @tool hoặc @tool/khối.)"
       />
       {isLoading ? <Skeleton className="h-64 rounded-2xl" /> : null}
       {(tools ?? []).map((tool) => (

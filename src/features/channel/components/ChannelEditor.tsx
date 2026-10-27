@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Music, Play, Square, Trash2, Upload, UserRound } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -298,6 +299,23 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
             </div>
           </Field>
         </Card>
+
+        <section aria-labelledby="adv-h" className="flex flex-col gap-3 rounded-2xl border bg-card p-6">
+          <div>
+            <h2 id="adv-h" className="text-title font-bold">
+              Nâng cao
+            </h2>
+            <p className="text-small text-muted-foreground">Phần ít khi cần mở: trợ lý và các kiểu video đã lo việc chọn loại cảnh.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href={ROUTES.skills}>Kiểu video của kênh</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={ROUTES.tools}>Công cụ dựng và các loại cảnh</Link>
+            </Button>
+          </div>
+        </section>
 
         <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-destructive/30 bg-card p-6">
           <div className="min-w-0 flex-1">

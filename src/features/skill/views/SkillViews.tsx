@@ -66,7 +66,7 @@ function ToolChips({ tools }: { tools: string[] }) {
   );
 }
 
-const sourceLabel = (source: string) => (source.startsWith('market:') ? `Từ market · ${source.slice(7)}` : source === 'ai' ? 'AI soạn' : 'Tự soạn');
+const sourceLabel = (source: string) => (source.startsWith('market:') ? `Từ kho · ${source.slice(7)}` : source === 'ai' ? 'AI soạn' : 'Tự soạn');
 
 function NoChannel() {
   return <p className="rounded-2xl border border-dashed bg-card px-6 py-12 text-center text-small text-muted-foreground">Chọn hoặc tạo một kênh trước. Skill thuộc về từng kênh.</p>;
@@ -91,13 +91,13 @@ export function SkillListView() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Skills"
-        description={`Công thức làm từng loại video của kênh ${current?.name ?? ''}. Skill thuộc về kênh: cài từ market rồi sửa riêng, hoặc để AI soạn từ tri thức của kênh. Skill gọi công cụ dựng bằng @tool hoặc @tool/khối.`}
+        title="Kiểu video"
+        description={`Công thức làm từng loại video của kênh ${current?.name ?? ''} (trong tài liệu kỹ thuật gọi là skill). Mỗi kiểu thuộc về kênh: cài từ kho có sẵn rồi sửa riêng, hoặc nhờ trợ lý soạn từ tri thức của kênh.`}
         actions={
           <Button asChild disabled={!current}>
             <Link href={`${ROUTES.skills}/new`}>
               <Plus aria-hidden />
-              Soạn skill mới
+              Soạn kiểu video mới
             </Link>
           </Button>
         }

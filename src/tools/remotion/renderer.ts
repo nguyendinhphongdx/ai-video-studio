@@ -6,9 +6,13 @@ import { bundle } from '@remotion/bundler';
 import { openBrowser, renderMedia, selectComposition } from '@remotion/renderer';
 
 import type { SceneRenderContext, SceneRenderInput, ToolRenderer } from '@/core/tools/tool';
+import { createLogger } from '@/server/logger';
+
+import { retryTransient } from './retry';
 import type { SceneClipProps } from '@video/compositions';
 
 const ROOT = process.cwd();
+const logger = createLogger('remotion');
 // Fixed port so the bundle server does not land on a port another local app already uses (e.g. 3000).
 const PORT = Number(process.env.AVS_REMOTION_PORT || 3220);
 
@@ -31,7 +35,7 @@ function getBrowser() {
   return browserPromise;
 }
 
-async function render(input: SceneRenderInput, ctx: SceneRenderContext): Promise<void> {
+async function renderOnce(input: SceneRenderInput, ctx: SceneRenderContext): Promise<void> {
   const serveUrl = await getBundle();
   const puppeteerInstance = await getBrowser();
   const inputProps: SceneClipProps = {
@@ -66,6 +70,11 @@ async function render(input: SceneRenderInput, ctx: SceneRenderContext): Promise
     void browser?.then((b) => b.close({ silent: true })).catch(() => {});
     throw e;
   }
+}
+
+/** One clip, retried when Remotion's bundle server was not ready (see retry.ts). */
+async function render(input: SceneRenderInput, ctx: SceneRenderContext): Promise<void> {
+  await retryTransient(() => renderOnce(input, ctx), { onRetry: (e, attempt) => logger.warn(`render attempt ${attempt} failed, retrying`, { error: String((e as Error)?.message ?? e).split('\n')[0] }) });
 }
 
 export async function closeRemotion() {

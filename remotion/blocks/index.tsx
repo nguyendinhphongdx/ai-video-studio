@@ -5,6 +5,7 @@ import { CardsScene, type CardsSceneProps } from './cards';
 import { ChartScene, type ChartSceneProps } from './chart';
 import { CounterScene, type CounterSceneProps } from './counter';
 import { DotsScene, type DotsSceneProps } from './dots';
+import { UiScene, type UiSceneProps } from './ui';
 import { GaugeScene, type GaugeSceneProps } from './gauge';
 import { TimelineScene, type TimelineSceneProps } from './timeline';
 import { KineticScene, type KineticSceneProps } from './kinetic';
@@ -16,7 +17,7 @@ import { TitleScene, type TitleSceneProps } from './title';
 import { VoxScene, type VoxSceneProps } from './vox';
 import { WhiteboardScene, type WhiteboardSceneProps } from './whiteboard';
 
-export type { CardsSceneProps, ChartSceneProps, CounterSceneProps, DotsSceneProps, GaugeSceneProps, TimelineSceneProps, KineticSceneProps, OutroSceneProps, PictureSceneProps, QuizSceneProps, RecapSceneProps, TitleSceneProps, VoxSceneProps, WhiteboardSceneProps };
+export type { CardsSceneProps, ChartSceneProps, CounterSceneProps, DotsSceneProps, GaugeSceneProps, TimelineSceneProps, KineticSceneProps, OutroSceneProps, PictureSceneProps, QuizSceneProps, RecapSceneProps, TitleSceneProps, UiSceneProps, VoxSceneProps, WhiteboardSceneProps };
 
 type Draw = (props: Record<string, unknown>, ordinal: number) => ReactElement;
 
@@ -34,5 +35,6 @@ export const BLOCKS: Record<string, Draw> = {
   'remotion/gauge': (p) => <GaugeScene {...(p as unknown as GaugeSceneProps)} />,
   'remotion/dots': (p) => <DotsScene {...(p as unknown as DotsSceneProps)} />,
   'remotion/chart': (p) => <ChartScene {...(p as unknown as ChartSceneProps)} />,
+  'remotion/ui': (p, ordinal) => <UiScene {...(p as unknown as UiSceneProps)} ordinal={ordinal} />,
   'remotion/outro': (p) => <OutroScene {...(p as unknown as OutroSceneProps)} />,
 };

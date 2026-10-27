@@ -47,3 +47,7 @@ export const cardsLayoutFor = (ordinal: number): CardsLayout => at(LAYOUT_CYCLE,
 
 const PATTERN_CYCLE: SkyPattern[] = ['sparkles', 'dots', 'rays', 'stripes', 'sparkles', 'rays'];
 export const skyPatternFor = (ordinal: number): SkyPattern => at(PATTERN_CYCLE, ordinal);
+
+/** Software-window scene: looks that click and looks that do not alternate, so two in a row are never alike. */
+const UI_CYCLE = ['cards-fly', 'click-select', 'rows-cascade', 'chip-filter', 'notify-stack', 'tab-switch', 'stack-fan', 'toggle-switch', 'type-search', 'progress-done'];
+export const uiLookFor = (ordinal: number): string => at(UI_CYCLE, ordinal);

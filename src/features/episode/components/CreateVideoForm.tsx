@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -17,10 +17,10 @@ import { useAppConfig, useCurrentChannel } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
-import { useSkills } from '../hooks/use-episode';
+import { useEpisodes, useSkills } from '../hooks/use-episode';
+import { useTopicIdeas } from '../hooks/use-topic-ideas';
 import { episodeApi } from '../services/episode.api';
 
-const IDEAS = ['Bé học đếm từ 1 đến 10 với các con vật', 'Bé học màu sắc qua trái cây', 'Vòng đời của con ếch', 'Bé học chữ cái A B C'];
 const FORMAT_CHIP: Record<Format, string> = { landscape: 'YouTube · Facebook 16:9', portrait: 'TikTok · Reels · Shorts 9:16' };
 
 export function CreateVideoForm() {
@@ -29,14 +29,24 @@ export function CreateVideoForm() {
   const { current } = useCurrentChannel();
   const { data: config } = useAppConfig();
   const { data: skills } = useSkills(current?.id);
+  const { data: episodes } = useEpisodes(current?.id);
+  const { ideas, loading: ideasLoading, error: ideasError, generate, canAsk } = useTopicIdeas(current?.id, episodes?.length);
+  // Free suggestions first: the videos already planned in the channel's series roadmaps.
+  const planned = (episodes ?? []).filter((e) => e.episode.status === 'planned').slice(0, 3);
   const [topic, setTopic] = useState('');
   const [formats, setFormats] = useState<Format[]>(['landscape']);
   const [skillId, setSkillId] = useState<string>('');
 
   useEffect(() => {
-    // Only the channel's own default is preselected: silently picking the first skill gave channels the wrong look.
-    if (!skillId && current?.defaultSkillId) setSkillId(current.defaultSkillId);
-  }, [current, skillId]);
+    // The channel's own default is preselected (picking an arbitrary skill gave channels the wrong look); a channel that has
+    // none yet gets the built-in all-round skill every channel is given.
+    if (skillId) return;
+    if (current?.defaultSkillId) setSkillId(current.defaultSkillId);
+    else {
+      const builtIn = skills?.find((s) => s.source === 'market:cinematic');
+      if (builtIn) setSkillId(builtIn.id);
+    }
+  }, [current, skillId, skills]);
 
   const create = useMutation({
     mutationFn: () => episodeApi.create({ channelId: current!.id, topic: topic.trim(), formats, skillId }),
@@ -72,15 +82,28 @@ export function CreateVideoForm() {
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
         }}
-        placeholder="Gõ 1 câu là đủ. Ví dụ: Bé học đếm từ 1 đến 10 bằng tiếng Anh với các con vật"
+        placeholder={ideas[0] ? `Gõ 1 câu là đủ. Ví dụ: ${ideas[0].topic}` : 'Gõ 1 câu là đủ: chủ đề hoặc câu hỏi video sẽ trả lời'}
         className="min-h-24 resize-y rounded-xl border-2 border-primary px-4 py-3.5 text-[18px] leading-relaxed focus-visible:ring-4 focus-visible:ring-accent"
       />
-      <div className="flex flex-wrap gap-2">
-        {IDEAS.map((idea) => (
-          <button key={idea} type="button" onClick={() => setTopic(idea)} className="min-h-9 rounded-full bg-muted px-3 text-small text-slate-700 hover:bg-accent hover:text-accent-foreground">
-            {idea}
+      <div className="flex flex-wrap items-center gap-2" aria-label="Gợi ý chủ đề">
+        {planned.map((p) => (
+          <button key={p.episode.id} type="button" onClick={() => setTopic(p.episode.topic)} title="Tập đã lên lộ trình trong series của kênh" className="min-h-9 rounded-full border border-primary/40 bg-accent px-3 text-small font-semibold text-accent-foreground hover:border-primary">
+            Tiếp theo: {p.episode.topic}
           </button>
         ))}
+        {ideas.map((idea) => (
+          <button key={idea.topic} type="button" onClick={() => setTopic(idea.topic)} title={idea.why} className="min-h-9 rounded-full bg-muted px-3 text-small text-slate-700 hover:bg-accent hover:text-accent-foreground">
+            {idea.topic}
+          </button>
+        ))}
+        {ideasLoading && !ideas.length ? <span className="flex items-center gap-1.5 text-small text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden />AI đang nghĩ chủ đề cho kênh…</span> : null}
+        {ideasError && !ideas.length ? <span className="text-small text-muted-foreground">Chưa gợi ý được chủ đề.</span> : null}
+        {aiReady && canAsk ? (
+          <button type="button" onClick={generate} disabled={ideasLoading} title="Tốn một lượt gọi AI, dựa trên kênh, tri thức và các video đã có" className="flex min-h-9 items-center gap-1.5 rounded-full px-3 text-small font-semibold text-primary hover:bg-accent disabled:opacity-50">
+            {ideas.length ? <RefreshCw className="size-3.5" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
+            {ideas.length ? 'Gợi ý khác' : 'Gợi ý chủ đề'}
+          </button>
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="mr-1 text-small text-muted-foreground">Đăng lên</span>

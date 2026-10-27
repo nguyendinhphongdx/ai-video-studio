@@ -10,6 +10,7 @@ export type { AiRun, BlockInfo, CreateEpisodeInput, EpisodeView, SaveScriptInput
 const ep = (id: string, rest = '') => `/episodes/${id}${rest}`;
 
 export const episodeApi = {
+  topicIdeas: (channelId: string) => api<{ topic: string; why: string }[]>(`/channels/${channelId}/topic-ideas`, { method: 'POST' }),
   list: (channelId: string) => api<EpisodeView[]>(`/episodes?channelId=${encodeURIComponent(channelId)}`),
   get: (id: string) => api<EpisodeView>(ep(id)),
   create: (input: Partial<CreateEpisodeInput> & Pick<CreateEpisodeInput, 'channelId' | 'topic' | 'formats'>) => api<EpisodeView>('/episodes', { body: input }),

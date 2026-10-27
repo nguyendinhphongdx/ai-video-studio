@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { Tabs, TabsList, TabsTrigger } from '@/components/animate-ui/components/radix/tabs';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -16,17 +17,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { ROUTES } from '@/constants/routes';
 import { BRAND_FONT_IDS, BRAND_FONTS, MEDIA_MUSIC_PREFIX, voiceReady } from '@/core/domain/catalog';
 import { queryKeys, useAppConfig } from '@/features/app';
-import { useSkills } from '@/features/episode/hooks/use-episode';
 
-import { ChannelToolkit } from './ChannelToolkit';
-import { musicSrc } from '@/features/episode/lib/preview';
+import { brandOf, musicSrc } from '@/features/episode/lib/preview';
 import { episodeApi } from '@/features/episode/services/episode.api';
 import { errorMessage } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 
 import { useChannelAction } from '../hooks/use-channels';
+import { channelContext } from '../lib/recommend';
 import { channelApi, toInput, type ChannelInput, type ChannelView } from '../services/channel.api';
 
 import { ChannelArtPanel } from './ChannelArtPanel';
+import { ChannelSkillsCard } from './ChannelSkillsCard';
 import { BrandPreview } from './BrandPreview';
 import { HashtagInput } from './HashtagInput';
 import { KnowledgeCard } from './KnowledgeCard';
@@ -86,7 +88,7 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: config } = useAppConfig();
-  const { data: skills } = useSkills(channel.id);
+  const [tab, setTab] = useState<'info' | 'brand' | 'skills' | 'more'>('info');
   const [form, setForm] = useState<ChannelInput>(toInput(channel));
   const [baseline, setBaseline] = useState(JSON.stringify(toInput(channel)));
   const dirty = JSON.stringify(form) !== baseline;
@@ -127,8 +129,19 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
   const uploaded = form.music.startsWith(MEDIA_MUSIC_PREFIX);
 
   return (
-    <div className="grid items-start gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+    <div className="flex flex-col gap-6 pb-24">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="info">Thông tin</TabsTrigger>
+          <TabsTrigger value="brand">Thương hiệu</TabsTrigger>
+          <TabsTrigger value="skills">Kiểu video và mẫu</TabsTrigger>
+          <TabsTrigger value="more">Khác</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <div className={cn('grid items-start gap-6', tab === 'brand' ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]' : 'max-w-3xl')}>
       <div className="flex flex-col gap-6">
+        {tab === 'info' ? (
+          <>
         <Card title="Thông tin kênh">
           <Field id="ch-name" label="Tên kênh">
             <Input id="ch-name" className="h-11" value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={60} />
@@ -153,25 +166,13 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
           <Field id="ch-tags" label="Hashtag mặc định" hint="Luôn được thêm vào nội dung đăng bài">
             <HashtagInput id="ch-tags" value={form.hashtags} onChange={(v) => set('hashtags', v)} />
           </Field>
-          <Field id="ch-skill" label="Kiểu video mặc định (skill)">
-            <Select value={form.defaultSkillId ?? 'none'} onValueChange={(v) => set('defaultSkillId', v === 'none' ? null : v)}>
-              <SelectTrigger id="ch-skill" className="h-11 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Chưa chọn</SelectItem>
-                {(skills ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
         </Card>
 
         <KnowledgeCard channelId={channel.id} />
+          </>
+        ) : null}
 
+        {tab === 'brand' ? (
         <Card title="Thương hiệu">
           <ChannelArtPanel channel={channel} form={form} setForm={setForm} />
           <div className="flex flex-wrap items-center gap-4">
@@ -301,9 +302,12 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
             </div>
           </Field>
         </Card>
+        ) : null}
 
-        <ChannelToolkit channelId={channel.id} />
+        {tab === 'skills' ? <ChannelSkillsCard channelId={channel.id} defaultSkillId={form.defaultSkillId} onDefault={(id) => set('defaultSkillId', id)} brand={brandOf({ ...channel, palette: form.palette, font: form.font, name: form.name })} context={channelContext(form)} /> : null}
 
+        {tab === 'more' ? (
+          <>
         <section aria-labelledby="adv-h" className="flex flex-col gap-3 rounded-2xl border bg-card p-6">
           <div>
             <h2 id="adv-h" className="text-title font-bold">
@@ -352,13 +356,18 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
             </DialogContent>
           </Dialog>
         </section>
+          </>
+        ) : null}
       </div>
 
+      {tab === 'brand' ? (
       <aside className="flex flex-col gap-3 rounded-2xl border bg-card p-5 lg:sticky lg:top-4">
         <h2 className="text-title font-bold">Xem trước với thương hiệu đang sửa</h2>
         <p className="text-caption text-muted-foreground">Chạy trực tiếp bằng @remotion/player: đổi thiết kế, màu, font, câu chào là thấy ngay, chưa cần lưu.</p>
         <BrandPreview input={form} logoUrl={channel.logoUrl} avatarUrl={channel.avatarUrl} introArtUrl={channel.introArtUrl} outroArtUrl={channel.outroArtUrl} sampleTitle="Tiêu đề video mẫu" />
       </aside>
+      ) : null}
+      </div>
 
       {dirty ? (
         <div data-action-bar className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 backdrop-blur md:left-60">

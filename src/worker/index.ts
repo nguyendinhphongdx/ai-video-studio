@@ -12,6 +12,7 @@ import { assistantService } from '@/server/modules/assistant/assistant.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 import { jobRepository } from '@/server/modules/job/job.repository';
 import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
+import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { SUBSCRIBERS } from '@/server/subscribers';
 import { closeRemotion, rendererCatalog } from '@/tools/renderers';
 import { withUsageScope } from '@/server/modules/usage/usage.scope';
@@ -100,6 +101,15 @@ async function deliverEvents(): Promise<boolean> {
 }
 
 async function main() {
+  // Say "I am here" on a timer of its own: a long render must not look like a dead worker.
+  prefsService.workerBeat();
+  setInterval(() => {
+    try {
+      prefsService.workerBeat();
+    } catch (e) {
+      logger.warn('heartbeat failed', { error: String((e as Error)?.message ?? e) });
+    }
+  }, 5000).unref();
   for (const job of jobRepository.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) rollback(job);
   logger.info('ready, waiting for jobs');
   while (!stopping) {

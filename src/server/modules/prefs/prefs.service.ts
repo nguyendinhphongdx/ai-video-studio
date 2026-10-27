@@ -18,6 +18,13 @@ export interface SfxPrefs {
 
 /** Small app-wide switches that are not part of any channel or video. */
 export const prefsService = {
+  /** The worker calls this every few seconds; the web app reads it to tell whether background work is being picked up. */
+  workerBeat: (): void => set('worker_seen_at', String(Date.now())),
+  workerSeenAt: (): number | null => {
+    const v = Number(get('worker_seen_at'));
+    return Number.isFinite(v) && get('worker_seen_at') !== null ? v : null;
+  },
+
   /** One-time markers ("this was done once"), so a thing a person later undoes is not redone. */
   flag: (key: string): boolean => get(`flag:${key}`) === '1',
   setFlag: (key: string): void => set(`flag:${key}`, '1'),

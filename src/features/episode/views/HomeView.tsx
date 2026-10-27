@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { ROUTES } from '@/constants/routes';
 import { useCurrentChannel } from '@/features/app';
+import { OnboardingCard } from '@/features/onboarding/components/OnboardingCard';
 
 import { CreateVideoForm } from '../components/CreateVideoForm';
 import { EpisodeGrid } from '../components/EpisodeCard';
@@ -16,6 +17,7 @@ export function HomeView() {
   const inProgress = (episodes ?? []).filter((v) => v.episode.status !== 'published').slice(0, 8);
   return (
     <div className="flex flex-col gap-10">
+      <OnboardingCard />
       <CreateVideoForm />
       <section aria-labelledby="wip-h" className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between gap-4">

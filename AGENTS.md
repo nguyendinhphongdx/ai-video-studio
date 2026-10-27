@@ -31,7 +31,7 @@ tests/                         vitest: core contracts and tool catalog
 4. Long work (AI, voice, render) runs in the worker through the job queue. Route handlers validate, call a service, return.
 5. Series rules are versioned (`series_versions`); never mutate a version. Episodes pin the version they were written with.
 6. The web process never imports `src/tools/renderers.ts` or `@remotion/renderer`.
-7. Migrations in `src/server/db.ts` are append-only.
+7. Migrations in `src/server/db.ts` are append-only. Paid calls (LLM, picture, voice) must go through the adapters that record them in the cost ledger (see docs/ARCHITECTURE.md, Cost tracking).
 8. UI text is Vietnamese; code, comments and commit messages are English.
 
 ## Commands

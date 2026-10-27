@@ -73,7 +73,7 @@ export function SceneEditor({ scene, ordinal, position, slot, blocks, brand, edi
                 <div className="flex justify-end">
                   <AskAiButton
                     title={`Nhờ AI làm lại cảnh ${position}`}
-                    prompt={`Làm lại cảnh ${position} của video này (dùng edit_scene, chỉ sửa cảnh này, giữ nguyên các cảnh khác).\nLời đọc hiện tại: "${scene.narration}"\nKhối: @${scene.block}. Nội dung hiện tại: ${JSON.stringify(scene.props).slice(0, 400)}\n\nMuốn đổi: [ví dụ: lời đọc cuốn hơn và có mồi sang cảnh sau, đổi bố cục/kiểu khung hình, mô tả ảnh cụ thể hơn].`}
+                    prompt={`Làm lại cảnh ${position} của video này (dùng edit_scene, chỉ sửa cảnh này, giữ nguyên các cảnh khác).\nLời đọc hiện tại: "${scene.narration}"\nKhối: @${scene.block}. Nội dung hiện tại: ${JSON.stringify(scene.props).slice(0, 400)}\n\nMuốn đổi: [ví dụ: lời đọc cuốn hơn và có mồi sang cảnh sau, đổi bố cục/kiểu khung hình, chuyển động hoặc cách mở cảnh, mô tả ảnh cụ thể hơn].${slot && slot.blocks.length > 1 ? `\nBạn cũng có thể ĐỔI LOẠI CẢNH nếu loại khác hợp hơn (edit_scene với block). Các loại được phép: ${slot.blocks.map((r) => `@${r}`).join(', ')}.` : ''}`}
                   />
                 </div>
               ) : null}

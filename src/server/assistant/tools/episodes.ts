@@ -101,16 +101,19 @@ export const reviseScript = defineTool({
 
 export const editScene = defineTool({
   name: 'edit_scene',
-  description: 'Sửa MỘT cảnh của video: lời đọc (narration) và/hoặc các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
+  description: 'Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
   risk: 'write',
-  schema: z.object({ episodeId: z.string(), sceneId: z.string(), narration: z.string().max(600).optional(), props: z.record(z.string(), z.unknown()).optional() }),
-  summarize: async (a, ctx) => `Sửa cảnh của video ${await label(ctx, a.episodeId)}: ${[a.narration !== undefined && 'lời đọc', a.props && Object.keys(a.props).join(', ')].filter(Boolean).join(' + ')}`,
-  async run({ episodeId, sceneId, narration, props }, ctx) {
+  schema: z.object({ episodeId: z.string(), sceneId: z.string(), narration: z.string().max(600).optional(), props: z.record(z.string(), z.unknown()).optional(), block: z.string().optional().describe('Mã khối để đổi loại cảnh, ví dụ "remotion/counter"') }),
+  summarize: async (a, ctx) => `Sửa cảnh của video ${await label(ctx, a.episodeId)}: ${[a.block && `đổi loại thành @${a.block}`, a.narration !== undefined && 'lời đọc', a.props && Object.keys(a.props).join(', ')].filter(Boolean).join(' + ')}`,
+  async run({ episodeId, sceneId, narration, props, block }, ctx) {
     const v = await ownEpisode(ctx, episodeId);
     const scene = v.episode.scenes.find((s) => s.id === sceneId);
     if (!scene) throw new UserFacingError('Không tìm thấy cảnh này trong video.');
     if (scene.locked) throw new UserFacingError('Cảnh này bị khoá theo series, không sửa được.');
-    const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, narration: narration ?? s.narration, props: { ...s.props, ...(props ?? {}) } } : s));
+    // Changing the type starts from the new block's own defaults (the old block's props mean nothing to it).
+    const target = block && block !== scene.block ? toolCatalog.block(block) : undefined;
+    if (block && block !== scene.block && !target) throw new UserFacingError(`Khối @${block} không tồn tại. Xem list_blocks.`);
+    const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, ...(target ? { block: target.ref } : {}), narration: narration ?? s.narration, props: target ? { ...(target.defaults as Record<string, unknown>), ...(props ?? {}) } : { ...s.props, ...(props ?? {}) } } : s));
     const after = await episodeService.saveScript(episodeId, scriptInput(v, scenes));
     return { ok: true, message: `Đã sửa cảnh ${after.episode.scenes.findIndex((s) => s.id === sceneId) + 1}. Cần tạo lại ảnh/giọng nếu nội dung liên quan đã đổi, rồi duyệt lại.` };
   },

@@ -29,6 +29,13 @@ export const prefsService = {
   flag: (key: string): boolean => get(`flag:${key}`) === '1',
   setFlag: (key: string): void => set(`flag:${key}`, '1'),
 
+  /** The first-run guide on the home screen: dismissed for good once a person closes it. */
+  onboardingDismissed: (): boolean => get('onboarding_dismissed') === '1',
+  setOnboardingDismissed: (dismissed: boolean): boolean => {
+    set('onboarding_dismissed', dismissed ? '1' : '0');
+    return dismissed;
+  },
+
   async sfxEnabled(): Promise<boolean> {
     return get('sfx_enabled') !== '0';
   },

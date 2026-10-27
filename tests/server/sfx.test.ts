@@ -77,6 +77,12 @@ describe('sound files and the mix (needs ffmpeg)', () => {
     expect(await prefs.prefsService.sfx()).toEqual({ enabled: false, volume: 0.4 });
   });
 
+  it('remembers that the first-run guide was dismissed', () => {
+    expect(prefs.prefsService.onboardingDismissed()).toBe(false);
+    prefs.prefsService.setOnboardingDismissed(true);
+    expect(prefs.prefsService.onboardingDismissed()).toBe(true);
+  });
+
   it('mixes the sounds into the joined video without changing its length', async () => {
     const dir = path.join(dataDir, 'mix');
     fs.mkdirSync(dir, { recursive: true });

@@ -20,3 +20,6 @@ Sheet: rhythm-cuts.jpg
 
 Data scenes (timeline x3 moments, gauge x2, dots x4):
 Sheet: data-scenes.jpg
+
+Channel intro designs using the newer vocabulary (marquee, materialize+glow, stamp+rays, glitch+grid, drop+glow; two moments each):
+Sheet: intro-designs.jpg

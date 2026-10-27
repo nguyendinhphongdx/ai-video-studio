@@ -31,6 +31,9 @@ Adapted from it, rewritten for this project's blocks, pipeline and Vietnamese-la
   - remotion/camera/cuts.tsx (rhythm cuts) and remotion/blocks/{timeline,gauge,dots}.tsx: new implementations of the rhythm recipes
     (beat-cut-moves, panel-grid-moves, rhythm-interrupt-moves, quad-split-parallel-scenes, sakuga-timing-shift) and of the data
     recipes (timeline-travel, gauge-readout-moves, chart-live-moves unit-dot-swarm).
+  - Intro/outro vocabulary (design.ts anims materialize, stamp, glitch, crash-in, drop; shapes glow, rays, grid; the marquee layer): new
+    implementations of the opening and outro recipes (letterspace-materialize, brand-ink-open, grain-dissolve, neon-triple-marquee,
+    magician-card-flourish, logo-shrink-wordmark-lockup).
 
 No audio, image or other media files from video-shotcraft are included. Sound effects are synthesised on the user's
 machine with ffmpeg (src/server/adapters/sfx/sfx.service.ts), and a person may add their own files.

@@ -41,13 +41,13 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
     if (w.kind === 'image') {
       const spec = imageSpec(scene, deps.tools, readyCtx.channelStyle)!;
       const file = path.join(dir, 'images', `${scene.id}-${spec.hash}.png`);
-      await deps.images.generate(spec.prompt, file);
+      await deps.images.generate(spec.prompt, file, { sceneId: scene.id });
       await deps.episodes.updateScene(episodeId, scene.id, { imagePath: deps.media.relative(file), imageHash: spec.hash, approved: false });
       images++;
     } else if (needsVoice(scene)) {
       const hash = voiceHashOf(episode.voice, scene.narration);
       const file = path.join(dir, 'voice', `${scene.id}-${hash}.mp3`);
-      const seconds = await deps.tts.synthesize(scene.narration, episode.voice, file);
+      const seconds = await deps.tts.synthesize(scene.narration, episode.voice, file, { sceneId: scene.id });
       await deps.episodes.updateScene(episodeId, scene.id, { voicePath: deps.media.relative(file), voiceSeconds: seconds, voiceHash: hash, approved: false });
       voices++;
     }

@@ -143,7 +143,7 @@ export async function runAssistantTurn(rt: AssistantRuntime, threadId: string): 
     const system = await rt.system(thread, focus);
     const started = Date.now();
     const history = toChatMessages(messages);
-    const res = await rt.llm.chat({ system, messages: history, tools: specs });
+    const res = await rt.llm.chat({ system, messages: history, tools: specs, purpose: 'assistant' });
     await rt.runs?.record({
       id: newId(), task: 'assistant', taskVersion: 1, episodeId: null, seriesId: null, model: res.model, context: system, sections: [], prompt: history.at(-1)?.content ?? '',
       output: { text: res.text, toolCalls: res.toolCalls.map((c) => c.name) }, error: null, durationMs: Date.now() - started, createdAt: new Date().toISOString(),

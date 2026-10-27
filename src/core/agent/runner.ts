@@ -46,7 +46,7 @@ export async function runTask<I, O>(deps: RunnerDeps, task: AgentTask<I, O>, inp
   let model: string | null = null;
   let raw: unknown = null;
   try {
-    const result = await deps.llm.generateObject({ system: compiled.text, user: prompt, schema: task.schema(input, ctx) });
+    const result = await deps.llm.generateObject({ system: compiled.text, user: prompt, schema: task.schema(input, ctx), purpose: task.id });
     model = result.model;
     raw = result.object;
     const output = task.parse(raw, input, ctx);

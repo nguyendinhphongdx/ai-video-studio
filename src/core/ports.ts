@@ -1,4 +1,5 @@
 // What the core needs from the outside world. The server/worker provide implementations (adapters).
+import type { SfxPort } from './audio/sfx';
 import type { z } from 'zod';
 
 import type { AiRun } from './agent/runner';
@@ -81,16 +82,22 @@ export interface ChatToolSpec {
   schema: z.ZodType;
 }
 
+/** What a paid call is for, so its cost can be attributed (the server adds channel, video and job). */
+export interface UsageMeta {
+  sceneId?: string;
+  purpose?: string;
+}
+
 export interface LlmPort {
   isReady(): Promise<boolean>;
   /** One step of a tool-using conversation: the model answers with text and/or tool calls. */
-  chat(input: { system: string; messages: ChatMessage[]; tools: ChatToolSpec[] }): Promise<{ text: string; toolCalls: ChatToolCall[]; model: string }>;
-  generateObject(input: { system: string; user: string; schema: z.ZodType }): Promise<{ object: unknown; model: string }>;
+  chat(input: { system: string; messages: ChatMessage[]; tools: ChatToolSpec[]; purpose?: string }): Promise<{ text: string; toolCalls: ChatToolCall[]; model: string }>;
+  generateObject(input: { system: string; user: string; schema: z.ZodType; purpose?: string }): Promise<{ object: unknown; model: string }>;
 }
 
 export interface TtsPort {
   /** Writes an mp3 and returns its length in seconds. */
-  synthesize(text: string, voice: VoiceId, outFile: string): Promise<number>;
+  synthesize(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<number>;
 }
 
 export interface MediaPort {
@@ -103,16 +110,27 @@ export interface MediaPort {
   exists(absPath: string): Promise<boolean>;
 }
 
+/** What ffmpeg heard and saw in a finished video. Times are seconds from the start. */
+export interface VideoAnalysis {
+  black: { start: number; end: number }[];
+  silences: { start: number; end: number }[];
+  meanDb: number | null;
+  maxDb: number | null;
+  durationSec: number;
+}
+
 export interface VideoPort {
+  /** Looks for black stretches, silent stretches and clipping in a finished video. */
+  analyze(file: string): Promise<VideoAnalysis>;
   /** Writes one frame of a video as an image. */
   frame(videoFile: string, atSec: number, outFile: string): Promise<void>;
-  concat(clips: string[], outFile: string, opts: { width: number; height: number; music?: { file: string; volume: number } }): Promise<number>;
+  concat(clips: string[], outFile: string, opts: { width: number; height: number; music?: { file: string; volume: number }; sfx?: { file: string; atSec: number; volume: number }[] }): Promise<number>;
 }
 
 export interface ImagePort {
   isReady(): Promise<boolean>;
   /** Writes one 16:9 picture for the prompt to `outFile` (png/jpg). */
-  generate(prompt: string, outFile: string): Promise<void>;
+  generate(prompt: string, outFile: string, meta?: UsageMeta): Promise<void>;
 }
 
 export interface AiRunStore {
@@ -142,6 +160,8 @@ export interface CoreDeps {
   aiRuns: AiRunStore;
   stepRuns: StepRunStore;
   events: EventBus;
+  /** Sound effects over the finished video; absent in tests and tools that do not mix audio. */
+  sfx?: SfxPort;
 }
 
 export type ProgressFn = (fraction: number, phase?: string) => void;

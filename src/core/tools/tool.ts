@@ -2,6 +2,7 @@
 // A Tool is a rendering engine a skill can name (@remotion, @hyperframes). Each tool offers Blocks:
 // scene types with their own props schema (@remotion/cards). Adding a scene type = one block definition
 // (+ a component/renderer); the storyboard editor is generated from `fields`.
+import type { SfxCue } from '../audio/sfx';
 import type { z } from 'zod';
 
 import type { Format } from '../domain/catalog';
@@ -39,6 +40,8 @@ export interface BlockDefinition<Schema extends z.ZodType = z.ZodType> {
   image?: { promptKey: string; style: string; /** Extra picture direction taken from the other props (camera shot, framing). */ compose?: (props: Record<string, unknown>) => string };
   /** Props that must change from one scene to the next (checked as variety). */
   varyBy?: string[];
+  /** Sounds that go with this block's own animation (seconds from the scene start); the video adds a sweep between scenes. */
+  sfx?: (scene: { props: Record<string, unknown>; ordinal: number; durationSec: number }) => SfxCue[];
   /**
    * Clamp/clean props after the AI or a person edits them. Keeps numeric limits out of the AI schema
    * (not every provider supports them) while still guaranteeing drawable values.

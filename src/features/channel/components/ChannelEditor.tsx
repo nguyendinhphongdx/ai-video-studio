@@ -17,6 +17,8 @@ import { ROUTES } from '@/constants/routes';
 import { BRAND_FONT_IDS, BRAND_FONTS, MEDIA_MUSIC_PREFIX, voiceReady } from '@/core/domain/catalog';
 import { queryKeys, useAppConfig } from '@/features/app';
 import { useSkills } from '@/features/episode/hooks/use-episode';
+
+import { ChannelToolkit } from './ChannelToolkit';
 import { musicSrc } from '@/features/episode/lib/preview';
 import { episodeApi } from '@/features/episode/services/episode.api';
 import { errorMessage } from '@/lib/api/client';
@@ -299,6 +301,8 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
             </div>
           </Field>
         </Card>
+
+        <ChannelToolkit channelId={channel.id} />
 
         <section aria-labelledby="adv-h" className="flex flex-col gap-3 rounded-2xl border bg-card p-6">
           <div>

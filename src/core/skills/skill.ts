@@ -67,7 +67,6 @@ export function lintSkill(skill: Skill, catalog: ToolCatalog): SkillIssue[] {
     if (used.unknown.length) issues.push({ level: 'error', message: `Nhắc tới tool không tồn tại: @${ref}` });
     else if (used.blocks.some((b) => !allowed.has(b.ref))) issues.push({ level: 'warning', message: `@${ref} được nhắc trong hướng dẫn nhưng chưa khai báo trong tools` });
   }
-  if (!skill.imageStyle && declared.blocks.some((b) => b.image && !b.image.style)) issues.push({ level: 'warning', message: 'Skill dùng khối có ảnh AI nhưng chưa có imageStyle: ảnh sẽ theo phong cách chung của kênh, các video khó đồng nhất.' });
   if (skill.scenes.min > skill.scenes.max) issues.push({ level: 'error', message: 'scenes: số nhỏ phải đứng trước' });
   return issues;
 }

@@ -74,13 +74,17 @@ export function normalizeDesign(design: SceneDesign, palette: string[]): SceneDe
   const main = hex(palette[0] ?? '', '#4F46E5');
   const accent = hex(palette[1] ?? '', '#FFC53D');
   const colors = design.background.colors.map((c) => hex(c, main)).slice(0, 3);
-  const layers = design.layers.slice(0, MAX_DESIGN_LAYERS).map((l): DesignLayer => {
+  const artAt = design.layers.findIndex((l) => l.kind === 'art');
+  const layers = design.layers.slice(0, MAX_DESIGN_LAYERS).map((l, index): DesignLayer => {
     const base = { anim: l.anim, delay: clamp(l.delay, 0, 3, 0), land: frame(l.land), port: frame(l.port) };
     switch (l.kind) {
       case 'text':
-        return { ...l, ...base, text: l.text.slice(0, 90), size: clamp(l.size, 2, 40, 6), color: hex(l.color, '#FFFFFF'), spacing: clamp(l.spacing, 0, 20, 0) };
+        // Text that must be read has a floor: the title and the sign-off at least 5% of the short side, anything else 3%.
+        return { ...l, ...base, text: l.text.slice(0, 90), size: clamp(l.size, /\{(title|outro)\}/.test(l.text) ? 5 : 3, 40, 6), color: hex(l.color, '#FFFFFF'), spacing: clamp(l.spacing, 0, 20, 0) };
       case 'shape':
-        return { ...l, ...base, fill: hex(l.fill, accent), opacity: clamp(l.opacity, 0, 1, 1), radius: clamp(l.radius, 0, 50, 0), rotate: clamp(l.rotate, -45, 45, 0) };
+        // A near-opaque panel over the whole frame on top of the AI art would hide it: keep it a veil.
+        const covers = artAt >= 0 && index > artAt && base.land.w >= 90 && base.land.h >= 90;
+        return { ...l, ...base, fill: hex(l.fill, accent), opacity: Math.min(clamp(l.opacity, 0, 1, 1), covers ? 0.45 : 1), radius: clamp(l.radius, 0, 50, 0), rotate: clamp(l.rotate, -45, 45, 0) };
       case 'avatar':
         return { ...l, ...base, ring: l.ring ? hex(l.ring, '#FFFFFF') : '' };
       case 'art':

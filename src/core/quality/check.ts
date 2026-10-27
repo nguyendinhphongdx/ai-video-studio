@@ -4,6 +4,7 @@
 import type { Episode, Scene } from '../domain/episode';
 import type { SeriesBible } from '../domain/series';
 import type { EpisodeFormat, Slot } from '../series/format';
+import type { VideoAnalysis } from '../ports';
 import type { ToolCatalog } from '../tools/catalog';
 
 export type QualityStage = 'script' | 'video';
@@ -26,6 +27,8 @@ export interface QualityInput {
   sceneSeconds: Map<string, number>;
   totalSeconds: number;
   tools?: ToolCatalog;
+  /** What was found in the finished video (video stage only). */
+  analysis?: VideoAnalysis;
 }
 
 export interface QualityCheck {

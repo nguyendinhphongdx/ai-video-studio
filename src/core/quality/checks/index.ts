@@ -113,5 +113,24 @@ const spoken: QualityCheck = {
   },
 };
 
+const fmtSec = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/** What the finished file itself shows: black holes, long silences, clipping, a voice too quiet to follow. */
+const avHealth: QualityCheck = {
+  id: 'av-health',
+  name: 'Hình và tiếng của video',
+  stages: ['video'],
+  run: ({ analysis, totalSeconds }) => {
+    if (!analysis) return [];
+    const out: QualityIssue[] = [];
+    // A fade at the very start or end is normal; black in the middle is a broken scene.
+    for (const b of analysis.black) if (b.start > 0.5 && b.end < totalSeconds - 0.5) out.push({ check: 'av-health', level: 'warning', message: `Có đoạn đen ${(b.end - b.start).toFixed(1)} giây lúc ${fmtSec(b.start)}: một cảnh có thể dựng lỗi` });
+    for (const s of analysis.silences) if (s.start > 0.5 && s.end < totalSeconds - 0.5) out.push({ check: 'av-health', level: 'warning', message: `Im lặng hoàn toàn ${(s.end - s.start).toFixed(1)} giây lúc ${fmtSec(s.start)}: thiếu giọng đọc hoặc nhạc nền` });
+    if (analysis.maxDb !== null && analysis.maxDb >= -0.3) out.push({ check: 'av-health', level: 'warning', message: 'Âm thanh chạm trần (dễ bị rè): giảm âm lượng hiệu ứng hoặc nhạc nền' });
+    if (analysis.meanDb !== null && analysis.meanDb < -30) out.push({ check: 'av-health', level: 'warning', message: `Âm thanh quá nhỏ (trung bình ${analysis.meanDb.toFixed(0)} dB): kiểm tra giọng đọc` });
+    return out;
+  },
+};
+
 /** Registered checks. Add a check here. */
-export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken];
+export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken, avHealth];

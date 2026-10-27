@@ -58,13 +58,14 @@ function Dust({ seed, frame, shiftX, u }: { seed: number; frame: number; shiftX:
  * `children` is the picture itself (full frame). With `layered` it is shown as a paper plate floating over a blurred
  * copy of itself, with dust in front; otherwise it fills the frame and only the perspective move gives depth.
  */
-export function DepthStage({ children, src, move, layered, seed = 1 }: { children: React.ReactNode; src: string | null; move: Motion; layered: boolean; seed?: number }) {
+export function DepthStage({ children, src, move, layered, seed = 1, hidden = false }: { children: React.ReactNode; src: string | null; move: Motion; layered: boolean; seed?: number; hidden?: boolean }) {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const { u } = useLayout();
   const t = Math.min(1, frame / Math.max(1, durationInFrames));
   const p = poseAt(move, t, frame);
   const tilted = Math.abs(p.rotX) > 0.5 || Math.abs(p.rotY) > 0.5;
+  if (hidden) return <></>;
   const showFar = Boolean(src) && (layered || tilted);
   return (
     <AbsoluteFill style={{ background: '#17130a', overflow: 'hidden' }}>

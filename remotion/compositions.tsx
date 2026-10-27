@@ -1,6 +1,7 @@
 import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from 'remotion';
 
-import { BrandContext, SceneFade, ensureFonts, type SceneBrand } from './primitives';
+import { BrandContext, ensureFonts, type SceneBrand } from './primitives';
+import { SceneFade, entranceFor } from './shots/transitions';
 import { BLOCKS } from './blocks';
 
 ensureFonts();
@@ -34,7 +35,7 @@ export function SceneClip({ block, props, ordinal, brand, narrationSrc }: SceneC
   return (
     <BrandContext.Provider value={brand}>
       <AbsoluteFill style={{ background: '#000' }}>
-        <SceneFade>{draw ? draw(props, ordinal) : <Missing block={block} />}</SceneFade>
+        <SceneFade entrance={entranceFor(block, ordinal)} colors={brand.palette}>{draw ? draw(props, ordinal) : <Missing block={block} />}</SceneFade>
         {narrationSrc ? (
           <Sequence from={NARRATION_DELAY_FRAMES} layout="none">
             <Audio src={narrationSrc} />
@@ -74,7 +75,7 @@ export function Storyboard({ scenes, brand, music }: StoryboardProps) {
           const len = Math.max(1, Math.round(s.durationSec * fps));
           const seq = (
             <Sequence key={s.key} from={from} durationInFrames={len} premountFor={fps}>
-              <SceneFade>{BLOCKS[s.block] ? BLOCKS[s.block]!(s.props, s.ordinal) : <Missing block={s.block} />}</SceneFade>
+              <SceneFade entrance={entranceFor(s.block, s.ordinal)} colors={brand.palette}>{BLOCKS[s.block] ? BLOCKS[s.block]!(s.props, s.ordinal) : <Missing block={s.block} />}</SceneFade>
               {s.narrationSrc ? (
                 <Sequence from={NARRATION_DELAY_FRAMES} layout="none">
                   <Audio src={s.narrationSrc} />

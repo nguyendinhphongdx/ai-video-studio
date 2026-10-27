@@ -50,6 +50,13 @@ export function useLayout() {
 export const outline = (color: string, w: number) =>
   `-${w}px -${w}px 0 ${color}, ${w}px -${w}px 0 ${color}, -${w}px ${w}px 0 ${color}, ${w}px ${w}px 0 ${color}, 0 ${w + 6}px 0 rgba(0,0,0,0.18)`;
 
+/** Dark stage for text scenes. A channel colour that is already near black gets lifted in the middle, so it does not turn to flat black. */
+export const stageBackground = (hex: string, at = '50% 40%'): string => {
+  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  const luma = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return luma < 0.22 ? `radial-gradient(ellipse at ${at}, ${shade(hex, 0.16)}, ${shade(hex, 0.03)} 70%, ${shade(hex, -0.02)})` : `radial-gradient(ellipse at ${at}, ${shade(hex, -0.38)}, ${shade(hex, -0.7)} 78%)`;
+};
+
 export const shade = (hex: string, amt: number) => {
   const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v + amt * 255)));
@@ -65,15 +72,6 @@ export const headingSize = (text: string) => {
 };
 
 export const emojiSize = (count: number) => (count <= 1 ? 300 : count <= 3 ? 210 : count <= 6 ? 160 : 120);
-
-/** Soft fade in/out over a scene's first and last frames. */
-export function SceneFade({ children }: { children: ReactNode }) {
-  const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
-  const end = durationInFrames;
-  const opacity = interpolate(frame, [0, 8, end - 8, end], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
-}
 
 function Sparkles() {
   const frame = useCurrentFrame();

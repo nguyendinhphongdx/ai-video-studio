@@ -3,10 +3,13 @@ import type { ReactNode } from 'react';
 import { MainSidebar, MainTopbar, MobileTabBar } from '@/components/layout/main';
 import { AssistantDock } from '@/features/assistant/components/AssistantDock';
 
-/** Sidebar + topbar shell shared by every page in the (main) group. On phones the sidebar becomes a bottom tab bar. */
+/**
+ * Sidebar + topbar shell shared by every page in the (main) group. On phones the sidebar becomes a bottom tab bar.
+ * The shell is fixed to the window (inset-0): h-dvh stayed at an old height in some browsers after the window was resized.
+ */
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="fixed inset-0 flex overflow-hidden">
       <MainSidebar />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <MainTopbar />

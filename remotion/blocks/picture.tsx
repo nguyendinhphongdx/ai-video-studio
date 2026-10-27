@@ -2,30 +2,33 @@ import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, us
 
 import { shade, useBrand, useFont, useLayout } from '../primitives';
 
-import { camera } from './vox';
-import { autoMotion, type Motion } from './variants';
+import { DepthStage } from '../camera/DepthStage';
+import type { FxId } from '../shots/fx-meta';
+import { FxLayer } from '../shots/fx';
+
+import { autoMotion, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
 
 export interface PictureSceneProps {
   caption: string;
   imagePrompt: string;
   motion: 'auto' | Motion;
+  fx: 'auto' | FxId;
+  shot: 'auto' | 'wide' | 'close-up' | 'macro' | 'top-down' | 'low-angle' | 'diagonal' | 'left-third' | 'right-third' | 'split' | 'scale-contrast' | 'frame-in-frame' | 'cluster';
 }
 
-type CaptionLook = 'bar' | 'pill' | 'chip' | 'ribbon';
-const LOOKS: CaptionLook[] = ['bar', 'chip', 'pill', 'ribbon'];
 
 /** A full-frame AI picture with a camera move and a lower-third caption in the channel colours. */
-export function PictureScene({ caption, imagePrompt, motion, image, ordinal = 1 }: PictureSceneProps & { image?: string; ordinal?: number }) {
+export function PictureScene({ caption, imagePrompt, motion, fx, image, ordinal = 1 }: PictureSceneProps & { image?: string; ordinal?: number }) {
+  const fxKind = (!fx || fx === 'auto' ? fxFor(ordinal) : fx) as FxId;
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
   const { u, portrait } = useLayout();
   const brand = useBrand();
   const font = useFont();
   const main = brand.palette[0] ?? '#4F46E5';
   const accent = brand.palette[1] ?? '#FFC53D';
-  const cam = camera(motion === 'auto' ? autoMotion(ordinal) : motion, Math.min(1, frame / Math.max(1, durationInFrames)));
   const src = image ? (/^(data:|https?:|\/)/.test(image) ? image : staticFile(image)) : null;
-  const look = LOOKS[(ordinal - 1) % LOOKS.length]!;
+  const look = captionLookFor(ordinal);
   const s = spring({ frame: frame - 12, fps, config: { damping: 15, stiffness: 100 } });
   const size = (caption.length > 34 ? 56 : 70) * u;
   const text: React.CSSProperties = { fontFamily: font, fontWeight: 800, fontSize: size, lineHeight: 1.1, color: 'white' };
@@ -61,7 +64,7 @@ export function PictureScene({ caption, imagePrompt, motion, image, ordinal = 1 
   }
   return (
     <AbsoluteFill style={{ background: shade(main, -0.35), overflow: 'hidden' }}>
-      <AbsoluteFill style={{ transform: `translate(${cam.x}%, ${cam.y}%) scale(${cam.scale})` }}>
+      <DepthStage src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && layeredFor(ordinal)} seed={ordinal}>
         {src ? (
           <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -69,7 +72,8 @@ export function PictureScene({ caption, imagePrompt, motion, image, ordinal = 1 
             {imagePrompt ? `🖼️ ${imagePrompt}` : 'Ảnh sẽ được tạo khi sản xuất'}
           </AbsoluteFill>
         )}
-      </AbsoluteFill>
+      </DepthStage>
+      {fxKind !== 'none' ? <FxLayer kind={fxKind} accent={accent} /> : null}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%)' }} />
       {tag}
     </AbsoluteFill>

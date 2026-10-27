@@ -2,36 +2,23 @@ import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, us
 
 import { useLayout } from '../primitives';
 
-import { autoMotion, cornerFor, labelStyleFor, type Corner, type Motion } from './variants';
+import { DepthStage } from '../camera/DepthStage';
+import type { FxId } from '../shots/fx-meta';
+import { FxLayer } from '../shots/fx';
+
+import { autoMotion, fxFor, cornerFor, labelStyleFor, layeredFor, type Corner, type Motion } from './variants';
 
 export interface VoxSceneProps {
   label: string;
   imagePrompt: string;
   motion: 'auto' | Motion;
+  depth: 'auto' | 'flat' | 'layered';
+  fx: 'auto' | FxId;
   shot: 'auto' | 'wide' | 'close-up' | 'macro' | 'top-down' | 'low-angle' | 'diagonal' | 'left-third' | 'right-third' | 'split' | 'scale-contrast' | 'frame-in-frame' | 'cluster';
 }
 
 const PAPER = '#E8DFC8';
 const MONO = '"Courier New", ui-monospace, monospace';
-
-/** Camera move over the still: scale and drift for the whole scene, eased. */
-export function camera(motion: Motion, t: number) {
-  const e = t * t * (3 - 2 * t);
-  switch (motion) {
-    case 'zoom-out':
-      return { scale: 1.16 - 0.12 * e, x: 0, y: 0 };
-    case 'pan-left':
-      return { scale: 1.12, x: 3 - 6 * e, y: 0 };
-    case 'pan-right':
-      return { scale: 1.12, x: -3 + 6 * e, y: 0 };
-    case 'drift-up':
-      return { scale: 1.1, x: 0, y: 2.5 - 5 * e };
-    case 'drift-down':
-      return { scale: 1.1, x: 0, y: -2.5 + 5 * e };
-    default:
-      return { scale: 1.02 + 0.12 * e, x: 0, y: -1 * e };
-  }
-}
 
 const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`;
 
@@ -111,15 +98,13 @@ function Label({ text, ordinal }: { text: string; ordinal: number }) {
  * CRT scanline/vignette finish and a caption sticker. Camera move, sticker look and corner follow the scene's
  * ordinal unless the scene fixes its own motion. The image is added by the production pipeline.
  */
-export function VoxScene({ label, imagePrompt, motion, image, ordinal = 1 }: VoxSceneProps & { image?: string; ordinal?: number }) {
-  const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+export function VoxScene({ label, imagePrompt, motion, depth, fx, image, ordinal = 1 }: VoxSceneProps & { image?: string; ordinal?: number }) {
   const { u } = useLayout();
-  const cam = camera(motion === 'auto' ? autoMotion(ordinal) : motion, Math.min(1, frame / Math.max(1, durationInFrames)));
+  const fxKind = (!fx || fx === 'auto' ? fxFor(ordinal) : fx) as FxId;
   const src = image ? (/^(data:|https?:|\/)/.test(image) ? image : staticFile(image)) : null;
   return (
     <AbsoluteFill style={{ background: PAPER, overflow: 'hidden' }}>
-      <AbsoluteFill style={{ transform: `translate(${cam.x}%, ${cam.y}%) scale(${cam.scale})` }}>
+      <DepthStage src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && (depth === 'auto' || depth === undefined ? layeredFor(ordinal) : depth === 'layered')} seed={ordinal}>
         {src ? (
           <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -139,8 +124,9 @@ export function VoxScene({ label, imagePrompt, motion, image, ordinal = 1 }: Vox
             {imagePrompt ? `🖼️ ${imagePrompt}` : 'Ảnh sẽ được tạo khi sản xuất'}
           </AbsoluteFill>
         )}
-      </AbsoluteFill>
+      </DepthStage>
 
+      {fxKind !== 'none' ? <FxLayer kind={fxKind} accent={'#FFE600'} /> : null}
       <AbsoluteFill style={{ background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 2px, rgba(255,255,255,0.04) 2px 4px)', mixBlendMode: 'multiply' }} />
       <AbsoluteFill style={{ backgroundImage: GRAIN, opacity: 0.22, mixBlendMode: 'multiply' }} />
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 48%, rgba(20,12,0,0.62) 100%)' }} />

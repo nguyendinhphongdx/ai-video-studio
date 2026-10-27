@@ -3,10 +3,9 @@ import { z } from 'zod';
 import type { SfxCue } from '@/core/audio/sfx';
 import { defineBlock } from '@/core/tools/tool';
 import type { UiSceneProps } from '@video/blocks';
-import { uiItems, uiTarget } from '@video/blocks/ui';
+import { uiItems, uiTarget } from '@video/blocks/ui-data';
 import { uiLookFor } from '@video/blocks/variants';
-import { CLICK_FRAME } from '@video/shots/ui/looks';
-import { UI_LOOK_META, UI_LOOK_IDS } from '@video/shots/ui/meta';
+import { CLICK_FRAME, UI_LOOK_META, UI_LOOK_IDS } from '@video/shots/ui/meta';
 
 import { type Assert, type Same, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 

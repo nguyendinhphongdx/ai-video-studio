@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { toolCatalog } from '@/tools/registry';
 import { UI_LOOKS } from '../../remotion/shots/ui/looks';
 import { UI_LOOK_META } from '../../remotion/shots/ui/meta';
-import { uiItems, uiTarget } from '../../remotion/blocks/ui';
+import { uiItems, uiTarget } from '../../remotion/blocks/ui-data';
 import { uiLookFor } from '../../remotion/blocks/variants';
 
 const block = () => toolCatalog.block('remotion/ui')!;

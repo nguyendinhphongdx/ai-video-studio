@@ -5,7 +5,7 @@ import { interpolate } from 'remotion';
 
 import { mulberry32 } from '../../camera/noise';
 
-import type { UiLookId } from './meta';
+import { CLICK_FRAME, type UiLookId } from './meta';
 
 export interface UiCtx {
   frame: number;
@@ -20,9 +20,6 @@ export interface UiCtx {
   /** Index into items the cursor goes to. */
   target: number;
 }
-
-/** Frame at which the cursor clicks in the looks that click. */
-export const CLICK_FRAME = 54;
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 const easeOut = (t: number) => 1 - (1 - t) ** 3;

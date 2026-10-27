@@ -24,3 +24,6 @@ export const UI_LOOK_META = [
 
 export type UiLookId = (typeof UI_LOOK_META)[number]['id'];
 export const UI_LOOK_IDS = UI_LOOK_META.map((m) => m.id) as [UiLookId, ...UiLookId[]];
+
+/** Frame at which the cursor clicks in the looks that click. */
+export const CLICK_FRAME = 54;

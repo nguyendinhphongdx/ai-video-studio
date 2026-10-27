@@ -1,6 +1,6 @@
 // How a scene comes in. Scenes are rendered as separate clips, so a transition here is the incoming scene's own
-// opening (a cover that is pulled away, a mask that grows, a flip), not a blend with the scene before; the outgoing scene
-// fades to black over its last frames. Seventeen entrances; the ideas (bottom push, barn doors, blinds, glitch tear,
+// opening (a cover that is pulled away, a mask that grows, a flip), not a blend with the scene before; scenes cut by default
+// and only every fifth one opens with a styled entrance. Eighteen entrances (cut included); the ideas (bottom push, barn doors, blinds, glitch tear,
 // ink bleed, light leak, card flip, mosaic, iris...) come from the transition shots of video-shotcraft (Apache-2.0),
 // see NOTICE. Every one is a pure function of the frame number.
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
@@ -13,12 +13,18 @@ import { ENTRANCE_META, type EntranceId } from './entrance-meta';
 export const ENTRANCES = ENTRANCE_META.map((m) => m.id);
 export type Entrance = EntranceId;
 
-/** Which way a scene comes in: the one the scene names (`transition` prop), else a function of the block and its order. A function of the block and its order, so the preview and the render agree and neighbours differ. */
+/**
+ * Which way a scene comes in: the one the scene names (`transition` prop), else a hard cut. Film cuts: the picture is on screen
+ * from the first frame. Only every fifth scene gets a styled entrance as an accent, a function of the block and its order, so
+ * the preview and the render agree.
+ */
 export function entranceFor(block: string, ordinal: number, chosen?: unknown): Entrance {
   if (typeof chosen === 'string' && (ENTRANCES as string[]).includes(chosen)) return chosen as Entrance;
+  if (Math.max(1, ordinal) % 5 !== 0) return 'cut';
   let h = 0;
   for (let i = 0; i < block.length; i++) h = (h * 31 + block.charCodeAt(i)) >>> 0;
-  return ENTRANCES[(h + Math.max(1, ordinal) * 5) % ENTRANCES.length]!;
+  const styled = ENTRANCES.filter((e) => e !== 'cut');
+  return styled[(h + Math.max(1, ordinal) * 5) % styled.length]!;
 }
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -28,10 +34,11 @@ const inOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 
 /** Progress 0..1 of the opening over `len` frames. */
 const prog = (frame: number, len: number, e: (t: number) => number = ease) => e(interpolate(frame, [0, len], [0, 1], clamp));
 
-export function SceneFade({ children, entrance = 'fade', colors = ['#0B0F19', '#F59E0B'] }: { children: ReactNode; entrance?: Entrance; colors?: string[] }) {
+export function SceneFade({ children, entrance = 'cut', colors = ['#0B0F19', '#F59E0B'] }: { children: ReactNode; entrance?: Entrance; colors?: string[] }) {
   const frame = useCurrentFrame();
-  const { durationInFrames, width, height } = useVideoConfig();
-  const out = interpolate(frame, [durationInFrames - 8, durationInFrames], [1, 0], clamp);
+  const { width, height } = useVideoConfig();
+  // No fade to black at the end: the next scene cuts in, so the picture is never dimmed between scenes.
+  const out = 1;
   const dark = colors[0] ?? '#0B0F19';
   const accent = colors[1] ?? '#F59E0B';
   const wrap = (style: React.CSSProperties, extra?: ReactNode) => (
@@ -42,6 +49,8 @@ export function SceneFade({ children, entrance = 'fade', colors = ['#0B0F19', '#
   );
 
   switch (entrance) {
+    case 'cut':
+      return <AbsoluteFill>{children}</AbsoluteFill>;
     case 'flash': {
       const bloom = interpolate(frame, [0, 3, 12], [0, 0.85, 0], clamp);
       return wrap({}, <AbsoluteFill style={{ opacity: bloom, background: 'radial-gradient(ellipse at 50% 45%, rgba(255,248,235,0.98), rgba(255,244,224,0.55) 55%, transparent 85%)', pointerEvents: 'none' }} />);

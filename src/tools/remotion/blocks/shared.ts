@@ -125,5 +125,5 @@ export function cutCue(cut: string): SfxCue[] {
 export const TransitionEnum = z
   .enum(['auto', ...ENTRANCE_META.map((m) => m.id)] as ['auto', EntranceId, ...EntranceId[]])
   .default('auto')
-  .describe('Cách cảnh này mở ra: "auto" (hệ thống đổi luân phiên giữa các cảnh) hoặc để trống. Chỉ chọn riêng khi cảnh cần một mở đầu đặc biệt (glitch cho công nghệ, light-leak cho hoài niệm, iris cho tiêu điểm...)');
-export const TRANSITION_OPTIONS = [{ value: 'auto', label: 'Tự động (đổi luân phiên)' }, ...ENTRANCE_META.map((m) => ({ value: m.id, label: m.name }))];
+  .describe('Cách cảnh này mở ra: "auto" (mặc định, cắt thẳng: ảnh hiện ngay từ khung đầu như phim, thỉnh thoảng hệ thống tự chen một kiểu mở có hiệu ứng) hoặc để trống. Giữ "auto" cho hầu hết cảnh; chỉ chọn riêng khi cảnh cần một mở đầu đặc biệt (glitch cho công nghệ, light-leak cho hoài niệm, iris cho tiêu điểm...)');
+export const TRANSITION_OPTIONS = [{ value: 'auto', label: 'Tự động (cắt thẳng, thỉnh thoảng có hiệu ứng)' }, ...ENTRANCE_META.map((m) => ({ value: m.id, label: m.name }))];

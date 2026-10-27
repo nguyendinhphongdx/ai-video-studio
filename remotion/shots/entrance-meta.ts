@@ -1,6 +1,7 @@
 // The ways a scene can open. Pure data (no React): the block definitions and the editor read it; the drawing is in
 // transitions.tsx, keyed by the same ids.
 export const ENTRANCE_META = [
+  { id: 'cut', name: 'Cắt thẳng, hiện ngay' },
   { id: 'fade', name: 'Mờ dần vào' },
   { id: 'whip', name: 'Vụt ngang, mờ rồi nét' },
   { id: 'wipe', name: 'Quét từ trái sang' },

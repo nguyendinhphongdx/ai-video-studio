@@ -316,17 +316,15 @@ describe('kinetic, counter and chart blocks', () => {
 });
 
 describe('scene entrances', () => {
-  it('are fixed for a block and order, and vary across the scenes of a video', async () => {
-    const { entranceFor } = await import('../../remotion/shots/transitions');
+  it('cut by default so the picture is there from the first frame, with a styled entrance only as an accent', async () => {
+    const { entranceFor, ENTRANCES } = await import('../../remotion/shots/transitions');
     expect(entranceFor('remotion/vox', 3)).toBe(entranceFor('remotion/vox', 3));
-    const seen = new Set(Array.from({ length: 12 }, (_, i) => entranceFor('remotion/vox', i + 1)));
-    expect(seen.size).toBeGreaterThanOrEqual(8);
-    const { ENTRANCES } = await import('../../remotion/shots/transitions');
-    expect(ENTRANCES).toHaveLength(17);
-    const run = Array.from({ length: 60 }, (_, i) => entranceFor('remotion/picture', i + 1));
-    expect(new Set(run).size).toBe(17);
-    expect(run.every((e, i) => i === 0 || e !== run[i - 1])).toBe(true);
-    expect(new Set(['remotion/vox', 'remotion/picture', 'remotion/kinetic', 'remotion/chart'].map((b) => entranceFor(b, 1))).size).toBeGreaterThan(1);
+    expect(ENTRANCES).toHaveLength(18);
+    const run = Array.from({ length: 100 }, (_, i) => entranceFor('remotion/picture', i + 1));
+    expect(run.filter((e) => e === 'cut').length).toBe(80);
+    expect(run.every((e, i) => ((i + 1) % 5 === 0) === (e !== 'cut'))).toBe(true);
+    // The accents themselves rotate through every styled entrance.
+    expect(new Set(run.filter((e) => e !== 'cut')).size).toBeGreaterThanOrEqual(14);
   });
 
   it('lifts a near-black channel colour for text scenes instead of turning it flat black', async () => {

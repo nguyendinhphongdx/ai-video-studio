@@ -23,7 +23,7 @@ export function HomeView() {
             Đang làm dở
           </h2>
           <Link href={ROUTES.library} className="text-small font-semibold text-primary hover:underline">
-            Xem thư viện
+            Xem tất cả video
           </Link>
         </div>
         <EpisodeGrid views={inProgress} tools={tools} channel={current} empty="Chưa có video nào đang làm. Gõ ý tưởng đầu tiên ở trên nhé!" />

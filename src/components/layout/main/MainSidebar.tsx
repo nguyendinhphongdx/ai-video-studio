@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { isActive, MAIN_NAV, SETUP_NAV, type NavItem } from './nav-items';
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
-  const active = isActive(pathname, item.href);
+  const active = isActive(pathname, item.href, item.also);
   const Icon = item.icon;
   return (
     <Link

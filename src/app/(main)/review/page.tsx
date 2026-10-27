@@ -1,9 +1,6 @@
-import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
-import { ReviewView } from '@/features/episode/views/ListViews';
-
-export const metadata: Metadata = { title: 'Cần duyệt' };
-
+/** Review moved into the Video screen as a filter; old links and shortcuts still land there. */
 export default function ReviewPage() {
-  return <ReviewView />;
+  redirect('/library?filter=review');
 }

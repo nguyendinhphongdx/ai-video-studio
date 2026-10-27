@@ -162,7 +162,7 @@ export function EpisodeShell({ id, stage, children }: { id: string; stage: Stage
       <div className="flex flex-col gap-3">
         <Link href={e.seriesId ? ROUTES.seriesOf(e.seriesId) : ROUTES.library} className="flex w-fit items-center gap-1.5 text-small text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" aria-hidden />
-          {e.seriesId ? 'Về series' : 'Thư viện'}
+          {e.seriesId ? 'Về series' : 'Video'}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

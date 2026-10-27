@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
@@ -22,12 +23,13 @@ export function LibraryView() {
   const { current } = useCurrentChannel();
   const { data: episodes, isLoading } = useEpisodes(current?.id);
   const { data: tools } = useTools();
-  const [filter, setFilter] = useState('all');
+  const params = useSearchParams();
+  const [filter, setFilter] = useState(FILTERS.some((f) => f.id === params.get('filter')) ? params.get('filter')! : 'all');
   const all = episodes ?? [];
   const active = FILTERS.find((f) => f.id === filter)!;
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Thư viện" description={`Mọi video của kênh ${current?.name ?? ''}.`} />
+      <PageHeader title="Video" description={`Mọi video của kênh ${current?.name ?? ''}. Chuyển sang "Cần duyệt" để xem các việc đang chờ bạn.`} />
       <Tabs value={filter} onValueChange={setFilter}>
         <TabsList className="max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((f) => (

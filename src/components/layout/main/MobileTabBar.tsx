@@ -50,7 +50,7 @@ export function MobileTabBar() {
   return (
     <nav aria-label="Điều hướng nhanh" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-white/10 bg-sidebar pb-[env(safe-area-inset-bottom)] text-sidebar-foreground md:hidden">
       {MAIN_NAV.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isActive(pathname, item.href, item.also);
         return (
           <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={cn(tab, active ? 'text-white' : 'text-slate-400')}>
             <item.icon className={cn('size-5', active && 'text-sidebar-primary-foreground')} aria-hidden />
@@ -67,7 +67,7 @@ export function MobileTabBar() {
         </SheetTrigger>
         <SheetContent side="bottom" className="gap-1 rounded-t-2xl border-0 bg-sidebar px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 text-sidebar-foreground">
           <SheetTitle className="px-2 pb-2 text-white">Thiết lập</SheetTitle>
-          <SheetDescription className="sr-only">Kênh, skills, tools và cài đặt</SheetDescription>
+          <SheetDescription className="sr-only">Chi phí và cài đặt</SheetDescription>
           {SETUP_NAV.map((item) => (
             <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={isActive(pathname, item.href) ? 'page' : undefined} className={cn('flex min-h-12 items-center gap-3 rounded-lg px-3 text-body', isActive(pathname, item.href) && 'bg-sidebar-accent font-semibold text-white')}>
               <item.icon className="size-5" aria-hidden />

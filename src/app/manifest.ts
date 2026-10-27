@@ -19,7 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/pwa-icon/maskable', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
     shortcuts: [
-      { name: 'Cần duyệt', url: '/review' },
+      { name: 'Cần duyệt', url: '/library?filter=review' },
       { name: 'Series', url: '/series' },
     ],
   };

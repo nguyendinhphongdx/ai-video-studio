@@ -14,6 +14,9 @@ import { emptyAssets, type Scene } from '@/core/domain/episode';
 import { useAppConfig, useCurrentChannel } from '@/features/app';
 import { cn } from '@/lib/utils';
 
+import { useEstimate } from '@/features/usage/hooks/use-usage';
+import { fmtUsd } from '@/features/usage/lib/format';
+
 import { isBusy, useEpisodeAction, useTools } from '../../hooks/use-episode';
 import { blockIndex, brandOf, musicSrc, storyboardProps, type VoiceLine } from '../../lib/preview';
 import { fmtDuration } from '../../lib/status';
@@ -154,6 +157,9 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const approvedCount = draft.scenes.filter((x) => x.approved).length;
   const missingImages = draft.scenes.filter((x) => view.assets[x.id]?.needsImage && !view.assets[x.id]?.imageUrl).length;
   const missingVoices = draft.scenes.filter((x) => view.assets[x.id]?.needsVoice && !view.assets[x.id]?.voiceUrl).length;
+  const imageCost = useEstimate(missingImages, [], '');
+  const voiceTexts = draft.scenes.filter((x) => view.assets[x.id]?.needsVoice && !view.assets[x.id]?.voiceUrl && x.narration.trim()).map((x) => x.narration);
+  const voiceCost = useEstimate(0, voiceTexts, view.episode.voice);
   const approvable = draft.scenes.filter((x) => !x.approved && view.assets[x.id]?.ready);
   const allApproved = !dirty && draft.scenes.length > 0 && approvedCount === draft.scenes.length;
   const play = (sceneId: string) => {
@@ -221,11 +227,11 @@ export function Storyboard({ view }: { view: EpisodeView }) {
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={!!assetJob || assets.isPending || !missingImages} onClick={() => assets.mutate({ sceneIds: null, image: true, voice: false })}>
                   <ImageIcon aria-hidden />
-                  Tạo ảnh còn thiếu{missingImages ? ` (${missingImages})` : ''}
+                  Tạo ảnh còn thiếu{missingImages ? ` (${missingImages})` : ''}{missingImages && imageCost?.usd != null ? ` ≈ ${fmtUsd(imageCost.usd)}` : ''}
                 </Button>
                 <Button variant="outline" size="sm" disabled={!!assetJob || assets.isPending || !missingVoices} onClick={() => assets.mutate({ sceneIds: null, image: false, voice: true })}>
                   <Volume2 aria-hidden />
-                  Tạo giọng còn thiếu{missingVoices ? ` (${missingVoices})` : ''}
+                  Tạo giọng còn thiếu{missingVoices ? ` (${missingVoices})` : ''}{missingVoices && voiceCost?.usd != null ? (voiceCost.usd === 0 ? ' · miễn phí' : ` ≈ ${fmtUsd(voiceCost.usd)}`) : ''}
                 </Button>
                 <Button size="sm" disabled={!!assetJob || approval.isPending || !approvable.length} onClick={() => approval.mutate({ sceneIds: approvable.map((x) => x.id), approved: true })}>
                   <CircleCheck aria-hidden />

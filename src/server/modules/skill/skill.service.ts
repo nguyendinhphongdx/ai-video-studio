@@ -2,7 +2,9 @@ import type { SkillStore } from '@/core/ports';
 import { lintSkill, parseSkill, SKILL_ID_RE, type Skill, type SkillIssue } from '@/core/skills/skill';
 import { now } from '@/server/db';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
+import { channelRepository } from '@/server/modules/channel/channel.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
+import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { toolCatalog } from '@/tools/registry';
 
 import { channelSkillRepository, marketRepository, type ChannelSkillRow } from './skill.repository';
@@ -32,6 +34,26 @@ function summarize(row: ChannelSkillRow): SkillSummary {
   }
 }
 
+/** Market skills every channel gets once, so a new channel can make a good video straight away. A person may edit or delete them; they are not brought back. */
+export const DEFAULT_SKILLS = ['cinematic'];
+
+async function ensureDefaults(channelId: string) {
+  for (const marketId of DEFAULT_SKILLS) {
+    const key = `default-skill:${channelId}:${marketId}`;
+    if (prefsService.flag(key)) continue;
+    // Mark first: if anything below fails it must not be retried on every request.
+    prefsService.setFlag(key);
+    const markdown = await marketRepository.read(marketId);
+    if (!markdown || channelSkillRepository.list(channelId).some((r) => r.source === `market:${marketId}`)) continue;
+    let id = marketId;
+    for (let n = 2; channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
+    channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
+    // A channel with no default skill gets this one, so "create video" has something sensible preselected.
+    const channel = channelRepository.find(channelId);
+    if (channel && !channel.defaultSkillId) channelRepository.update({ ...channel, defaultSkillId: id, updatedAt: now() });
+  }
+}
+
 /** Skills that videos, series or the channel default already point at were shared before skills belonged to channels: copy them in once. */
 async function adoptReferenced(channelId: string) {
   for (const id of channelSkillRepository.referenced(channelId)) {
@@ -57,6 +79,7 @@ export const skillService = {
   async list(channelId: string): Promise<SkillSummary[]> {
     await channelService.get(channelId);
     await adoptReferenced(channelId);
+    await ensureDefaults(channelId);
     return channelSkillRepository.list(channelId).map(summarize);
   },
 
@@ -65,6 +88,7 @@ export const skillService = {
     let row = channelSkillRepository.find(channelId, id);
     if (!row) {
       await adoptReferenced(channelId);
+      await ensureDefaults(channelId);
       row = channelSkillRepository.find(channelId, id);
     }
     if (!row) throw notFound(`skill "${id}" của kênh này`);

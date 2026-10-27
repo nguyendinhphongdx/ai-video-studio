@@ -84,9 +84,11 @@ describe('market and channel-owned skills', () => {
     const channel = await s.channels.channelService.get(kid);
     expect(channel.defaultSkillId).toBe('kids-cards');
     const list = await s.skills.skillService.list(kid);
-    expect(list.map((x) => x.id)).toEqual(['kids-cards']);
+    expect(list.map((x) => x.id)).toEqual(['kids-cards', 'cinematic']);
     expect(list[0]!.source).toBe('market:kids-cards');
-    expect((await s.skills.skillService.list(kid)).map((x) => x.id)).toEqual(['kids-cards']);
+    expect((await s.skills.skillService.list(kid)).map((x) => x.id)).toEqual(['kids-cards', 'cinematic']);
+    // The channel already had a default skill: the built-in one does not replace it.
+    expect((await s.channels.channelService.get(kid)).defaultSkillId).toBe('kids-cards');
   });
 
   it('will not delete a skill a video or the channel default still uses', async () => {
@@ -96,7 +98,22 @@ describe('market and channel-owned skills', () => {
     await expect(s.skills.skillService.remove(c.id, d.skill.id)).rejects.toMatchObject({ status: 409 });
     await s.episodes.episodeService.remove(made.episode.id);
     await s.skills.skillService.remove(c.id, d.skill.id);
-    expect(await s.skills.skillService.list(c.id)).toHaveLength(0);
+    expect((await s.skills.skillService.list(c.id)).map((x) => x.id)).toEqual(['cinematic']);
+  });
+
+  it('gives every channel the built-in all-round skill once, makes it the default when there is none, and does not bring it back', async () => {
+    const c = await s.channels.channelService.create(input('Kênh M'));
+    expect(c.defaultSkillId).toBeNull();
+    const first = await s.skills.skillService.list(c.id);
+    expect(first.map((x) => [x.id, x.source])).toEqual([['cinematic', 'market:cinematic']]);
+    expect(first[0]!.issues).toEqual([]);
+    expect((await s.channels.channelService.get(c.id)).defaultSkillId).toBe('cinematic');
+    expect(await s.skills.skillService.list(c.id)).toHaveLength(1);
+    // Another default first, then the built-in one can go.
+    const other = await s.skills.skillService.install(c.id, 'picture-story');
+    await s.channels.channelService.update(c.id, { ...(await s.channels.channelService.get(c.id)), defaultSkillId: other.skill.id });
+    await s.skills.skillService.remove(c.id, 'cinematic');
+    expect((await s.skills.skillService.list(c.id)).map((x) => x.id)).toEqual(['picture-story']);
   });
 
   it('only lets a video use a skill its own channel has', async () => {

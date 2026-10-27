@@ -1,7 +1,7 @@
 ---
 name: Kể chuyện bằng ảnh AI
 description: "Video kể chuyện hoặc giải thích bằng chuỗi ảnh AI toàn khung theo phong cách ảnh của kênh, có chuyển động máy quay và chú thích. Dùng cho mọi chủ đề: du lịch, ẩm thực, tiểu sử, câu chuyện, tin tức, kỹ năng."
-tools: [remotion/picture, remotion/outro]
+tools: [remotion/picture, remotion/kinetic, remotion/counter, remotion/chart, remotion/outro]
 scenes: 8-14
 ---
 
@@ -38,3 +38,6 @@ Chốt ý của cảnh: tên địa điểm, con số, mốc thời gian, từ k
 - imagePrompt chung chung hoặc tả phong cách → nêu chủ thể, hành động, bối cảnh cụ thể.
 - Lời đọc mô tả lại ảnh → chuyển sang giải thích, nguyên nhân, cảm xúc.
 - Kết kể lại cả video → chỉ nhắc ý chính và mở một câu hỏi.
+
+## Cảnh phụ
+Xen 1-2 cảnh chữ (`@remotion/kinetic`: câu cần nhớ), con số (`@remotion/counter`) hoặc biểu đồ (`@remotion/chart`: so sánh 2-6 số cùng đơn vị) khi có ý đáng nhấn, không đặt hai cảnh phụ liền nhau. Chỉ dùng số chắc chắn đúng.

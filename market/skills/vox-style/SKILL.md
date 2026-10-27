@@ -1,10 +1,10 @@
 ---
 name: Vox style
 description: "Video giải thích theo phong cách Vox: mạch điều tra có số liệu, mỗi cảnh một ảnh cắt dán (chủ thể viền đỏ, in lưới chấm, băng keo trên giấy kẻ ô và nền báo cũ) cùng nhãn dán và chuyển động máy quay kiểu truyền hình. Hợp lịch sử, kinh tế, khoa học, địa lý, công nghệ, hiện tượng lạ."
-version: 4
+version: 5
 imageStyle: "Vox-style documentary paper collage with real physical depth, built in three layers. FOREGROUND: a few oversized torn paper scraps, a strip of translucent masking tape or a metal pushpin, slightly out of focus at the edges, casting long hard shadows. MIDGROUND: the main subject cut out of halftone-printed paper with a thin crimson-red outline and a visible white paper edge, raised above the board on a thick drop shadow, shown at a slight three-quarter angle. BACKGROUND: a dark charcoal graph-grid paper panel with thin white grid lines and faint diagrams, laid over an aged newspaper page with blurred unreadable print, edges curling. Single directional light from the upper left with crisp raised-paper shadows, subtle paper grain and ink-bleed, muted sepia, black and cream palette with one crimson accent and at most one canary-yellow highlight. Wide 16:9 frame, composition set by each scene's shot direction, always leaving some empty paper area free for a caption sticker, absolutely no text, no letters, no watermark."
 tags: [vox, explainer, collage, documentary]
-tools: [remotion/vox, remotion/outro]
+tools: [remotion/vox, remotion/kinetic, remotion/counter, remotion/chart, remotion/outro]
 scenes: 8-14
 ---
 
@@ -128,8 +128,18 @@ Mỗi mẫu là phần **tả chủ thể** để điền vào `imagePrompt` (b�
 ## Nhãn dán (`label`, tối đa 28 ký tự, in hoa)
 Là mảnh thông tin quan trọng nhất của cảnh: tên riêng, con số kèm đơn vị, năm, từ khoá. Ví dụ: "BOEING 777", "25 CM MỖI NĂM", "1997", "BƯỚC NGOẶT". Không viết cả câu; không lặp một label ở hai cảnh liền nhau; cảnh chuyển tiếp có thể để trống. Con số không chắc thì không đặt vào nhãn.
 
-## Chuyển động và kiểu nhãn (`motion`)
-Để `auto`: hệ thống tự đổi chuyển động máy quay, kiểu nhãn (băng giấy, bút dạ vàng, con dấu đỏ, dòng gõ máy) và góc đặt nhãn giữa các cảnh, nên video không lặp lại. Chỉ chọn cụ thể khi cần: `zoom-in` nhấn mạnh hook, bước ngoặt và kết; `zoom-out` hé lộ toàn cảnh; `pan-left/pan-right` theo hướng di chuyển hay bản đồ; `drift-up/drift-down` cho thứ cao hoặc sâu.
+## Chuyển động, chiều sâu và kiểu nhãn
+Để `motion` và `depth` là `auto`: hệ thống tự đổi chuyển động máy quay, độ nổi của ảnh (tràn khung hoặc tấm giấy nổi trên nền mờ có bụi bay), kiểu nhãn và góc đặt nhãn, nên video không lặp lại. Chỉ chọn cụ thể khi cần:
+- `crash-zoom` đập vào mạnh: hook hoặc con số gây sốc, **tối đa 1-2 lần/video**.
+- `orbit-left/right` quay vòng quanh chủ thể (vật thể, nhân vật); `tilt-glide` nghiêng lướt (địa điểm, toà nhà); `overhead` nhìn từ trên xuống rồi hạ (bản đồ, tài liệu, bố trí); `slide-parallax` trượt ngang có chiều sâu (dòng thời gian, hành trình).
+- `zoom-in` nhấn mạnh bước ngoặt và kết; `zoom-out` hé lộ toàn cảnh; `pan` theo hướng di chuyển; `drift` cho thứ cao hoặc sâu.
+
+## Cảnh phụ: chữ, số, biểu đồ (không cần ảnh AI, rẻ và đổi nhịp)
+Xen **1-3 cảnh phụ** để nghỉ mắt và nhấn ý, không biến cả video thành slide:
+- `@remotion/counter`: MỘT con số then chốt lăn lên (độ sâu, tuổi, giá). Chỉ dùng số chắc chắn đúng; lời đọc nêu số bằng chữ.
+- `@remotion/chart`: so sánh 2-6 số cùng đơn vị, mỗi dòng "Tên: số"; cột lớn nhất tự nổi bật.
+- `@remotion/kinetic`: câu cần nhớ (câu hỏi lớn của video, câu chốt trước kết), tối đa 70 ký tự, một từ nhấn. Để `look` là `auto` (đổi kiểu giữa các cảnh). Muốn liệt kê nhiều ý ngắn cùng một câu ("chúng mình lo ___", "dành cho ___") thì điền `items` (mỗi dòng một ý, 2-6 dòng) để hệ thống dùng kiểu xoay ý (viên thuốc đổi từ, cuộn dọc, nhiễu máy...).
+Đặt chúng ở chỗ nhịp chuyển (sau hook, ngay trước bước ngoặt, trước kết), không đặt hai cảnh phụ liền nhau.
 
 ---
 

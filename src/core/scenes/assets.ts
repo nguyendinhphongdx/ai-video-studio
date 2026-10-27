@@ -4,6 +4,7 @@ import { DEFAULT_IMAGE_STYLE } from '../domain/catalog';
 import { UserFacingError } from '../domain/errors';
 import type { Scene, SceneAssets } from '../domain/episode';
 import { hashOf } from '../pipeline/step';
+import { cleanProps } from '../tools/tool';
 import type { ToolCatalog } from '../tools/catalog';
 
 export interface ImageSpec {
@@ -52,7 +53,20 @@ export function readiness(scene: Scene, ctx: { tools: ToolCatalog; channelStyle:
   return { needsImage: imageNeeded, imageFresh, needsVoice: voiceNeeded, voiceFresh, ready: imageFresh && voiceFresh };
 }
 
-const sameContent = (a: Scene, b: Scene) => a.slotId === b.slotId && a.block === b.block && a.narration === b.narration && JSON.stringify(a.props) === JSON.stringify(b.props);
+/**
+ * A scene's props as the block would store them today. Scenes saved before a block gained a prop lack it; comparing
+ * them as stored would make every old scene look "edited" (and lose its approval) the first time anything is saved.
+ */
+export function currentProps(scene: Scene, tools: ToolCatalog): string {
+  const block = tools.block(scene.block);
+  try {
+    return JSON.stringify(block ? cleanProps(block, scene.props) : scene.props);
+  } catch {
+    return JSON.stringify(scene.props);
+  }
+}
+
+const sameContent = (a: Scene, b: Scene, tools: ToolCatalog) => a.slotId === b.slotId && a.block === b.block && a.narration === b.narration && currentProps(a, tools) === currentProps(b, tools);
 
 /**
  * A rewritten script keeps the work already done: a scene identical to an old one inherits its id, assets and approval;
@@ -65,7 +79,7 @@ export function carryOver(previous: Scene[], next: Scene[], ctx: { tools: ToolCa
     return i >= 0 ? unused.splice(i, 1)[0]! : null;
   };
   return next.map((scene) => {
-    const same = take((p) => sameContent(p, scene));
+    const same = take((p) => sameContent(p, scene, ctx.tools));
     if (same) return { ...scene, id: same.id, approved: same.approved, assets: same.assets };
     const assets: SceneAssets = { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null };
     const spec = (() => {

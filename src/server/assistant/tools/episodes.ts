@@ -71,7 +71,7 @@ export const createEpisode = defineTool({
 
 export const writeScript = defineTool({
   name: 'write_script',
-  description: 'Giao cho AI viết (hoặc viết lại) kịch bản của một video theo skill, tri thức và giọng văn của kênh (tốn lượt gọi AI, chạy nền 15-60 giây). Viết lại cả kịch bản thay các cảnh bằng cảnh mới nên ẢNH, GIỌNG và TRẠNG THÁI DUYỆT của cảnh cũ mất (chỉ cảnh giống hệt được giữ). Nếu video đã có ảnh/giọng/cảnh đã duyệt, chỉ gọi khi người dùng xác nhận rõ muốn làm lại từ đầu (discardWork=true); thay đổi một phần thì dùng revise_script hoặc edit_scene.',
+  description: 'Giao cho AI viết (hoặc viết lại) kịch bản của một video theo skill, tri thức và giọng văn của kênh (ba bước: dựng mạch chuyện, viết cảnh theo mạch, làm mượt lời đọc; tốn ba lượt gọi AI, chạy nền 30-90 giây). Viết lại cả kịch bản thay các cảnh bằng cảnh mới nên ẢNH, GIỌNG và TRẠNG THÁI DUYỆT của cảnh cũ mất (chỉ cảnh giống hệt được giữ). Nếu video đã có ảnh/giọng/cảnh đã duyệt, chỉ gọi khi người dùng xác nhận rõ muốn làm lại từ đầu (discardWork=true); thay đổi một phần thì dùng revise_script hoặc edit_scene.',
   risk: 'paid',
   schema: z.object({ episodeId: z.string(), discardWork: z.boolean().default(false).describe('true khi người dùng đã xác nhận bỏ ảnh/giọng/duyệt đang có để viết lại từ đầu') }),
   summarize: async (a, ctx) => `AI viết kịch bản cho video ${await label(ctx, a.episodeId)}`,

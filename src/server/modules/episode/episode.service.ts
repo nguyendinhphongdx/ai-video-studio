@@ -4,8 +4,9 @@ import { newId } from '@/core/domain/ids';
 import { parseDraft, extractJson, scriptSchema, slotBlocks } from '@/core/script/script';
 import { emptyPublishKit } from '@/core/script/publish';
 import { cleanProps } from '@/core/tools/tool';
-import { imageStyleOf, readiness } from '@/core/scenes/assets';
+import { currentProps, imageStyleOf, readiness } from '@/core/scenes/assets';
 import { buildContext, templateVars } from '@/core/workflows/context';
+import { suggestTopics } from '@/core/workflows/suggest';
 import { scriptIssues } from '@/core/workflows/quality';
 import { importScript } from '@/core/workflows/script';
 import { reviseEpisodeTask } from '@/core/tasks/revise-episode';
@@ -20,6 +21,8 @@ import { now } from '@/server/db';
 import { conflict } from '@/server/http/api-error';
 import { aiRunRepository } from '@/server/modules/ai-run/ai-run.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
+import { seriesRepository } from '@/server/modules/series/series.repository';
+import { withUsageScope } from '@/server/modules/usage/usage.scope';
 import { jobRepository } from '@/server/modules/job/job.repository';
 import { seriesService } from '@/server/modules/series/series.service';
 import { skillService } from '@/server/modules/skill/skill.service';
@@ -77,6 +80,17 @@ function sceneAssetViews(e: Episode, channelStyle: string): Record<string, Scene
 const editable = (e: Episode) => e.status === 'draft' || e.status === 'script_review';
 
 export const episodeService = {
+  /** Next-video ideas from the channel's identity, knowledge and the videos it already has. */
+  async topicIdeas(channelId: string): Promise<{ topic: string; why: string }[]> {
+    await channelService.get(channelId);
+    if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để nhận gợi ý chủ đề.');
+    const recent = episodeRepository
+      .list({ channelId })
+      .slice(0, 30)
+      .map((e) => ({ topic: e.topic, title: e.title, status: e.status, series: e.seriesId ? (seriesRepository.find(e.seriesId)?.name ?? null) : null }));
+    return withUsageScope({ channelId, purpose: 'suggest-topics' }, () => suggestTopics(appDeps, channelId, recent, 5));
+  },
+
   async list(filter: { channelId?: string; seriesId?: string } = {}): Promise<EpisodeView[]> {
     return episodeRepository.list(filter).map(baseView);
   },
@@ -191,7 +205,7 @@ export const episodeService = {
         // Work already done stays with the scene; an edit withdraws the approval (stale files are ignored until regenerated).
         const prev = s.id ? byId.get(s.id) : undefined;
         if (!prev) return next;
-        const unchanged = prev.block === next.block && prev.narration === next.narration && JSON.stringify(prev.props) === JSON.stringify(next.props);
+        const unchanged = prev.block === next.block && prev.narration === next.narration && currentProps(prev, appDeps.tools) === JSON.stringify(next.props);
         return { ...next, assets: prev.assets, approved: prev.approved && unchanged };
       });
     }

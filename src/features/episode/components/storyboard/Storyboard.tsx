@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, CircleCheck, ImageIcon, Loader2, Plus, Volume2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, ImageIcon, Loader2, Play, Plus, Volume2, Wand2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
 import { FPS, type Format } from '@/core/domain/catalog';
 import { emptyAssets, type Scene } from '@/core/domain/episode';
+import { makePlan } from '@/core/scenes/make-plan';
 import { useAppConfig, useCurrentChannel } from '@/features/app';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +26,8 @@ import { StoryboardPlayer } from '../preview';
 
 import { AskAiButton } from '@/features/assistant/components/AskAiButton';
 
+import { MakeAllDialog } from './MakeAllDialog';
+import { QuickReview } from './QuickReview';
 import { SceneCard } from './SceneCard';
 import { SceneEditor } from './SceneEditor';
 import { useScriptDraft } from './use-script-draft';
@@ -84,6 +87,11 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [previewFormat, setPreviewFormat] = useState<Format>(view.episode.formats[0] ?? 'landscape');
   const [seek, setSeek] = useState<{ frame: number; nonce: number } | null>(null);
+  const [makeOpen, setMakeOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewSeek, setReviewSeek] = useState<{ frame: number; nonce: number } | null>(null);
+  /** "Duyệt luôn" was ticked: approve what is ready once the picture/voice job has finished. */
+  const [approveAfter, setApproveAfter] = useState(false);
 
   const busy = isBusy(view);
   const assetJob = view.job && view.job.kind === 'scene_assets' && (view.job.state === 'queued' || view.job.state === 'running') ? view.job : null;
@@ -161,6 +169,13 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const voiceTexts = draft.scenes.filter((x) => view.assets[x.id]?.needsVoice && !view.assets[x.id]?.voiceUrl && x.narration.trim()).map((x) => x.narration);
   const voiceCost = useEstimate(0, voiceTexts, view.episode.voice);
   const approvable = draft.scenes.filter((x) => !x.approved && view.assets[x.id]?.ready);
+  const plan = useMemo(() => makePlan(draft.scenes, view.assets, new Set(draft.scenes.filter((x) => x.approved).map((x) => x.id))), [draft.scenes, view.assets]);
+  const reviewPreview = useMemo(() => (reviewOpen ? storyboardProps(draft.scenes, blocks, brand, { voice: voiceLines, images, music }) : null), [reviewOpen, draft.scenes, blocks, brand, voiceLines, images, music]);
+  useEffect(() => {
+    if (!approveAfter || assetJob || assets.isPending || approval.isPending) return;
+    setApproveAfter(false);
+    if (approvable.length) approval.mutate({ sceneIds: approvable.map((x) => x.id), approved: true });
+  }, [approveAfter, assetJob, assets.isPending, approval, approvable]);
   const allApproved = !dirty && draft.scenes.length > 0 && approvedCount === draft.scenes.length;
   const play = (sceneId: string) => {
     const url = view.assets[sceneId]?.voiceUrl;
@@ -225,6 +240,18 @@ export function Storyboard({ view }: { view: EpisodeView }) {
             </div>
             {editable ? (
               <div className="flex flex-wrap gap-2">
+                {!plan.empty ? (
+                  <Button size="sm" disabled={!!assetJob || assets.isPending} onClick={() => setMakeOpen(true)}>
+                    <Wand2 aria-hidden />
+                    Làm hết giúp tôi
+                  </Button>
+                ) : null}
+                {plan.empty && !!approvable.length && !assetJob ? (
+                  <Button size="sm" onClick={() => setReviewOpen(true)}>
+                    <Play aria-hidden />
+                    Duyệt nhanh
+                  </Button>
+                ) : null}
                 <Button variant="outline" size="sm" disabled={!!assetJob || assets.isPending || !missingImages} onClick={() => assets.mutate({ sceneIds: null, image: true, voice: false })}>
                   <ImageIcon aria-hidden />
                   Tạo ảnh còn thiếu{missingImages ? ` (${missingImages})` : ''}{missingImages && imageCost?.usd != null ? ` ≈ ${fmtUsd(imageCost.usd)}` : ''}
@@ -322,6 +349,52 @@ export function Storyboard({ view }: { view: EpisodeView }) {
         );
       })}
 
+      <MakeAllDialog
+        open={makeOpen}
+        onOpenChange={setMakeOpen}
+        plan={plan}
+        channelId={view.episode.channelId}
+        voice={view.episode.voice}
+        pending={assets.isPending}
+        onConfirm={(after) =>
+          assets.mutate(
+            { sceneIds: null, image: true, voice: true },
+            {
+              onSuccess: () => {
+                setMakeOpen(false);
+                setApproveAfter(after);
+              },
+            },
+          )
+        }
+      />
+      {reviewPreview ? (
+        <QuickReview
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          props={reviewPreview.props}
+          durationInFrames={reviewPreview.durationInFrames}
+          format={previewFormat}
+          starts={reviewPreview.starts}
+          seek={reviewSeek}
+          onSeek={(i) => setReviewSeek({ frame: (reviewPreview.starts[i] ?? 0) + 15, nonce: Date.now() })}
+          scenes={draft.scenes.map((x, i) => {
+            const a = view.assets[x.id];
+            return { id: x.id, label: x.narration || `Cảnh ${i + 1}`, approved: x.approved, ready: Boolean(a?.ready), problem: a?.ready ? null : a?.needsImage && !a.imageUrl ? 'Chưa có ảnh' : a?.needsVoice && !a.voiceUrl ? 'Chưa có giọng' : 'Ảnh hoặc giọng không còn khớp nội dung' };
+          })}
+          pending={approval.isPending}
+          onApproveAll={() =>
+            approval.mutate(
+              { sceneIds: approvable.map((x) => x.id), approved: true },
+              { onSuccess: () => setReviewOpen(false) },
+            )
+          }
+          onBack={(sceneId) => {
+            setReviewOpen(false);
+            if (sceneId) setEditing(sceneId);
+          }}
+        />
+      ) : null}
       <SceneEditor
         scene={editingScene}
         ordinal={editingScene ? ordinalOf(editingScene) : 1}

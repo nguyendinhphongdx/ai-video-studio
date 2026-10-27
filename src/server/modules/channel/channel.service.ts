@@ -153,7 +153,7 @@ export const channelService = {
     const subject = prompt.trim() || (kind === 'intro' ? c.introDesign : c.outroDesign)?.artPrompt || '';
     const tmp = path.join(os.tmpdir(), `avs-art-${id}-${Date.now()}.png`);
     try {
-      await images.generate(`${subject}. ${c.imageStyle.trim() || DEFAULT_IMAGE_STYLE}`, tmp);
+      await images.generate(`${subject}. ${c.imageStyle.trim() || DEFAULT_IMAGE_STYLE}`, tmp, { purpose: 'channel_art' });
       const artPath = await saveChannelFile(id, `${kind}-art`, await fs.promises.readFile(tmp), '.png');
       const next = { ...c, ...(kind === 'intro' ? { introArtPath: artPath } : { outroArtPath: artPath }), updatedAt: now() };
       channelRepository.update(next);

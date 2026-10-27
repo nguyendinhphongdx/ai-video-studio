@@ -14,6 +14,7 @@ import { jobRepository } from '@/server/modules/job/job.repository';
 import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
 import { SUBSCRIBERS } from '@/server/subscribers';
 import { closeRemotion, rendererCatalog } from '@/tools/renderers';
+import { withUsageScope } from '@/server/modules/usage/usage.scope';
 
 const logger = createLogger('worker');
 const deps = createCoreDeps(rendererCatalog);
@@ -65,7 +66,10 @@ async function runJob(): Promise<boolean> {
     if (job.episodeId) episodeRepository.touch(job.episodeId);
   };
   try {
-    await HANDLERS[job.kind](job, progress);
+    // Everything paid that this job does is attributed to its video (or channel, for channel art).
+    const episode = job.episodeId ? episodeRepository.find(job.episodeId) : null;
+    const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
+    await withUsageScope({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
     jobRepository.finish(job.id);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });
   } catch (e) {

@@ -179,6 +179,19 @@ describe('scene and series tools', () => {
     expect(env.systems.at(-1)).toContain('Cảnh đang mở: cảnh 3'); // the channel intro is scene 1
   });
 
+  it('quotes what is still missing before anything paid is asked for', async () => {
+    const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Báo giá', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
+    const id = made.episode.id;
+    const bare = { ...scene('sq1', 'a market', 'Một cảnh chưa có gì.'), approved: false, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
+    s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [bare] });
+    const t = await s.assistant.assistantService.create(channelId, 'ask');
+    env.script.push({ calls: [{ name: 'estimate_cost', args: { episodeId: id } }] }, { text: 'Ước tính xong.' });
+    const v = await say(t.thread.id, 'Tạo hết ảnh và giọng giúp tôi', { episodeId: id });
+    const tool = v.messages.find((m) => m.role === 'tool');
+    expect(tool).toMatchObject({ status: 'done' }); // a read tool never waits for approval, even in ask mode
+    expect(tool?.content).toMatch(/Còn thiếu 1 ảnh và \d+ giọng/);
+  });
+
   it('changes the type of one scene to another block the skill allows, starting from that block\'s defaults', async () => {
     const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Đổi loại cảnh', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     const id = made.episode.id;

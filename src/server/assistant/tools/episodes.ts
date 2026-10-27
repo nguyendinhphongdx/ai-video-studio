@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { defineTool, type ToolContext } from '@/core/assistant/tool';
 import { FORMAT_IDS, VOICE_IDS, type Format, type VoiceId } from '@/core/domain';
 import { UserFacingError } from '@/core/domain/errors';
+import { makePlan } from '@/core/scenes/make-plan';
 import { episodeService } from '@/server/modules/episode/episode.service';
 import type { EpisodeView } from '@/server/modules/episode/episode.types';
+import { usageService } from '@/server/modules/usage/usage.service';
 import { toolCatalog } from '@/tools/registry';
 
 import { asJson, describeEpisode, ownEpisode } from './util';
@@ -184,7 +186,7 @@ export const setEpisodeOptions = defineTool({
 
 export const generateSceneAssets = defineTool({
   name: 'generate_scene_assets',
-  description: 'Tạo ảnh AI và/hoặc giọng đọc cho các cảnh (sceneIds; bỏ trống = mọi cảnh). Chỉ tạo phần còn thiếu hoặc lỗi thời, nên gọi một lần cho cả video. Tốn tiền ảnh/giọng, chạy nền. Cảnh được tạo lại sẽ mất trạng thái duyệt.',
+  description: 'Tạo ảnh AI và/hoặc giọng đọc cho các cảnh (sceneIds; bỏ trống = mọi cảnh). Chỉ tạo phần còn thiếu hoặc lỗi thời. LUÔN gọi MỘT lần cho cả video (không gọi từng cảnh) và báo chi phí ước tính (estimate_cost) trước. Tốn tiền ảnh/giọng, chạy nền. Cảnh được tạo lại sẽ mất trạng thái duyệt.',
   risk: 'paid',
   schema: z.object({ episodeId: z.string(), sceneIds: z.array(z.string()).nullable().default(null), image: z.boolean().default(true), voice: z.boolean().default(true) }),
   summarize: async (a, ctx) => `Tạo ${[a.image && 'ảnh', a.voice && 'giọng'].filter(Boolean).join(' và ')} cho ${a.sceneIds ? `${a.sceneIds.length} cảnh` : 'mọi cảnh'} của video ${await label(ctx, a.episodeId)}`,
@@ -192,6 +194,23 @@ export const generateSceneAssets = defineTool({
     await ownEpisode(ctx, episodeId);
     await episodeService.requestAssets(episodeId, { sceneIds, image, voice });
     return { ok: true, message: 'Đã giao worker tạo. Dùng get_episode để kiểm tra khi cần (cột image/voice của từng cảnh).' };
+  },
+});
+
+export const estimateCost = defineTool({
+  name: 'estimate_cost',
+  description: 'Ước tính chi phí để tạo phần ảnh và giọng còn thiếu của video (không gọi AI, không tốn tiền): số ảnh, số giây giọng, USD, VND. Dùng để báo giá cho người dùng TRƯỚC khi xin đồng ý tạo.',
+  risk: 'read',
+  schema: z.object({ episodeId: z.string() }),
+  summarize: async (a, ctx) => `Ước tính chi phí ảnh và giọng của video ${await label(ctx, a.episodeId)}`,
+  async run({ episodeId }, ctx) {
+    await ownEpisode(ctx, episodeId);
+    const v = await episodeService.get(episodeId);
+    const plan = makePlan(v.episode.scenes, v.assets);
+    if (plan.empty) return { ok: true, message: 'Mọi cảnh đã đủ ảnh và giọng, không cần tạo thêm, chi phí $0.' };
+    const e = await usageService.estimate({ images: plan.images, texts: plan.voiceTexts, voice: v.episode.voice });
+    const money = e.usd === null ? 'chưa có giá trong bảng giá nên chưa ước tính được tiền' : e.usd === 0 ? '$0 (miễn phí)' : `khoảng $${e.usd.toFixed(3)} (≈ ${Math.round(e.usd * e.fxUsdVnd).toLocaleString('vi-VN')} ₫)`;
+    return { ok: true, message: `Còn thiếu ${plan.images} ảnh và ${plan.voices} giọng (~${e.voiceSeconds} giây). Chi phí: ${money}. ${plan.approvable.length} cảnh đã đủ nhưng chưa duyệt.` };
   },
 });
 
@@ -234,4 +253,4 @@ export const deleteEpisode = defineTool({
   },
 });
 
-export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, addScene, removeScene, setEpisodeOptions, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];
+export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, addScene, removeScene, setEpisodeOptions, estimateCost, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];

@@ -32,7 +32,7 @@ export const chartBlock = defineBlock({
     { key: 'title', label: 'Tiêu đề', kind: 'text', maxLength: 44 },
     { key: 'unit', label: 'Đơn vị', kind: 'text', maxLength: 10 },
     { key: 'data', label: 'Số liệu (mỗi dòng "Tên: số")', kind: 'textarea', maxLength: 300, hint: 'Ví dụ: Everest: 8849' },
-    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
+    { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
   defaults: { title: 'Độ sâu so với độ cao', unit: 'm', data: 'Everest: 8849\nMariana: 10994', transition: 'auto' },
   minSeconds: 5,

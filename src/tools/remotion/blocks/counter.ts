@@ -33,7 +33,7 @@ export const counterBlock = defineBlock({
     { key: 'value', label: 'Con số', kind: 'text', maxLength: 12 },
     { key: 'unit', label: 'Đơn vị', kind: 'text', maxLength: 14 },
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 64 },
-    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
+    { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
   defaults: { value: '10.994', unit: 'mét', caption: 'độ sâu của Rãnh Mariana', transition: 'auto' },
   minSeconds: 4.5,

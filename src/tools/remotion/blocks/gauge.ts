@@ -35,7 +35,7 @@ export const gaugeBlock = defineBlock({
     { key: 'max', label: 'Thang đến', kind: 'text', maxLength: 10 },
     { key: 'unit', label: 'Đơn vị', kind: 'text', maxLength: 12 },
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 64 },
-    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
+    { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
   defaults: { value: '72', min: '0', max: '100', unit: '%', caption: 'đại dương chưa được khám phá', transition: 'auto' },
   minSeconds: 5,

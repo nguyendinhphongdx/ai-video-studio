@@ -12,6 +12,7 @@ import type { Scene } from '@/core/domain/episode';
 import { estimateSpeechSec } from '@/core/timeline';
 import type { SceneBrand } from '@video/primitives';
 
+import { motionPresets } from '../../lib/presets';
 import { fmtDuration } from '../../lib/status';
 import { sceneSeconds, type blockIndex } from '../../lib/preview';
 import type { EpisodeView, SceneAssetView } from '../../services/episode.api';
@@ -41,6 +42,9 @@ interface Props {
 export function SceneEditor({ scene, ordinal, position, slot, blocks, brand, editable, assets, working, onGenerate, onApprove, onChange, onMove, onRemove, onClose }: Props) {
   const block = scene ? blocks.get(scene.block) : undefined;
   const readOnly = !editable || Boolean(scene?.locked);
+  const basicFields = (block?.fields ?? []).filter((f) => !f.advanced);
+  const advancedFields = (block?.fields ?? []).filter((f) => f.advanced);
+  const presets = motionPresets(advancedFields);
   const switchBlock = (ref: string) => {
     if (!scene) return;
     const next = blocks.get(ref);
@@ -102,7 +106,7 @@ export function SceneEditor({ scene, ordinal, position, slot, blocks, brand, edi
                 </div>
               ) : null}
               <fieldset disabled={readOnly} className="flex flex-col gap-4 disabled:opacity-70">
-                {(block?.fields ?? []).map((f) => (
+                {basicFields.map((f) => (
                   <FieldInput key={f.key} id={`f-${f.key}`} field={f} value={scene.props[f.key]} onChange={(v) => onChange({ props: { ...scene.props, [f.key]: v } })} />
                 ))}
                 <div className="flex flex-col gap-1.5">
@@ -114,6 +118,28 @@ export function SceneEditor({ scene, ordinal, position, slot, blocks, brand, edi
                   </div>
                   <Textarea id="f-narration" rows={3} value={scene.narration} onChange={(e) => onChange({ narration: e.target.value })} />
                 </div>
+                {advancedFields.length ? (
+                  <details className="group rounded-xl border bg-muted/30 p-3">
+                    <summary className="cursor-pointer list-none text-small font-semibold marker:hidden">
+                      Nâng cao: chuyển động, khung hình, hiệu ứng <span className="font-normal text-muted-foreground">(mặc định đã tự chọn, thường không cần chỉnh)</span>
+                    </summary>
+                    <div className="mt-3 flex flex-col gap-4">
+                      {presets.length ? (
+                        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Phong cách chuyển động có sẵn">
+                          <span className="text-caption text-muted-foreground">Chọn nhanh:</span>
+                          {presets.map((p) => (
+                            <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => onChange({ props: { ...scene.props, ...p.values } })} title={p.hint}>
+                              {p.name}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {advancedFields.map((f) => (
+                        <FieldInput key={f.key} id={`f-${f.key}`} field={f} value={scene.props[f.key]} onChange={(v) => onChange({ props: { ...scene.props, [f.key]: v } })} />
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
               </fieldset>
               <section className="flex flex-col gap-3 rounded-xl border bg-muted/40 p-3" aria-label="Ảnh, giọng đọc và duyệt cảnh">
                 {assets?.needsImage ? (

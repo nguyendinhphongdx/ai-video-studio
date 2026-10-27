@@ -30,7 +30,7 @@ export const dotsBlock = defineBlock({
     { key: 'part', label: 'Phần được nhấn', kind: 'text', maxLength: 10 },
     { key: 'whole', label: 'Tổng', kind: 'text', maxLength: 10 },
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 64 },
-    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
+    { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
   defaults: { part: '3', whole: '10', caption: 'người chưa từng thấy biển', transition: 'auto' },
   minSeconds: 5,

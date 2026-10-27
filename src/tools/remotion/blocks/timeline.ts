@@ -33,7 +33,7 @@ export const timelineBlock = defineBlock({
   fields: [
     { key: 'title', label: 'Tiêu đề', kind: 'text', maxLength: 44 },
     { key: 'data', label: 'Các mốc (mỗi dòng "Mốc: sự kiện")', kind: 'textarea', maxLength: 500, hint: 'Ví dụ: 1969: Con người đặt chân lên Mặt Trăng' },
-    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
+    { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
   defaults: { title: 'Đường tới Mặt Trăng', data: '1957: Vệ tinh đầu tiên\n1961: Người đầu tiên bay vào vũ trụ\n1969: Đặt chân lên Mặt Trăng', transition: 'auto' },
   minSeconds: 7,

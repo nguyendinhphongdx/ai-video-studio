@@ -20,6 +20,8 @@ export interface ToolField {
   min?: number;
   max?: number;
   options?: { value: string; label: string }[];
+  /** Rarely needs touching (the default "auto" is usually right): the editor tucks it under "Nâng cao". */
+  advanced?: boolean;
 }
 
 /** Isomorphic: safe for the browser, the worker and the prompt builder. */

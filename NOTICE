@@ -1,0 +1,33 @@
+AI Video Studio
+Parts of this project are adapted from other open source work. Each entry says what was taken and what was changed.
+
+video-shotcraft (https://github.com/Vincentwei1021/video-shotcraft)
+Copyright the video-shotcraft authors. Licensed under the Apache License, Version 2.0
+(a copy is in third_party/video-shotcraft/LICENSE).
+
+Adapted from it, rewritten for this project's blocks, pipeline and Vietnamese-language workflow:
+  - remotion/camera/noise.ts: the deterministic PRNG (mulberry32) and hand-held drift (handheld), from assets/lib/helpers.
+  - remotion/camera/moves.ts, remotion/camera/DepthStage.tsx: the idea of a perspective ("2.5D") camera over a still
+    picture and of multiplane layers moving at different speeds (far, middle, near), from assets/lib/PageCam.tsx and
+    the depth-layer-moves shot recipe. The moves, poses and layers here are new code.
+  - src/core/audio/sfx.ts and the SFX cue hooks of the blocks: the sound-design restraint rules (short sounds, quiet
+    under the voice, spacing between cues, one big hit at a time) from references/sound-design.md and
+    references/aesthetic-rules.md.
+  - src/core/quality/checks (variety, spoken, av-health), design legibility floors in src/core/domain/design.ts and
+    the story/pace guidance in src/core/tasks/story.ts: derived from the review rules in references/aesthetic-rules.md,
+    references/final-review.md and the "inspect the rendered frames" practice of references/pipeline.md.
+  - remotion/shots/text/*: the 27 text shots (entrances and cycling lines) are new implementations of the typography
+    recipes of video-shotcraft (blur-slide, brace-expand, countdown-arc-scatter, flying-words, glitch-cycle,
+    gradient-word-sweep, lead-word-zoom-assemble, marker-underline-title, outline-word-fill, paper-title-card, pill-slot-cycle,
+    text-column-converge, title-demote-to-label, type-assembly-moves, type-entrance-moves, type-rhythm-sync,
+    typewriter-moves, vertical-word-roll-blur-cycle, word-relay-filmstrip, word-relay-geometry). The motion ideas are theirs;
+    the code, content slots and timings are ours.
+  - remotion/shots/transitions.tsx: the 17 scene entrances are new implementations of the transition recipes (bottom-push-stack-wipe,
+    page-turn barn-door-split, blinds-slice, glitch-displace, ink-bleed-reveal, hidden-cut light leak, card-flip-reveal,
+    mosaic-reframe, circle-match-iris, and the shot-transition wipes) of video-shotcraft, adapted to start the incoming scene.
+  - remotion/camera/moves.ts (bullet-time, pull-back, drone-dive, graze-slide, steep-slide, handheld-push) and remotion/shots/fx.tsx
+    (nine light overlays): new implementations of the tension / space / overhead / steep-tilt camera recipes and of the light-play,
+    spotlight-sweep, scan-bracket, fui-hud, glow-flyline and impact-feedback effect recipes.
+
+No audio, image or other media files from video-shotcraft are included. Sound effects are synthesised on the user's
+machine with ffmpeg (src/server/adapters/sfx/sfx.service.ts), and a person may add their own files.

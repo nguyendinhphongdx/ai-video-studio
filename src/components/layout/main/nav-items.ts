@@ -1,4 +1,4 @@
-import { Boxes, Clapperboard, Inbox, LayoutGrid, Layers, ListVideo, Settings, Tv, type LucideIcon } from 'lucide-react';
+import { Boxes, Clapperboard, Inbox, LayoutGrid, Layers, ListVideo, Settings, Tv, Wallet, type LucideIcon } from 'lucide-react';
 
 import { ROUTES } from '@/constants/routes';
 
@@ -19,6 +19,7 @@ export const SETUP_NAV: NavItem[] = [
   { href: ROUTES.channels, label: 'Kênh & thương hiệu', icon: Tv },
   { href: ROUTES.skills, label: 'Skills', icon: Layers },
   { href: ROUTES.tools, label: 'Tools', icon: Boxes },
+  { href: ROUTES.usage, label: 'Chi phí', icon: Wallet },
   { href: ROUTES.settings, label: 'Cài đặt', icon: Settings },
 ];
 

@@ -6,6 +6,7 @@ export const ROUTES = {
   channels: '/channels',
   skills: '/skills',
   tools: '/tools',
+  usage: '/usage',
   settings: '/settings',
   seriesNew: '/series/new',
   seriesOf: (id: string, tab?: string) => `/series/${id}${tab ? `?tab=${tab}` : ''}`,

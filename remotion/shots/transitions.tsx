@@ -8,11 +8,14 @@ import type { ReactNode } from 'react';
 
 import { mulberry32 } from '../camera/noise';
 
-export const ENTRANCES = ['fade', 'whip', 'wipe', 'flash', 'iris', 'push-up', 'barn-door', 'blinds', 'glitch', 'ink', 'light-leak', 'flip', 'mosaic', 'checker', 'radial-wipe', 'diagonal-wipe', 'zoom-through'] as const;
-export type Entrance = (typeof ENTRANCES)[number];
+import { ENTRANCE_META, type EntranceId } from './entrance-meta';
 
-/** Which way a scene comes in. A function of the block and its order, so the preview and the render agree and neighbours differ. */
-export function entranceFor(block: string, ordinal: number): Entrance {
+export const ENTRANCES = ENTRANCE_META.map((m) => m.id);
+export type Entrance = EntranceId;
+
+/** Which way a scene comes in: the one the scene names (`transition` prop), else a function of the block and its order. A function of the block and its order, so the preview and the render agree and neighbours differ. */
+export function entranceFor(block: string, ordinal: number, chosen?: unknown): Entrance {
+  if (typeof chosen === 'string' && (ENTRANCES as string[]).includes(chosen)) return chosen as Entrance;
   let h = 0;
   for (let i = 0; i < block.length; i++) h = (h * 31 + block.charCodeAt(i)) >>> 0;
   return ENTRANCES[(h + Math.max(1, ordinal) * 5) % ENTRANCES.length]!;

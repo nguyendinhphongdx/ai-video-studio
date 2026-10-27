@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useAppConfig } from '@/features/app';
 import { cn } from '@/lib/utils';
 
-import { isActive, MAIN_NAV, SETUP_NAV, type NavItem } from './nav-items';
+import { isActive, MAIN_NAV, MORE_NAV, SETUP_NAV, type NavItem } from './nav-items';
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isActive(pathname, item.href, item.also);
@@ -40,6 +40,10 @@ export function MainSidebar() {
         <span className="text-[16px] font-bold text-white">AI Video Studio</span>
       </Link>
       {MAIN_NAV.map((item) => (
+        <NavLink key={item.href} item={item} pathname={pathname} />
+      ))}
+      <div className="px-3 pb-1 pt-5 text-caption font-semibold uppercase tracking-wider text-slate-400">Thư viện</div>
+      {MORE_NAV.map((item) => (
         <NavLink key={item.href} item={item} pathname={pathname} />
       ))}
       <div className="px-3 pb-1 pt-5 text-caption font-semibold uppercase tracking-wider text-slate-400">Thiết lập</div>

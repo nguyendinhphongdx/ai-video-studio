@@ -98,7 +98,7 @@ Ideas here are adapted from video-shotcraft (Apache-2.0); see NOTICE for what wa
 
 ## The template library
 
-`/templates` (reached from the channel's advanced section and the scene editor, not the main menu) lists every text shot, entrance, camera move, light effect, rhythm cut and scene type, each running live on the channel's colours. `src/features/templates/lib/catalog.ts` builds the list from the same meta files the editor reads, so a new shot appears there without extra work; previews only mount while on screen and use a built-in sample picture (no AI call).
+`/templates` (in the sidebar's "Thư viện" group with the channel's video styles and the building blocks, and linked from the channel's advanced section and the scene editor) lists every text shot, entrance, camera move, light effect, rhythm cut and scene type, each running live on the channel's colours. `src/features/templates/lib/catalog.ts` builds the list from the same meta files the editor reads, so a new shot appears there without extra work; previews only mount while on screen and use a built-in sample picture (no AI call).
 
 ## Make it all
 

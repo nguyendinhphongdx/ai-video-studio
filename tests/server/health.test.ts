@@ -30,13 +30,15 @@ describe('system health', () => {
 
 describe('navigation and the scene editor', () => {
   it('keeps the owning item highlighted on screens that moved inside it', async () => {
-    const { MAIN_NAV, SETUP_NAV, isActive } = await import('@/components/layout/main/nav-items');
+    const { MAIN_NAV, MORE_NAV, SETUP_NAV, isActive } = await import('@/components/layout/main/nav-items');
     expect(MAIN_NAV.map((i) => i.label)).toEqual(['Tạo video', 'Video', 'Series', 'Kênh']);
+    expect(MORE_NAV.map((i) => i.label)).toEqual(['Thư viện mẫu', 'Kiểu video', 'Công cụ dựng']);
     expect(SETUP_NAV.map((i) => i.label)).toEqual(['Chi phí', 'Cài đặt']);
     const video = MAIN_NAV.find((i) => i.label === 'Video')!;
     const channel = MAIN_NAV.find((i) => i.label === 'Kênh')!;
     expect(isActive('/episodes/abc', video.href, video.also)).toBe(true);
-    expect(isActive('/skills/cinematic', channel.href, channel.also)).toBe(true);
+    expect(isActive('/channels/c1', channel.href, channel.also)).toBe(true);
+    expect(isActive('/skills/cinematic', MORE_NAV[1]!.href)).toBe(true);
     expect(isActive('/skills', video.href, video.also)).toBe(false);
     expect(isActive('/', '/')).toBe(true);
     expect(isActive('/library', '/')).toBe(false);

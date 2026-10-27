@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
-import { isActive, MAIN_NAV, SETUP_NAV } from './nav-items';
+import { isActive, MAIN_NAV, MORE_NAV, SETUP_NAV } from './nav-items';
 
 interface InstallEvent extends Event {
   prompt(): Promise<void>;
@@ -45,7 +45,7 @@ function InstallHint() {
 export function MobileTabBar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const setupActive = SETUP_NAV.some((i) => isActive(pathname, i.href));
+  const setupActive = [...MORE_NAV, ...SETUP_NAV].some((i) => isActive(pathname, i.href));
   const tab = 'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold';
   return (
     <nav aria-label="Điều hướng nhanh" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-white/10 bg-sidebar pb-[env(safe-area-inset-bottom)] text-sidebar-foreground md:hidden">
@@ -66,9 +66,9 @@ export function MobileTabBar() {
           </button>
         </SheetTrigger>
         <SheetContent side="bottom" className="gap-1 rounded-t-2xl border-0 bg-sidebar px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 text-sidebar-foreground">
-          <SheetTitle className="px-2 pb-2 text-white">Thiết lập</SheetTitle>
-          <SheetDescription className="sr-only">Chi phí và cài đặt</SheetDescription>
-          {SETUP_NAV.map((item) => (
+          <SheetTitle className="px-2 pb-2 text-white">Thêm</SheetTitle>
+          <SheetDescription className="sr-only">Thư viện mẫu, kiểu video, công cụ dựng, chi phí và cài đặt</SheetDescription>
+          {[...MORE_NAV, ...SETUP_NAV].map((item) => (
             <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={isActive(pathname, item.href) ? 'page' : undefined} className={cn('flex min-h-12 items-center gap-3 rounded-lg px-3 text-body', isActive(pathname, item.href) && 'bg-sidebar-accent font-semibold text-white')}>
               <item.icon className="size-5" aria-hidden />
               {item.label}

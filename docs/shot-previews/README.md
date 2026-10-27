@@ -14,3 +14,9 @@ Sheet 2: wipe, blinds, mosaic, fade, push-up, light-leak, diagonal-wipe, flash
 Camera and light effects (vox scene on a sample picture):
 Sheet 1: bullet-time, pull-back, drone-dive, graze-slide, steep-slide, handheld-push (camera moves, mid-move), then sheen, spotlight, scan
 Sheet 2: reticle, light-leak, ripple, burst, aurora, glow-orbs
+
+Rhythm cuts of a picture scene (jump-punch x3, flash-freeze x3, comic-panels x3, quad, sakuga x2; the first frames also show the scene's own entrance):
+Sheet: rhythm-cuts.jpg
+
+Data scenes (timeline x3 moments, gauge x2, dots x4):
+Sheet: data-scenes.jpg

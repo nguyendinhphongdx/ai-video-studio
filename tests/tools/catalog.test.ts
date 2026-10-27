@@ -9,7 +9,7 @@ describe('tool catalog', () => {
   it('expands a tool mention into all its blocks', () => {
     const { blocks, unknown } = toolCatalog.resolve(['remotion']);
     expect(unknown).toEqual([]);
-    expect(blocks.map((b) => b.ref)).toEqual(['remotion/title', 'remotion/cards', 'remotion/whiteboard', 'remotion/recap', 'remotion/quiz', 'remotion/picture', 'remotion/vox', 'remotion/kinetic', 'remotion/counter', 'remotion/chart', 'remotion/outro']);
+    expect(blocks.map((b) => b.ref)).toEqual(['remotion/title', 'remotion/cards', 'remotion/whiteboard', 'remotion/recap', 'remotion/quiz', 'remotion/picture', 'remotion/vox', 'remotion/kinetic', 'remotion/counter', 'remotion/chart', 'remotion/timeline', 'remotion/gauge', 'remotion/dots', 'remotion/outro']);
   });
 
   it('resolves single blocks, accepts "@" and reports unknown refs', () => {

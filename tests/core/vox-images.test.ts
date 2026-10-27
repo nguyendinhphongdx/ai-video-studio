@@ -381,3 +381,49 @@ describe('light effects and the newer camera moves', () => {
     expect(moveCue('zoom-in')).toEqual([]);
   });
 });
+
+describe('rhythm cuts and data scenes', () => {
+  it('lists every cut, rotates through real ones mostly as none, and gives cuts a sound', async () => {
+    const { CUT_META, CUT_IDS } = await import('../../remotion/shots/cut-meta');
+    const { cutFor } = await import('../../remotion/blocks/variants');
+    const { cutCue } = await import('@/tools/remotion/blocks/shared');
+    expect(CUT_IDS).toEqual(CUT_META.map((m) => m.id));
+    const run = Array.from({ length: 34 }, (_, i) => cutFor(i + 1));
+    expect(run.every((c) => (CUT_IDS as string[]).includes(c))).toBe(true);
+    expect(run.filter((c) => c === 'none').length).toBeGreaterThanOrEqual(20);
+    expect(new Set(run).size).toBe(CUT_IDS.length);
+    expect(cutCue('flash-freeze')).toHaveLength(3);
+    expect(cutCue('none')).toEqual([]);
+  });
+
+  it('parses timelines and numbers, throws the needle past the value and settles on it, and lights the right dots', async () => {
+    const { parseTimeline, parseNumber } = await import('../../remotion/blocks/data-parse');
+    const { needleAt } = await import('../../remotion/blocks/gauge');
+    const { litDots } = await import('../../remotion/blocks/dots');
+    expect(parseTimeline('1957: Vệ tinh\nsai dòng\n1969 - Mặt Trăng\n').map((i) => [i.label, i.text])).toEqual([['1957', 'Vệ tinh'], ['1969', 'Mặt Trăng']]);
+    expect(parseTimeline(Array.from({ length: 9 }, (_, i) => `${i}: x`).join('\n'))).toHaveLength(6);
+    expect(parseNumber('1.250')).toBe(1250);
+    expect(parseNumber('3,5')).toBe(3.5);
+    expect(parseNumber('abc')).toBeNull();
+    expect(needleAt(0, 0.72)).toBe(0);
+    expect(needleAt(30, 0.72)).toBeCloseTo(1, 1);
+    expect(needleAt(200, 0.72)).toBeCloseTo(0.72, 2);
+    expect(litDots(3, 10)).toBe(30);
+    expect(litDots(1, 1000)).toBe(1);
+    expect(litDots(5, 0)).toBe(0);
+  });
+
+  it('normalise the data blocks', async () => {
+    const { toolCatalog } = await import('@/tools/registry');
+    const gauge = toolCatalog.block('remotion/gauge')!;
+    expect(gauge.normalize!({ value: '250', min: '0', max: '100', unit: ' % ', caption: ' c ' } as never)).toMatchObject({ value: '100', unit: '%', caption: 'c' });
+    const dots = toolCatalog.block('remotion/dots')!;
+    expect(dots.normalize!({ part: '12', whole: '10', caption: '' } as never)).toMatchObject({ part: '10', whole: '10' });
+    const timeline = toolCatalog.block('remotion/timeline')!;
+    expect(timeline.normalize!({ title: 'T', data: 'a: 1\nx\nb - 2' } as never)).toMatchObject({ data: 'a: 1\nb: 2' });
+    for (const ref of ['remotion/timeline', 'remotion/gauge', 'remotion/dots']) {
+      const b = toolCatalog.block(ref)!;
+      for (const c of b.sfx!({ props: b.defaults as Record<string, unknown>, ordinal: 1, durationSec: b.minSeconds })) expect(c.at).toBeLessThan(b.minSeconds);
+    }
+  });
+});

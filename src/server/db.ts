@@ -250,6 +250,58 @@ const MIGRATIONS = [
   );
   CREATE INDEX assistant_messages_thread ON assistant_messages(thread_id, id);
   `,
+  // Paid-call ledger, price book, budgets. The ledger has no foreign keys: deleting a video keeps what it cost.
+  `
+  CREATE TABLE usage_events (
+    id TEXT PRIMARY KEY,
+    at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT '',
+    channel_id TEXT,
+    series_id TEXT,
+    episode_id TEXT,
+    scene_id TEXT,
+    job_id TEXT,
+    thread_id TEXT,
+    run_id TEXT,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cached_tokens INTEGER NOT NULL DEFAULT 0,
+    units REAL NOT NULL DEFAULT 0,
+    cost_usd REAL,
+    estimated INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX usage_at ON usage_events(at);
+  CREATE INDEX usage_channel ON usage_events(channel_id, at);
+  CREATE INDEX usage_episode ON usage_events(episode_id);
+  CREATE TABLE price_book (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    provider TEXT,
+    pattern TEXT NOT NULL,
+    input_per_mtok REAL NOT NULL DEFAULT 0,
+    output_per_mtok REAL NOT NULL DEFAULT 0,
+    cached_per_mtok REAL NOT NULL DEFAULT 0,
+    per_unit REAL NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE budgets (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    channel_id TEXT,
+    period TEXT NOT NULL,
+    limit_usd REAL NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'warn',
+    alert_pct INTEGER NOT NULL DEFAULT 80,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE usage_prefs (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `,
+  // App-wide switches (sound effects on/off and level).
+  `CREATE TABLE app_prefs (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
 ];
 
 function open(): DatabaseSync {

@@ -7,6 +7,7 @@ import { validateRegistries } from '@/core/registry';
 import { images } from '@/server/adapters/image/image.service';
 import { llm } from '@/server/adapters/llm/llm.service';
 import { media } from '@/server/adapters/media/media.service';
+import { sfx } from '@/server/adapters/sfx/sfx.service';
 import { tts } from '@/server/adapters/tts/tts.service';
 import { video } from '@/server/adapters/video/video.service';
 import { aiRunStore } from '@/server/modules/ai-run/ai-run.repository';
@@ -44,6 +45,7 @@ export function createCoreDeps(renderers: RendererCatalog = noRenderers): CoreDe
     aiRuns: aiRunStore,
     stepRuns: stepRunStore,
     events: eventBus,
+    sfx,
   };
   validateRegistries({ tools: toolCatalog, renderers: renderers === noRenderers ? undefined : renderers, layers: CONTEXT_LAYERS, checks: QUALITY_CHECKS });
   return deps;

@@ -54,6 +54,10 @@ export const channelSkillRepository = {
   update(channelId: string, skillId: string, markdown: string, updatedAt: string) {
     db().prepare('UPDATE channel_skills SET markdown = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ?').run(markdown, updatedAt, channelId, skillId);
   },
+  /** Replaces a skill with a newer market version (and points its source at the market id it now follows). */
+  replaceFromMarket(channelId: string, skillId: string, markdown: string, source: string, updatedAt: string) {
+    db().prepare('UPDATE channel_skills SET markdown = ?, source = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ?').run(markdown, source, updatedAt, channelId, skillId);
+  },
   remove(channelId: string, skillId: string) {
     db().prepare('DELETE FROM channel_skills WHERE channel_id = ? AND skill_id = ?').run(channelId, skillId);
   },

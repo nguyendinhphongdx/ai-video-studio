@@ -70,6 +70,29 @@ describe('market and channel-owned skills', () => {
     expect(second.skill.id).toBe('picture-story-2');
   });
 
+  it('offers a newer market version of an installed skill, follows renames, and replaces the copy on request', async () => {
+    const repo = await import('@/server/modules/skill/skill.repository');
+    const c = await s.channels.channelService.create(input('Kênh U'));
+    const installed = await s.skills.skillService.install(c.id, 'picture-story');
+    expect((await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!.update).toBeNull();
+    // An older copy that nobody edited: the market text differs, so it is offered.
+    repo.channelSkillRepository.replaceFromMarket(c.id, 'picture-story', installed.markdown.replace('remotion/kinetic, ', ''), 'market:picture-story', installed.updatedAt);
+    const old = (await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!;
+    expect(old.tools).not.toContain('remotion/kinetic');
+    expect(old.update?.marketId).toBe('picture-story');
+    const upgraded = await s.skills.skillService.upgrade(c.id, 'picture-story');
+    expect(upgraded.skill.tools).toContain('remotion/kinetic');
+    expect((await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!.update).toBeNull();
+    await expect(s.skills.skillService.upgrade(c.id, 'picture-story')).rejects.toMatchObject({ status: 409 });
+    // A copy of a market skill that was renamed follows the new one and keeps its id (videos point at it).
+    repo.channelSkillRepository.insert({ channelId: c.id, skillId: 'vox-explainer', markdown: '---\nname: Vox cũ\ndescription: d\ntools: [remotion/vox, remotion/outro]\nscenes: 3-5\n---\n\nHướng dẫn cũ.\n', source: 'market:vox-explainer', createdAt: new Date().toISOString() });
+    const renamed = (await s.skills.skillService.list(c.id)).find((x) => x.id === 'vox-explainer')!;
+    expect(renamed.update?.marketId).toBe('vox-style');
+    const after = await s.skills.skillService.upgrade(c.id, 'vox-explainer');
+    expect(after.source).toBe('market:vox-style');
+    expect(after.skill.tools).toContain('remotion/kinetic');
+  });
+
   it('refuses a broken skill and keeps ids unique within a channel', async () => {
     const c = await s.channels.channelService.create(input('Kênh E'));
     await expect(s.skills.skillService.save(c.id, 'bad', 'không có phần khai báo', { create: true })).rejects.toMatchObject({ status: 400 });

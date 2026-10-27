@@ -9,7 +9,17 @@ import { toolCatalog } from '@/tools/registry';
 
 import { channelSkillRepository, marketRepository, type ChannelSkillRow } from './skill.repository';
 
+/** Market skills that were renamed: a channel's copy of the old one follows the new one. */
+const MARKET_RENAMED: Record<string, string> = { 'vox-explainer': 'vox-style' };
+
+export interface SkillUpdate {
+  marketId: string;
+  version: string;
+}
+
 export interface SkillSummary extends Omit<Skill, 'body'> {
+  /** The market has a newer version of this skill (or a person's untouched copy differs from it). Null when up to date or when it was edited by hand. */
+  update: SkillUpdate | null;
   issues: SkillIssue[];
   /** "market:<id>" when installed from the market, "custom" when written by hand, "ai" when drafted by the AI. */
   source: string;
@@ -28,10 +38,37 @@ function summarize(row: ChannelSkillRow): SkillSummary {
   try {
     const skill = parseSkill(row.skillId, row.markdown);
     const { body: _body, ...meta } = skill;
-    return { ...meta, issues: lintSkill(skill, toolCatalog), source: row.source, updatedAt: row.updatedAt };
+    return { ...meta, update: null, issues: lintSkill(skill, toolCatalog), source: row.source, updatedAt: row.updatedAt };
   } catch (e) {
-    return { id: row.skillId, name: row.skillId, description: '', tools: [], scenes: { min: 0, max: 0 }, version: '1', tags: [], imageStyle: '', issues: [{ level: 'error', message: (e as Error).message }], source: row.source, updatedAt: row.updatedAt };
+    return { id: row.skillId, name: row.skillId, description: '', tools: [], scenes: { min: 0, max: 0 }, version: '1', tags: [], imageStyle: '', update: null, issues: [{ level: 'error', message: (e as Error).message }], source: row.source, updatedAt: row.updatedAt };
   }
+}
+
+/**
+ * Whether the market now offers something newer than the channel's copy: a higher version, a rename, or (for a copy nobody
+ * ever edited) simply different text, since older market files did not always bump their version.
+ */
+async function updateOf(row: ChannelSkillRow): Promise<(SkillUpdate & { markdown: string }) | null> {
+  if (!row.source.startsWith('market:')) return null;
+  const from = row.source.slice(7);
+  const marketId = MARKET_RENAMED[from] ?? from;
+  const markdown = await marketRepository.read(marketId);
+  if (!markdown || markdown === row.markdown) return null;
+  try {
+    const latest = parseSkill(marketId, markdown);
+    const current = parseSkill(row.skillId, row.markdown);
+    const newer = Number(latest.version) > Number(current.version);
+    const untouched = row.updatedAt === row.createdAt;
+    return marketId !== from || newer || untouched ? { marketId, version: latest.version, markdown } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function withUpdate(row: ChannelSkillRow): Promise<SkillSummary> {
+  const s = summarize(row);
+  const u = await updateOf(row);
+  return { ...s, update: u ? { marketId: u.marketId, version: u.version } : null };
 }
 
 /** Market skills every channel gets once, so a new channel can make a good video straight away. A person may edit or delete them; they are not brought back. */
@@ -80,7 +117,7 @@ export const skillService = {
     await channelService.get(channelId);
     await adoptReferenced(channelId);
     await ensureDefaults(channelId);
-    return channelSkillRepository.list(channelId).map(summarize);
+    return Promise.all(channelSkillRepository.list(channelId).map(withUpdate));
   },
 
   async get(channelId: string, id: string): Promise<SkillDetail> {
@@ -116,6 +153,18 @@ export const skillService = {
     for (let n = 2; channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
     validate(id, markdown);
     channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
+    return skillService.get(channelId, id);
+  },
+
+  /** Brings a market-installed skill up to the market's current version. Replaces the channel's copy, edits included. */
+  async upgrade(channelId: string, id: string): Promise<SkillDetail> {
+    await channelService.get(channelId);
+    const row = channelSkillRepository.find(channelId, id);
+    if (!row) throw notFound(`skill "${id}" của kênh này`);
+    const u = await updateOf(row);
+    if (!u) throw conflict('Skill này đã là bản mới nhất hoặc không đến từ kho.');
+    validate(id, u.markdown);
+    channelSkillRepository.replaceFromMarket(channelId, id, u.markdown, `market:${u.marketId}`, now());
     return skillService.get(channelId, id);
   },
 

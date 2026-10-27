@@ -17,6 +17,8 @@ import { useAppConfig, useCurrentChannel } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
+import { UpgradeSkillButton } from '@/features/skill/components/UpgradeSkillButton';
+
 import { useEpisodes, useSkills } from '../hooks/use-episode';
 import { useTopicIdeas } from '../hooks/use-topic-ideas';
 import { episodeApi } from '../services/episode.api';
@@ -58,6 +60,7 @@ export function CreateVideoForm() {
   });
 
   const toggle = (f: Format) => setFormats((cur) => (cur.includes(f) ? (cur.length > 1 ? cur.filter((x) => x !== f) : cur) : [...cur, f]));
+  const chosen = skills?.find((s) => s.id === skillId);
   const usable = (skills ?? []).filter((s) => !s.issues.some((i) => i.level === 'error'));
   const aiReady = config?.llm.ready ?? true;
   const submit = () => {
@@ -141,6 +144,7 @@ export function CreateVideoForm() {
             ))}
           </SelectContent>
         </Select>
+        {chosen?.update && current ? <UpgradeSkillButton channelId={current.id} skillId={chosen.id} /> : null}
         {skills && !usable.length ? (
           <Link href={ROUTES.skills} className="text-small font-semibold text-primary hover:underline">
             Kênh chưa có skill: cài từ market

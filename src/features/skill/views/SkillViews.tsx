@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { UpgradeSkillButton } from '../components/UpgradeSkillButton';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsList, TabsTrigger } from '@/components/animate-ui/components/radix/tabs';
 import { Button } from '@/components/ui/button';
@@ -145,6 +146,7 @@ export function SkillListView() {
                         <div className="text-title font-bold">{s.name}</div>
                         <div className="font-mono text-caption text-muted-foreground">{s.id}</div>
                       </div>
+                      {s.update ? <span className="ml-auto rounded-full bg-warning-soft px-2 py-0.5 text-caption font-semibold text-warning">Có bản mới</span> : null}
                       {s.issues.some((i) => i.level === 'error') ? <span className="ml-auto rounded-full bg-danger-soft px-2 py-0.5 text-caption font-semibold text-destructive">Lỗi</span> : null}
                     </div>
                     {s.description ? <p className="line-clamp-3 text-small text-slate-700">{s.description}</p> : null}
@@ -232,6 +234,8 @@ export function SkillEditorView({ id }: { id: string | null }) {
   const [newId, setNewId] = useState('');
   const [view, setView] = useState<'edit' | 'preview'>('edit');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const list = useQuery({ queryKey: skillKeys.list(cid), queryFn: () => skillApi.list(cid), enabled: Boolean(cid) && !isNew });
+  const updateInfo = list.data?.find((x) => x.id === id)?.update ?? null;
   const text = markdown ?? detail.data?.markdown ?? '';
   const dirty = markdown !== null && (isNew || markdown !== detail.data?.markdown);
   
@@ -283,10 +287,13 @@ export function SkillEditorView({ id }: { id: string | null }) {
             description={isNew ? `Skill sẽ thuộc kênh ${current.name}. Nhờ AI soạn từ tri thức của kênh, hoặc tự viết.` : detail.data ? `${sourceLabel(detail.data.source)} · cập nhật ${new Date(detail.data.updatedAt).toLocaleString('vi-VN')}` : undefined}
             actions={
               !isNew ? (
-                <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
-                  <Trash2 aria-hidden />
-                  Xoá skill
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {updateInfo ? <UpgradeSkillButton channelId={cid} skillId={id!} size="default" /> : null}
+                  <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
+                    <Trash2 aria-hidden />
+                    Xoá skill
+                  </Button>
+                </div>
               ) : null
             }
           />

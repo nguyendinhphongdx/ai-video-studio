@@ -152,7 +152,7 @@ describe('scene variety', () => {
   });
 
   it('uses every variant, and combinations of label look and corner keep changing', () => {
-    expect(new Set(run(autoMotion)).size).toBe(6);
+    expect(new Set(run(autoMotion)).size).toBe(18);
     expect(new Set(run(labelStyleFor)).size).toBe(4);
     expect(new Set(run(cardsLayoutFor)).size).toBe(4);
     expect(new Set(run((n) => `${labelStyleFor(n)}/${cornerFor(n)}`)).size).toBeGreaterThanOrEqual(8);
@@ -168,7 +168,8 @@ describe('skill image style', () => {
     expect(imageStyleOf({ skill: s, channel: { imageStyle: 'channel look' } })).toBe('layered paper, hard light');
     expect(imageStyleOf({ skill: { imageStyle: '' }, channel: { imageStyle: 'channel look' } })).toBe('channel look');
     const pic = parseSkill('p', '---\nname: P\ntools: [remotion/picture]\n---\nbody');
-    expect(lintSkill(pic, toolCatalog).some((i) => i.message.includes('imageStyle'))).toBe(true);
+    // A picture block takes its look from the channel, so a skill without imageStyle is fine.
+    expect(lintSkill(pic, toolCatalog)).toEqual([]);
     expect(lintSkill(s, toolCatalog)).toEqual([]);
   });
 });
@@ -242,5 +243,141 @@ describe('locked intro and outro added to an older script', () => {
     expect(out[3]!.narration).toBe('Hẹn gặp lại');
     expect(out.slice(1, 3).map((s) => s.id)).toEqual(['a', 'b']);
     expect(withLockedScenes(f.slots, out, {}, toolCatalog)).toBeNull();
+  });
+});
+
+describe('camera moves', () => {
+  it('are deterministic, start near the frame and keep the picture covering it', async () => {
+    const { MOVES, poseAt } = await import('../../remotion/camera/moves');
+    for (const m of MOVES) {
+      expect(poseAt(m, 0.5, 40)).toEqual(poseAt(m, 0.5, 40));
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const p = poseAt(m, t, Math.round(t * 120));
+        expect(p.scale).toBeGreaterThanOrEqual(1);
+        expect(Math.abs(p.rotX)).toBeLessThanOrEqual(54);
+        expect(Math.abs(p.rotY)).toBeLessThanOrEqual(50);
+      }
+    }
+    expect(poseAt('crash-zoom', 0.1, 10).scale).toBeGreaterThan(poseAt('crash-zoom', 0, 0).scale + 0.2);
+    expect(poseAt('orbit-left', 0, 0).rotY).toBeGreaterThan(0);
+    expect(poseAt('orbit-left', 1, 0).rotY).toBeLessThan(0);
+  });
+
+  it('floats some scenes over a blurred copy, never two in a row', async () => {
+    const { layeredFor } = await import('../../remotion/blocks/variants');
+    const flags = Array.from({ length: 20 }, (_, i) => layeredFor(i + 1));
+    expect(flags.some(Boolean)).toBe(true);
+    expect(flags.every(Boolean)).toBe(false);
+    expect(flags.every((f, i) => i === 0 || !(f && flags[i - 1]))).toBe(true);
+  });
+});
+
+describe('design legibility and art', () => {
+  it('keeps text readable and stops a full-frame panel from hiding the AI art', async () => {
+    const { normalizeDesign, fallbackDesign } = await import('@/core/domain/design');
+    const base = fallbackDesign('intro', ['#112233']);
+    const text = (t: string, size: number) => ({ kind: 'text' as const, anim: 'fade' as const, delay: 0, land: { x: 50, y: 50, w: 60, h: 10 }, port: { x: 50, y: 50, w: 60, h: 10 }, text: t, size, weight: '800' as const, color: '#FFFFFF', font: 'brand' as const, upper: false, spacing: 0, align: 'center' as const });
+    const frame = { x: 50, y: 50, w: 100, h: 100 };
+    const veil = { kind: 'shape' as const, anim: 'fade' as const, delay: 0, land: frame, port: frame, shape: 'rect' as const, fill: '#000000', opacity: 0.95, radius: 0, rotate: 0 };
+    const art = { kind: 'art' as const, anim: 'fade' as const, delay: 0, land: frame, port: frame, opacity: 1 };
+    const out = normalizeDesign({ ...base, layers: [art, veil, text('{title}', 2), text('nhãn nhỏ', 1)] }, ['#112233']);
+    expect(out.layers[1]).toMatchObject({ kind: 'shape', opacity: 0.45 });
+    expect(out.layers[2]).toMatchObject({ size: 5 });
+    expect(out.layers[3]).toMatchObject({ size: 3 });
+    // Without art underneath the panel keeps its opacity.
+    expect(normalizeDesign({ ...base, layers: [veil, text('x', 4), text('y', 4), text('z', 4)] }, ['#112233']).layers[0]).toMatchObject({ opacity: 0.95 });
+  });
+});
+
+describe('kinetic, counter and chart blocks', () => {
+  it('pick the emphasised word, parse Vietnamese number formats and keep the chart to six rows', async () => {
+    const { emphasisIndex } = await import('../../remotion/blocks/kinetic');
+    const { parseChart } = await import('../../remotion/blocks/chart-data');
+    expect(emphasisIndex(['Điều', 'gì', 'nằm', 'dưới', 'đáy', 'biển?'], 'Đáy')).toBe(4);
+    expect(emphasisIndex(['Điều', 'gì', 'nằm', 'dưới', 'đáy', 'biển?'], '')).toBe(0);
+    expect(parseChart('Everest: 8849\nMariana - 10.994\nSao Hỏa = 3,5 km\nrác dòng này\nHồ: 12,5').map((i) => [i.label, i.value])).toEqual([['Everest', 8849], ['Mariana', 10994], ['Sao Hỏa', 3.5], ['Hồ', 12.5]]);
+    expect(parseChart(Array.from({ length: 9 }, (_, i) => `M${i}: ${i + 1}`).join('\n'))).toHaveLength(6);
+  });
+
+  it('are in the Remotion tool with sound cues that stay inside the scene', async () => {
+    const { toolCatalog } = await import('@/tools/registry');
+    for (const ref of ['remotion/kinetic', 'remotion/counter', 'remotion/chart']) {
+      const b = toolCatalog.block(ref)!;
+      expect(b, ref).toBeDefined();
+      const cues = b.sfx!({ props: b.defaults as Record<string, unknown>, ordinal: 1, durationSec: b.minSeconds });
+      expect(cues.length).toBeGreaterThan(0);
+      for (const c of cues) expect(c.at).toBeLessThan(b.minSeconds);
+    }
+    const chart = toolCatalog.block('remotion/chart')!;
+    expect(chart.normalize!({ title: ' T ', unit: 'm', data: 'a: 1\nxấu\nb: 2' } as never)).toMatchObject({ title: 'T', data: 'a: 1\nb: 2' });
+    const counter = toolCatalog.block('remotion/counter')!;
+    expect(counter.normalize!({ value: 'abc 10.994 m', unit: '', caption: '' } as never)).toMatchObject({ value: '10.994' });
+  });
+});
+
+describe('scene entrances', () => {
+  it('are fixed for a block and order, and vary across the scenes of a video', async () => {
+    const { entranceFor } = await import('../../remotion/shots/transitions');
+    expect(entranceFor('remotion/vox', 3)).toBe(entranceFor('remotion/vox', 3));
+    const seen = new Set(Array.from({ length: 12 }, (_, i) => entranceFor('remotion/vox', i + 1)));
+    expect(seen.size).toBeGreaterThanOrEqual(8);
+    const { ENTRANCES } = await import('../../remotion/shots/transitions');
+    expect(ENTRANCES).toHaveLength(17);
+    const run = Array.from({ length: 60 }, (_, i) => entranceFor('remotion/picture', i + 1));
+    expect(new Set(run).size).toBe(17);
+    expect(run.every((e, i) => i === 0 || e !== run[i - 1])).toBe(true);
+    expect(new Set(['remotion/vox', 'remotion/picture', 'remotion/kinetic', 'remotion/chart'].map((b) => entranceFor(b, 1))).size).toBeGreaterThan(1);
+  });
+
+  it('lifts a near-black channel colour for text scenes instead of turning it flat black', async () => {
+    const { stageBackground } = await import('../../remotion/primitives');
+    expect(stageBackground('#0F172A')).not.toContain('rgb(0, 0, 0)');
+    expect(stageBackground('#5B3DF5')).toContain('radial-gradient');
+  });
+});
+
+describe('text shots', () => {
+  it('has a drawing for every listed shot, unique ids, and the rotations only use real shots', async () => {
+    const { TEXT_SHOT_META } = await import('../../remotion/shots/text/meta');
+    const { TEXT_SHOTS } = await import('../../remotion/shots/text');
+    const { kineticLookFor } = await import('../../remotion/blocks/variants');
+    const ids: string[] = TEXT_SHOT_META.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(TEXT_SHOTS.map((s) => s.id)).toEqual(ids);
+    for (const s of TEXT_SHOTS) expect(typeof s.Component, s.id).toBe('function');
+    const plain = Array.from({ length: 20 }, (_, i) => kineticLookFor(i + 1, false));
+    const cycling = Array.from({ length: 20 }, (_, i) => kineticLookFor(i + 1, true));
+    expect(plain.every((id) => ids.includes(id) && !TEXT_SHOT_META.find((m) => m.id === id)!.items)).toBe(true);
+    expect(cycling.every((id) => ids.includes(id) && TEXT_SHOT_META.find((m) => m.id === id)!.items)).toBe(true);
+    expect(new Set(plain).size).toBeGreaterThanOrEqual(10);
+  });
+
+  it('give the kinetic block a look per shot and normalise its lines', async () => {
+    const { toolCatalog } = await import('@/tools/registry');
+    const b = toolCatalog.block('remotion/kinetic')!;
+    const look = b.fields.find((f) => f.key === 'look')!;
+    expect(look.options!.length).toBe(28);
+    expect(b.normalize!({ text: 'x', emphasis: 'a b', items: ' một \n\n hai \nba\nbốn\nnăm\nsáu\nbảy', look: 'auto' } as never)).toMatchObject({ emphasis: 'a', items: 'một\nhai\nba\nbốn\nnăm\nsáu' });
+    const cues = b.sfx!({ props: { ...(b.defaults as Record<string, unknown>), look: 'pill-slot', items: 'a\nb\nc' }, ordinal: 1, durationSec: 6 });
+    expect(cues.length).toBe(3);
+    expect(b.aiGuide).toContain('pill-slot');
+  });
+});
+
+describe('light effects and the newer camera moves', () => {
+  it('draw every listed effect, rotate through real ones, and give the new moves a sound', async () => {
+    const { FX_META, FX_IDS } = await import('../../remotion/shots/fx-meta');
+    const { fxFor } = await import('../../remotion/blocks/variants');
+    const { moveCue } = await import('@/tools/remotion/blocks/shared');
+    const { MOVES } = await import('../../remotion/camera/moves');
+    expect(FX_IDS).toEqual(FX_META.map((m) => m.id));
+    const cycle = Array.from({ length: 32 }, (_, i) => fxFor(i + 1));
+    expect(cycle.every((id) => (FX_IDS as string[]).includes(id))).toBe(true);
+    expect(cycle.filter((id) => id === 'none').length).toBeGreaterThanOrEqual(10);
+    expect(new Set(cycle).size).toBe(FX_IDS.length);
+    expect(MOVES).toHaveLength(18);
+    expect(moveCue('crash-zoom')[0]!.kind).toBe('impact');
+    expect(moveCue('bullet-time')[0]!.kind).toBe('whoosh');
+    expect(moveCue('zoom-in')).toEqual([]);
   });
 });

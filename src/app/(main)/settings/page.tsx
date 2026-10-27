@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/common/PageHeader';
-import { ImageSettingsCard, LlmSettingsCard, TtsSettingsCard } from '@/features/settings';
+import { ImageSettingsCard, LlmSettingsCard, SfxSettingsCard, TtsSettingsCard } from '@/features/settings';
 
 export const metadata: Metadata = { title: 'Cài đặt' };
 
@@ -12,6 +12,7 @@ export default function SettingsPage() {
       <LlmSettingsCard />
       <ImageSettingsCard />
       <TtsSettingsCard />
+      <SfxSettingsCard />
     </div>
   );
 }

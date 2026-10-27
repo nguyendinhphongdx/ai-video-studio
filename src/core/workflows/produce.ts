@@ -47,6 +47,7 @@ export async function produce(deps: CoreDeps, episodeId: string, progress: Progr
     brand: await renderBrand(deps, ctx.channel),
     dir: await deps.media.episodeDir(episodeId),
     music,
+    sfx: deps.sfx && (await deps.sfx.enabled()) ? { volume: await deps.sfx.volume() } : null,
   };
   const outputs = await runPipeline(PRODUCTION_STEPS, production, { episodeId, store: deps.stepRuns, progress });
   const { thumbnails } = outputs.thumbnail as ThumbnailOutput;

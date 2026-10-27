@@ -20,6 +20,8 @@ export interface ProductionContext {
   dir: string;
   /** Background music file, or null. */
   music: string | null;
+  /** Master level of the sound effects, or null when they are off. */
+  sfx: { volume: number } | null;
 }
 
 export interface ImagesOutput {

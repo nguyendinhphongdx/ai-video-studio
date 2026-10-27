@@ -4,9 +4,9 @@ import type { SfxCue } from '@/core/audio/sfx';
 
 import { defineBlock } from '@/core/tools/tool';
 import type { VoxSceneProps } from '@video/blocks';
-import { autoMotion, labelStyleFor } from '@video/blocks/variants';
+import { autoMotion, cutFor, labelStyleFor } from '@video/blocks/variants';
 
-import { FX_OPTIONS, FxEnum, moveCue, DEPTH_OPTIONS, DepthEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
+import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, DEPTH_OPTIONS, DepthEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
 
 /** Default look of a Vox image, used when the skill (or channel) declares no imageStyle of its own. */
 export const VOX_IMAGE_STYLE =
@@ -18,6 +18,7 @@ const props = z.object({
   motion: MotionEnum,
   depth: DepthEnum,
   fx: FxEnum,
+  rhythm: RhythmEnum,
   shot: ShotEnum,
 });
 export type _VoxMatchesComponent = Assert<Same<z.infer<typeof props>, VoxSceneProps>>;
@@ -25,7 +26,8 @@ export type _VoxMatchesComponent = Assert<Same<z.infer<typeof props>, VoxScenePr
 /** Sounds that go with a Vox scene: its camera move on the way in, and its caption sticker when it lands. */
 export function voxCues({ props, ordinal }: { props: Record<string, unknown>; ordinal: number }): SfxCue[] {
   const move = !props.motion || props.motion === 'auto' ? autoMotion(ordinal) : String(props.motion);
-  const cues: SfxCue[] = [...moveCue(move)];
+  const rhythm = !props.rhythm || props.rhythm === 'auto' ? cutFor(ordinal) : String(props.rhythm);
+  const cues: SfxCue[] = [...(rhythm !== 'none' ? cutCue(rhythm) : moveCue(move))];
   if (String(props.label ?? '').trim()) {
     const look = labelStyleFor(ordinal);
     if (look === 'stamp') cues.push({ kind: 'stamp', at: 0.55 });
@@ -49,10 +51,11 @@ export const voxBlock = defineBlock({
     { key: 'imagePrompt', label: 'Mô tả ảnh (tiếng Anh)', kind: 'textarea', maxLength: 400, hint: 'Chỉ tả chủ thể và bố cục. Phong cách Vox được thêm tự động.' },
     { key: 'shot', label: 'Kiểu khung hình', kind: 'choice', options: SHOT_OPTIONS, hint: 'Đổi kiểu khung giữa các cảnh để video không lặp bố cục.' },
     { key: 'fx', label: 'Hiệu ứng ánh sáng', kind: 'choice', options: FX_OPTIONS },
+    { key: 'rhythm', label: 'Cắt nhịp', kind: 'choice', options: RHYTHM_OPTIONS },
     { key: 'motion', label: 'Chuyển động', kind: 'choice', options: MOTION_OPTIONS },
     { key: 'depth', label: 'Chiều sâu', kind: 'choice', options: DEPTH_OPTIONS },
   ],
-  defaults: { label: '', imagePrompt: 'a vintage airliner on grid paper', motion: 'auto', depth: 'auto', fx: 'auto', shot: 'auto' },
+  defaults: { label: '', imagePrompt: 'a vintage airliner on grid paper', motion: 'auto', depth: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto' },
   varyBy: ['shot'],
   sfx: voxCues,
   minSeconds: 4,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { SfxCue } from '@/core/audio/sfx';
+import { CUT_META, type CutId } from '@video/shots/cut-meta';
 import { FX_META, type FxId } from '@video/shots/fx-meta';
 
 export const HexColor = z.string().describe('Màu chủ đạo dạng #RRGGBB, tươi sáng, khác màu các cảnh bên cạnh');
@@ -104,3 +105,18 @@ export const FxEnum = z
   .default('auto')
   .describe('Lớp ánh sáng/đồ hoạ phủ lên ảnh: "auto" (hệ thống tự xen kẽ, đa số cảnh để sạch) hoặc để trống. Chỉ chọn riêng khi cảnh cần: sheen (vệt sáng), spotlight (đèn rọi), scan (tia quét), reticle (khung ngắm), light-leak (hắt sáng ấm), ripple (sóng lan), burst (tia nổ, dùng rất ít), aurora (quầng màu), glow-orbs (quả cầu nối đường bay)');
 export const FX_OPTIONS = [{ value: 'auto', label: 'Tự động (đa số để sạch)' }, ...FX_META.map((m) => ({ value: m.id, label: m.name }))];
+
+export const RhythmEnum = z
+  .enum(['auto', ...CUT_META.map((m) => m.id)] as ['auto', CutId, ...CutId[]])
+  .default('auto')
+  .describe('Cách cắt nhịp của ảnh: "auto" (hầu hết cảnh chạy camera một mạch) hoặc để trống. Chỉ chọn riêng khi cảnh cần dồn nhịp: jump-punch (phóng to ba nấc, câu dồn dập), flash-freeze (ba cú chớp: toàn cảnh, vật, đặc tả; hook hoặc bước ngoặt), comic-panels (chia ô chéo, ba góc của cùng chủ thể), quad (bốn ô cùng lúc, rất ít), sakuga (giật nhịp rồi vút mượt, cảnh hành động). Tối đa 2-3 cảnh mỗi video');
+export const RHYTHM_OPTIONS = [{ value: 'auto', label: 'Tự động (hầu hết một mạch)' }, ...CUT_META.map((m) => ({ value: m.id, label: m.name }))];
+
+/** Sounds that land on the cuts of a rhythm style (frame times of remotion/camera/cuts.tsx at 30 fps). */
+export function cutCue(cut: string): SfxCue[] {
+  if (cut === 'flash-freeze') return [0, 14, 28].map((f) => ({ kind: 'impact' as const, at: f / 30, volume: 0.28 }));
+  if (cut === 'jump-punch') return [0, 18, 36].map((f) => ({ kind: 'stamp' as const, at: f / 30, volume: 0.24 }));
+  if (cut === 'comic-panels') return [0, 9, 18].map((f) => ({ kind: 'pop' as const, at: f / 30, volume: 0.3 }));
+  if (cut === 'quad') return [0, 4, 8, 12].map((f) => ({ kind: 'tick' as const, at: f / 30 }));
+  return [];
+}

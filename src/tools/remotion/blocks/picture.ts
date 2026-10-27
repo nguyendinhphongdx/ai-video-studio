@@ -4,15 +4,16 @@ import type { SfxCue } from '@/core/audio/sfx';
 
 import { defineBlock } from '@/core/tools/tool';
 import type { PictureSceneProps } from '@video/blocks';
-import { autoMotion, captionLookFor } from '@video/blocks/variants';
+import { autoMotion, captionLookFor, cutFor } from '@video/blocks/variants';
 
-import { FX_OPTIONS, FxEnum, moveCue, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
+import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
 
 const props = z.object({
   caption: z.string().describe('Chú thích ngắn hiện trên ảnh, tối đa 50 ký tự (tên, con số, ý chính của cảnh). Có thể để trống'),
   imagePrompt: z.string().describe('Tiếng Anh, 1-2 câu: tả chủ thể, bối cảnh và bố cục của cảnh (ví dụ "a street food vendor at night, steam rising, wide shot"). Không tả phong cách vẽ, không có chữ trong ảnh; phong cách ảnh do kênh quy định'),
   motion: MotionEnum,
   fx: FxEnum,
+  rhythm: RhythmEnum,
   shot: ShotEnum,
 });
 export type _PictureMatchesComponent = Assert<Same<z.infer<typeof props>, PictureSceneProps>>;
@@ -20,7 +21,8 @@ export type _PictureMatchesComponent = Assert<Same<z.infer<typeof props>, Pictur
 /** Sounds that go with a picture scene: its camera move, and the caption when it slides in. */
 export function pictureCues({ props, ordinal }: { props: Record<string, unknown>; ordinal: number }): SfxCue[] {
   const move = !props.motion || props.motion === 'auto' ? autoMotion(ordinal) : String(props.motion);
-  const cues: SfxCue[] = [...moveCue(move)];
+  const rhythm = !props.rhythm || props.rhythm === 'auto' ? cutFor(ordinal) : String(props.rhythm);
+  const cues: SfxCue[] = [...(rhythm !== 'none' ? cutCue(rhythm) : moveCue(move))];
   if (String(props.caption ?? '').trim()) {
     const look = captionLookFor(ordinal);
     if (look === 'chip') cues.push({ kind: 'pop', at: 0.45 });
@@ -42,9 +44,10 @@ export const pictureBlock = defineBlock({
     { key: 'imagePrompt', label: 'Mô tả ảnh (tiếng Anh)', kind: 'textarea', maxLength: 400, hint: 'Tả chủ thể, bối cảnh, bố cục. Phong cách ảnh lấy từ cài đặt của kênh.' },
     { key: 'shot', label: 'Kiểu khung hình', kind: 'choice', options: SHOT_OPTIONS, hint: 'Đổi kiểu khung giữa các cảnh để video không lặp bố cục.' },
     { key: 'fx', label: 'Hiệu ứng ánh sáng', kind: 'choice', options: FX_OPTIONS },
+    { key: 'rhythm', label: 'Cắt nhịp', kind: 'choice', options: RHYTHM_OPTIONS },
     { key: 'motion', label: 'Chuyển động', kind: 'choice', options: MOTION_OPTIONS },
   ],
-  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', motion: 'auto', fx: 'auto', shot: 'auto' },
+  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', motion: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto' },
   varyBy: ['shot'],
   minSeconds: 4,
   // Empty style: the channel's own image style is used (see the images pipeline step).

@@ -3,10 +3,12 @@ import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, us
 import { useLayout } from '../primitives';
 
 import { DepthStage } from '../camera/DepthStage';
+import { CutStage } from '../camera/cuts';
+import type { CutId } from '../shots/cut-meta';
 import type { FxId } from '../shots/fx-meta';
 import { FxLayer } from '../shots/fx';
 
-import { autoMotion, fxFor, cornerFor, labelStyleFor, layeredFor, type Corner, type Motion } from './variants';
+import { autoMotion, cutFor, fxFor, cornerFor, labelStyleFor, layeredFor, type Corner, type Motion } from './variants';
 
 export interface VoxSceneProps {
   label: string;
@@ -14,6 +16,7 @@ export interface VoxSceneProps {
   motion: 'auto' | Motion;
   depth: 'auto' | 'flat' | 'layered';
   fx: 'auto' | FxId;
+  rhythm: 'auto' | CutId;
   shot: 'auto' | 'wide' | 'close-up' | 'macro' | 'top-down' | 'low-angle' | 'diagonal' | 'left-third' | 'right-third' | 'split' | 'scale-contrast' | 'frame-in-frame' | 'cluster';
 }
 
@@ -98,13 +101,15 @@ function Label({ text, ordinal }: { text: string; ordinal: number }) {
  * CRT scanline/vignette finish and a caption sticker. Camera move, sticker look and corner follow the scene's
  * ordinal unless the scene fixes its own motion. The image is added by the production pipeline.
  */
-export function VoxScene({ label, imagePrompt, motion, depth, fx, image, ordinal = 1 }: VoxSceneProps & { image?: string; ordinal?: number }) {
+export function VoxScene({ label, imagePrompt, motion, depth, fx, rhythm, image, ordinal = 1 }: VoxSceneProps & { image?: string; ordinal?: number }) {
   const { u } = useLayout();
   const fxKind = (!fx || fx === 'auto' ? fxFor(ordinal) : fx) as FxId;
+  const cutKind = (!rhythm || rhythm === 'auto' ? cutFor(ordinal) : rhythm) as CutId;
   const src = image ? (/^(data:|https?:|\/)/.test(image) ? image : staticFile(image)) : null;
   return (
     <AbsoluteFill style={{ background: PAPER, overflow: 'hidden' }}>
-      <DepthStage src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && (depth === 'auto' || depth === undefined ? layeredFor(ordinal) : depth === 'layered')} seed={ordinal}>
+      {src && cutKind !== 'none' ? <CutStage kind={cutKind} src={src} seed={ordinal} /> : null}
+      <DepthStage hidden={Boolean(src) && cutKind !== 'none'} src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && (depth === 'auto' || depth === undefined ? layeredFor(ordinal) : depth === 'layered')} seed={ordinal}>
         {src ? (
           <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (

@@ -34,6 +34,10 @@ export const kineticLookFor = (ordinal: number, hasItems = false): string => at(
 const FX_CYCLE = ['none', 'sheen', 'none', 'light-leak', 'none', 'spotlight', 'none', 'scan', 'ripple', 'none', 'aurora', 'none', 'reticle', 'none', 'glow-orbs', 'burst'];
 export const fxFor = (ordinal: number): string => at(FX_CYCLE, ordinal);
 
+/** Rhythm cut of a picture scene; almost always none, so a cut means something when it appears. */
+const CUT_CYCLE = ['none', 'none', 'none', 'jump-punch', 'none', 'none', 'comic-panels', 'none', 'none', 'flash-freeze', 'none', 'none', 'quad', 'none', 'none', 'sakuga', 'none'];
+export const cutFor = (ordinal: number): string => at(CUT_CYCLE, ordinal);
+
 export type CaptionLook = 'bar' | 'pill' | 'chip' | 'ribbon';
 const CAPTION_CYCLE: CaptionLook[] = ['bar', 'chip', 'pill', 'ribbon'];
 export const captionLookFor = (ordinal: number): CaptionLook => at(CAPTION_CYCLE, ordinal);

@@ -3,23 +3,27 @@ import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, us
 import { shade, useBrand, useFont, useLayout } from '../primitives';
 
 import { DepthStage } from '../camera/DepthStage';
+import { CutStage } from '../camera/cuts';
+import type { CutId } from '../shots/cut-meta';
 import type { FxId } from '../shots/fx-meta';
 import { FxLayer } from '../shots/fx';
 
-import { autoMotion, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
+import { autoMotion, cutFor, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
 
 export interface PictureSceneProps {
   caption: string;
   imagePrompt: string;
   motion: 'auto' | Motion;
   fx: 'auto' | FxId;
+  rhythm: 'auto' | CutId;
   shot: 'auto' | 'wide' | 'close-up' | 'macro' | 'top-down' | 'low-angle' | 'diagonal' | 'left-third' | 'right-third' | 'split' | 'scale-contrast' | 'frame-in-frame' | 'cluster';
 }
 
 
 /** A full-frame AI picture with a camera move and a lower-third caption in the channel colours. */
-export function PictureScene({ caption, imagePrompt, motion, fx, image, ordinal = 1 }: PictureSceneProps & { image?: string; ordinal?: number }) {
+export function PictureScene({ caption, imagePrompt, motion, fx, rhythm, image, ordinal = 1 }: PictureSceneProps & { image?: string; ordinal?: number }) {
   const fxKind = (!fx || fx === 'auto' ? fxFor(ordinal) : fx) as FxId;
+  const cutKind = (!rhythm || rhythm === 'auto' ? cutFor(ordinal) : rhythm) as CutId;
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { u, portrait } = useLayout();
@@ -64,7 +68,8 @@ export function PictureScene({ caption, imagePrompt, motion, fx, image, ordinal 
   }
   return (
     <AbsoluteFill style={{ background: shade(main, -0.35), overflow: 'hidden' }}>
-      <DepthStage src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && layeredFor(ordinal)} seed={ordinal}>
+      {src && cutKind !== 'none' ? <CutStage kind={cutKind} src={src} seed={ordinal} /> : null}
+      <DepthStage hidden={Boolean(src) && cutKind !== 'none'} src={src} move={motion === 'auto' ? autoMotion(ordinal) : motion} layered={Boolean(src) && layeredFor(ordinal)} seed={ordinal}>
         {src ? (
           <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (

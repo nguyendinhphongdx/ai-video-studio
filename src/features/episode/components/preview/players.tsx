@@ -54,10 +54,12 @@ export interface ScenePlayerProps {
   brand: SceneBrand;
   durationSec: number;
   narrationSrc?: string | null;
+  /** First frame shown; the editor skips the fade-in (default 20), the template library shows it from frame 0. */
+  startFrame?: number;
 }
 
 /** One scene looping, used in the scene editor so edits show immediately. */
-export function ScenePlayer({ block, props, ordinal, brand, durationSec, narrationSrc = null }: ScenePlayerProps) {
+export function ScenePlayer({ block, props, ordinal, brand, durationSec, narrationSrc = null, startFrame = 20 }: ScenePlayerProps) {
   const inputProps: SceneClipProps = { block, props, ordinal, brand, durationSec, narrationSrc, width: 1920, height: 1080 };
   return (
     <Player
@@ -70,7 +72,7 @@ export function ScenePlayer({ block, props, ordinal, brand, durationSec, narrati
       autoPlay
       // Browsers only autoplay muted media; scenes without narration have nothing to hear anyway.
       initiallyMuted={!narrationSrc}
-      initialFrame={Math.min(20, Math.max(0, Math.round(durationSec * FPS) - 1))}
+      initialFrame={Math.min(startFrame, Math.max(0, Math.round(durationSec * FPS) - 1))}
       loop
       controls
       acknowledgeRemotionLicense
@@ -80,7 +82,7 @@ export function ScenePlayer({ block, props, ordinal, brand, durationSec, narrati
 }
 
 /** A still of one scene, taken once the entrance animation has settled. */
-export function SceneThumbnail({ block, props, ordinal, brand, durationSec }: Omit<ScenePlayerProps, 'narrationSrc'>) {
+export function SceneThumbnail({ block, props, ordinal, brand, durationSec }: Omit<ScenePlayerProps, 'narrationSrc' | 'startFrame'>) {
   const durationInFrames = Math.max(1, Math.round(durationSec * FPS));
   const inputProps: SceneClipProps = { block, props, ordinal, brand, durationSec, narrationSrc: null, width: 1920, height: 1080 };
   return (

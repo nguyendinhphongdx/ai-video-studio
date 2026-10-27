@@ -2,7 +2,10 @@
 
 import { ArrowDown, ArrowUp, CircleCheck, ImageIcon, Loader2, Lock, Trash2, Volume2 } from 'lucide-react';
 
+import Link from 'next/link';
+
 import { Button } from '@/components/ui/button';
+import { ROUTES } from '@/constants/routes';
 import { AskAiButton } from '@/features/assistant/components/AskAiButton';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -124,6 +127,9 @@ export function SceneEditor({ scene, ordinal, position, slot, blocks, brand, edi
                       Nâng cao: chuyển động, khung hình, hiệu ứng <span className="font-normal text-muted-foreground">(mặc định đã tự chọn, thường không cần chỉnh)</span>
                     </summary>
                     <div className="mt-3 flex flex-col gap-4">
+                      <Link href={ROUTES.templates} target="_blank" className="text-small font-semibold text-primary hover:underline">
+                        Xem thư viện mẫu (mọi kiểu chạy thật)
+                      </Link>
                       {presets.length ? (
                         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Phong cách chuyển động có sẵn">
                           <span className="text-caption text-muted-foreground">Chọn nhanh:</span>

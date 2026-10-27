@@ -15,7 +15,7 @@ export const MAIN_NAV: NavItem[] = [
   { href: ROUTES.home, label: 'Tạo video', icon: Clapperboard },
   { href: ROUTES.library, label: 'Video', icon: LayoutGrid, also: [ROUTES.review, '/episodes'] },
   { href: ROUTES.series, label: 'Series', icon: ListVideo },
-  { href: ROUTES.channels, label: 'Kênh', icon: Tv, also: [ROUTES.skills, ROUTES.tools] },
+  { href: ROUTES.channels, label: 'Kênh', icon: Tv, also: [ROUTES.skills, ROUTES.tools, ROUTES.templates] },
 ];
 
 export const SETUP_NAV: NavItem[] = [

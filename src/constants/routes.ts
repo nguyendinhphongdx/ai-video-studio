@@ -6,6 +6,7 @@ export const ROUTES = {
   channels: '/channels',
   skills: '/skills',
   tools: '/tools',
+  templates: '/templates',
   usage: '/usage',
   settings: '/settings',
   seriesNew: '/series/new',

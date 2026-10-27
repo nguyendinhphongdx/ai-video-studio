@@ -314,6 +314,9 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
             <Button asChild variant="outline">
               <Link href={ROUTES.tools}>Công cụ dựng và các loại cảnh</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href={ROUTES.templates}>Thư viện mẫu</Link>
+            </Button>
           </div>
         </section>
 

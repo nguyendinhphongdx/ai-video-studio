@@ -2,6 +2,7 @@
 // Positions are percentages of the frame, so one design serves 16:9 and 9:16 (each layer has both placements).
 import { AbsoluteFill, Img, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
+import { mulberry32 } from './camera/noise';
 import { BrandLogo, PatrickHandFamily, shade, useBrand, useLayout } from './primitives';
 
 export interface Frame {
@@ -10,7 +11,7 @@ export interface Frame {
   w: number;
   h: number;
 }
-type Anim = 'none' | 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'pop' | 'wipe' | 'type' | 'float' | 'pulse';
+type Anim = 'none' | 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'pop' | 'wipe' | 'type' | 'float' | 'pulse' | 'materialize' | 'stamp' | 'glitch' | 'blur-in' | 'drop' | 'spin-in' | 'crash-in';
 interface Placement {
   anim: Anim;
   delay: number;
@@ -20,7 +21,8 @@ interface Placement {
 export type DesignLayerSpec = Placement &
   (
     | { kind: 'text'; text: string; size: number; weight: '400' | '600' | '800'; color: string; font: 'brand' | 'mono' | 'serif' | 'hand' | 'impact'; upper: boolean; spacing: number; align: 'left' | 'center' | 'right' }
-    | { kind: 'shape'; shape: 'rect' | 'ellipse' | 'line' | 'ring'; fill: string; opacity: number; radius: number; rotate: number }
+    | { kind: 'shape'; shape: 'rect' | 'ellipse' | 'line' | 'ring' | 'glow' | 'rays' | 'grid'; fill: string; opacity: number; radius: number; rotate: number }
+    | { kind: 'marquee'; text: string; size: number; color: string; outline: boolean; direction: 'left' | 'right'; opacity: number }
     | { kind: 'logo'; circle: boolean }
     | { kind: 'avatar'; circle: boolean; ring: string }
     | { kind: 'art'; opacity: number }
@@ -91,6 +93,31 @@ function useAnim(anim: Anim, delaySec: number): { style: React.CSSProperties; pr
       return { style: { opacity: soft, transform: `scale(${1 + 0.05 * Math.sin(f / 8) * soft})` }, progress: soft };
     case 'type':
       return { style: {}, progress: Math.min(1, f / (fps * 1.2)) };
+    case 'materialize': {
+      // Letters start spread wide and soft and gather into the word (the text layer reads `progress` for the spacing).
+      const p = Math.min(1, f / (fps * 1.1));
+      const e = 1 - (1 - p) ** 3;
+      return { style: { opacity: Math.min(1, e * 1.6), filter: `blur(${(1 - e) * 14 * u}px)` }, progress: e };
+    }
+    case 'stamp':
+      return { style: { opacity: Math.min(1, bouncy * 3), transform: `scale(${1.5 - 0.5 * bouncy}) rotate(${(1 - bouncy) * -5}deg)`, filter: f < 8 ? `drop-shadow(0 ${14 * u}px ${20 * u}px rgba(0,0,0,0.4))` : undefined }, progress: bouncy };
+    case 'glitch': {
+      // Jitter and a colour split for the first third of a second, then it sits still.
+      const live = f < fps * 0.4;
+      const r = mulberry32(f * 977 + 3);
+      return { style: { opacity: f < 2 ? 0 : 1, transform: live ? `translate(${(r() - 0.5) * 36 * u * (1 - f / (fps * 0.4))}px, ${(r() - 0.5) * 8 * u}px)` : undefined, textShadow: live ? `${6 * u}px 0 #ff2a55, ${-6 * u}px 0 #19d3ff` : undefined }, progress: Math.min(1, f / (fps * 0.4)) };
+    }
+    case 'blur-in':
+      return { style: { opacity: soft, filter: `blur(${(1 - soft) * 20 * u}px)` }, progress: soft };
+    case 'drop':
+      return { style: { opacity: Math.min(1, f / 3), transform: `translateY(${-(1 - bouncy) * 520 * u}px)` }, progress: bouncy };
+    case 'spin-in':
+      return { style: { opacity: soft, transform: `rotate(${(1 - soft) * -140}deg) scale(${0.3 + 0.7 * soft})` }, progress: soft };
+    case 'crash-in': {
+      const p = Math.min(1, f / (fps * 0.45));
+      const e = 1 - (1 - p) ** 4;
+      return { style: { opacity: Math.min(1, p * 5), transform: `scale(${3.4 - 2.4 * e})` }, progress: e };
+    }
     default:
       return { style: { opacity: Math.min(1, f / 14) }, progress: Math.min(1, f / 14) };
   }
@@ -106,6 +133,7 @@ const FONTS: Record<string, string> = {
 function Layer({ layer, vars, art }: { layer: DesignLayerSpec; vars: { channel: string; title: string; outro: string; subscribe: string }; art: string | null }) {
   const brand = useBrand();
   const { portrait, width, height } = useLayout();
+  const frame = useCurrentFrame();
   const { style, progress } = useAnim(layer.anim, layer.delay);
   const f = portrait ? layer.port : layer.land;
   const px = { w: (f.w / 100) * width, h: (f.h / 100) * height };
@@ -126,7 +154,7 @@ function Layer({ layer, vars, art }: { layer: DesignLayerSpec; vars: { channel: 
               fontSize: (layer.size / 100) * short,
               color: layer.color,
               textTransform: layer.upper ? 'uppercase' : undefined,
-              letterSpacing: `${layer.spacing / 100}em`,
+              letterSpacing: `${layer.spacing / 100 + (layer.anim === 'materialize' ? (1 - progress) * 0.5 : 0)}em`,
               lineHeight: 1.08,
               textAlign: layer.align,
               width: '100%',
@@ -139,13 +167,41 @@ function Layer({ layer, vars, art }: { layer: DesignLayerSpec; vars: { channel: 
       );
     }
     case 'shape': {
+      const rays = Array.from({ length: 24 }, (_, i) => `transparent ${i * 15}deg, ${layer.fill} ${i * 15 + 1}deg, transparent ${i * 15 + 4}deg`).join(', ');
+      const cell = Math.max(24, Math.min(px.w, px.h) / 9);
       const s: React.CSSProperties =
         layer.shape === 'ring'
           ? { border: `${Math.max(2, Math.min(px.w, px.h) * 0.06)}px solid ${layer.fill}`, borderRadius: '50%' }
-          : { background: layer.fill, borderRadius: layer.shape === 'ellipse' ? '50%' : layer.shape === 'line' ? 999 : `${layer.radius}%` };
+          : layer.shape === 'glow'
+            ? { background: `radial-gradient(circle, ${layer.fill} 0%, transparent 68%)`, borderRadius: '50%' }
+            : layer.shape === 'rays'
+              ? { background: `conic-gradient(from ${progress * 30}deg, ${rays}, transparent 360deg)`, WebkitMaskImage: 'radial-gradient(circle, transparent 8%, black 40%, black 70%, transparent 100%)', maskImage: 'radial-gradient(circle, transparent 8%, black 40%, black 70%, transparent 100%)' }
+              : layer.shape === 'grid'
+                ? { backgroundImage: `repeating-linear-gradient(0deg, ${layer.fill} 0 1.5px, transparent 1.5px ${cell}px), repeating-linear-gradient(90deg, ${layer.fill} 0 1.5px, transparent 1.5px ${cell}px)` }
+                : { background: layer.fill, borderRadius: layer.shape === 'ellipse' ? '50%' : layer.shape === 'line' ? 999 : `${layer.radius}%` };
       return (
         <div style={{ ...box, opacity: (typeof style.opacity === 'number' ? style.opacity : 1) * layer.opacity }}>
           <div style={{ width: '100%', height: '100%', transform: `rotate(${layer.rotate}deg)`, ...s }} />
+        </div>
+      );
+    }
+    case 'marquee': {
+      const text = fill(layer.text).toUpperCase();
+      const size = (layer.size / 100) * short;
+      const unit = Math.max(40, (text.length + 3) * size * 0.56);
+      const copies = Math.ceil(px.w / unit) + 2;
+      const shift = (frame * (size * 0.045)) % unit;
+      const x = layer.direction === 'left' ? -shift : shift - unit;
+      return (
+        <div style={{ ...box, overflow: 'hidden', opacity: (typeof style.opacity === 'number' ? style.opacity : 1) * layer.opacity }}>
+          <div style={{ display: 'flex', whiteSpace: 'nowrap', transform: `translateX(${x}px)` }}>
+            {Array.from({ length: copies }, (_, i) => (
+              <span key={i} style={{ fontFamily: FONTS.impact, fontWeight: 900, fontSize: size, lineHeight: 1, width: unit, flexShrink: 0, color: layer.outline ? 'transparent' : layer.color, WebkitTextStroke: layer.outline ? `${Math.max(2, size * 0.03)}px ${layer.color}` : undefined }}>
+                {text}
+                {' · '}
+              </span>
+            ))}
+          </div>
         </div>
       );
     }

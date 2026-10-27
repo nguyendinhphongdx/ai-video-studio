@@ -4,7 +4,7 @@ description: "Video giải thích theo phong cách Vox: mạch điều tra có s
 version: 5
 imageStyle: "Vox-style documentary paper collage with real physical depth, built in three layers. FOREGROUND: a few oversized torn paper scraps, a strip of translucent masking tape or a metal pushpin, slightly out of focus at the edges, casting long hard shadows. MIDGROUND: the main subject cut out of halftone-printed paper with a thin crimson-red outline and a visible white paper edge, raised above the board on a thick drop shadow, shown at a slight three-quarter angle. BACKGROUND: a dark charcoal graph-grid paper panel with thin white grid lines and faint diagrams, laid over an aged newspaper page with blurred unreadable print, edges curling. Single directional light from the upper left with crisp raised-paper shadows, subtle paper grain and ink-bleed, muted sepia, black and cream palette with one crimson accent and at most one canary-yellow highlight. Wide 16:9 frame, composition set by each scene's shot direction, always leaving some empty paper area free for a caption sticker, absolutely no text, no letters, no watermark."
 tags: [vox, explainer, collage, documentary]
-tools: [remotion/vox, remotion/kinetic, remotion/counter, remotion/chart, remotion/outro]
+tools: [remotion/vox, remotion/kinetic, remotion/counter, remotion/chart, remotion/timeline, remotion/gauge, remotion/dots, remotion/outro]
 scenes: 8-14
 ---
 
@@ -138,6 +138,7 @@ Là mảnh thông tin quan trọng nhất của cảnh: tên riêng, con số k�
 Xen **1-3 cảnh phụ** để nghỉ mắt và nhấn ý, không biến cả video thành slide:
 - `@remotion/counter`: MỘT con số then chốt lăn lên (độ sâu, tuổi, giá). Chỉ dùng số chắc chắn đúng; lời đọc nêu số bằng chữ.
 - `@remotion/chart`: so sánh 2-6 số cùng đơn vị, mỗi dòng "Tên: số"; cột lớn nhất tự nổi bật.
+- `@remotion/timeline`: trình tự sự kiện (2-6 mốc, mỗi dòng "Mốc: sự kiện"). `@remotion/gauge`: một số đo trên thang có đầu mút. `@remotion/dots`: một tỉ lệ ("3 trên 10").
 - `@remotion/kinetic`: câu cần nhớ (câu hỏi lớn của video, câu chốt trước kết), tối đa 70 ký tự, một từ nhấn. Để `look` là `auto` (đổi kiểu giữa các cảnh). Muốn liệt kê nhiều ý ngắn cùng một câu ("chúng mình lo ___", "dành cho ___") thì điền `items` (mỗi dòng một ý, 2-6 dòng) để hệ thống dùng kiểu xoay ý (viên thuốc đổi từ, cuộn dọc, nhiễu máy...).
 Đặt chúng ở chỗ nhịp chuyển (sau hook, ngay trước bước ngoặt, trước kết), không đặt hai cảnh phụ liền nhau.
 

@@ -3,7 +3,7 @@ name: Điện ảnh đa năng
 description: "Video kể chuyện, giải thích hoặc giới thiệu cho mọi chủ đề: ảnh AI theo phong cách của kênh, camera chuyển động có chiều sâu, xen cảnh chữ, con số và biểu đồ, âm thanh đi kèm. Mạch chuyện có câu hỏi, leo thang, bước ngoặt và kết."
 version: 1
 tags: [general, story, cinematic]
-tools: [remotion/picture, remotion/kinetic, remotion/counter, remotion/chart]
+tools: [remotion/picture, remotion/kinetic, remotion/counter, remotion/chart, remotion/timeline, remotion/gauge, remotion/dots]
 scenes: 8-14
 ---
 
@@ -50,6 +50,7 @@ Một khung hình AI toàn màn hình + một dòng chú thích + chuyển độ
 - **`imagePrompt`** (tiếng Anh, 1-2 câu): chỉ tả **cái gì có trong ảnh** (chủ thể cụ thể, một chi tiết phụ, bối cảnh). Không tả phong cách vẽ (kênh đã quy định), không chữ trong ảnh, không mặt người thật, không đám đông. Tốt: "an old fishing boat at dawn, a single lantern at the bow". Chưa tốt: "beautiful cinematic 8k image of the sea".
 - **`caption`**: từ khoá, tên riêng hoặc con số ngắn khớp điều lời đọc đang nhắc. Không viết cả câu.
 - **`shot`**: chọn kiểu khung hình và **đổi liên tục**: không hai cảnh liền cùng `shot`, một `shot` không quá 2 lần/video. `wide` (bối cảnh) · `close-up` (nhấn một vật) · `macro` (chi tiết nhỏ ý nghĩa lớn) · `top-down` (bản đồ, bố trí) · `low-angle` (quy mô, quyền lực) · `diagonal` (xung đột, đà) · `left-third`/`right-third` (luân phiên) · `split` (so sánh) · `scale-contrast` (chênh kích cỡ) · `frame-in-frame` (tài liệu, ký ức) · `cluster` (nhiều mảnh liên quan).
+- **`fx`** (lớp ánh sáng) và **`rhythm`** (cắt nhịp): để `auto`, hầu hết cảnh sẽ sạch. Chỉ chọn riêng cho cảnh then chốt: `rhythm` `flash-freeze` cho hook hoặc bước ngoặt, `jump-punch` cho câu dồn dập, `comic-panels` cho ba góc của một chủ thể; `fx` `reticle` khi "đây chính là nó", `spotlight` khi hé lộ. Tối đa 2-3 cảnh mỗi video.
 - **`motion`**: để `auto` (hệ thống đổi luân phiên). Chọn riêng khi cần: `crash-zoom` cho hook hoặc bước ngoặt (**tối đa 1-2 lần**), `orbit-left/right` cho vật thể hoặc nhân vật, `tilt-glide` cho địa điểm, `overhead` cho bản đồ hoặc tài liệu, `slide-parallax` cho hành trình hoặc dòng thời gian.
 
 # Cảnh phụ (không cần ảnh AI, đổi nhịp)
@@ -57,6 +58,9 @@ Một khung hình AI toàn màn hình + một dòng chú thích + chuyển độ
 Xen **1-3 cảnh phụ**, không đặt hai cảnh phụ liền nhau, đặt ở chỗ nhịp chuyển (sau hook, trước bước ngoặt, trước kết):
 - **`@remotion/counter`**: MỘT con số then chốt lăn lên, kèm đơn vị và chú thích. Chỉ dùng số chắc chắn đúng; lời đọc nêu số bằng chữ.
 - **`@remotion/chart`**: so sánh 2-6 số cùng đơn vị, mỗi dòng "Tên: số"; cột lớn nhất tự nổi bật. Lời đọc nêu **kết luận** của so sánh.
+- **`@remotion/timeline`**: 2-6 mốc theo thời gian, mỗi dòng "Mốc: sự kiện"; camera trượt qua từng mốc. Dùng khi kể trình tự sự kiện.
+- **`@remotion/gauge`**: đọc MỘT số đo trên thang có đầu mút (kim quét hết thang rồi về giá trị).
+- **`@remotion/dots`**: nhấn một tỉ lệ ("3 trên 10") bằng đám chấm sáng lên.
 - **`@remotion/kinetic`**: câu cần nhớ (câu hỏi lớn, câu chốt trước kết), tối đa 70 ký tự, một từ nhấn. Để `look` là `auto` (đổi kiểu giữa các cảnh). Muốn liệt kê nhiều ý ngắn cùng một câu ("chúng mình lo ___", "dành cho ___") thì điền `items` (mỗi dòng một ý, 2-6 dòng) để hệ thống dùng kiểu xoay ý (viên thuốc đổi từ, cuộn dọc, nhiễu máy...).
 
 # Nhịp và đa dạng

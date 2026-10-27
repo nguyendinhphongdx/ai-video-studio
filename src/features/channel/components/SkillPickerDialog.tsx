@@ -54,17 +54,18 @@ export function SkillPickerDialog({ open, onOpenChange, channelId, brand, contex
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 overflow-y-auto rounded-none p-4 sm:h-auto sm:max-h-[90dvh] sm:max-w-5xl sm:rounded-xl">
+      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 rounded-none p-4 sm:h-auto sm:max-h-[90dvh] sm:max-w-5xl sm:rounded-xl">
         <DialogHeader>
           <DialogTitle>Thêm kiểu video cho kênh</DialogTitle>
           <DialogDescription>Chọn một hoặc nhiều kiểu. Bên phải là các loại cảnh của kiểu đó chạy bằng màu và font của kênh bạn.</DialogDescription>
         </DialogHeader>
+        <div className="flex flex-col gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input aria-label="Tìm kiểu video" placeholder="Tìm: thiếu nhi, giải thích, điều tra…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 pl-9" />
         </div>
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto md:max-h-[55dvh]" aria-label="Kiểu video trong kho">
+          <ul className="flex flex-col gap-2" aria-label="Kiểu video trong kho">
             {market.isLoading ? <li className="text-small text-muted-foreground">Đang tải kho…</li> : null}
             {ranked.map(({ item, score, because }) => {
               const installed = Boolean(item.installedAs);
@@ -115,6 +116,7 @@ export function SkillPickerDialog({ open, onOpenChange, channelId, brand, contex
               <p className="text-small text-muted-foreground">Chọn một kiểu để xem trước.</p>
             )}
           </section>
+        </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

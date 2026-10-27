@@ -66,11 +66,12 @@ export function SceneTypePickerDialog({ open, onOpenChange, channelId, skills, d
   const toggle = (ref: string) => setAllowed((a) => (a.includes(ref) ? a.filter((x) => x !== ref) : [...a, ref]));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 overflow-y-auto rounded-none p-4 sm:h-auto sm:max-h-[92dvh] sm:max-w-6xl sm:rounded-xl">
+      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 rounded-none p-4 sm:h-auto sm:max-h-[92dvh] sm:max-w-6xl sm:rounded-xl">
         <DialogHeader>
           <DialogTitle>Chọn loại cảnh AI được dùng</DialogTitle>
           <DialogDescription>Tick càng nhiều loại, video càng đa dạng: AI tự chọn và đổi luân phiên. Mỗi ô chạy thật bằng màu và font của kênh.</DialogDescription>
         </DialogHeader>
+        <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-60 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -115,6 +116,7 @@ export function SceneTypePickerDialog({ open, onOpenChange, channelId, skills, d
               </label>
             );
           })}
+        </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

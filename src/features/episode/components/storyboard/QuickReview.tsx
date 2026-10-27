@@ -3,7 +3,7 @@
 import { CircleCheck, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Format } from '@/core/domain/catalog';
 import type { StoryboardProps } from '@video/compositions';
 import { cn } from '@/lib/utils';
@@ -40,7 +40,7 @@ export function QuickReview({ open, onOpenChange, props, durationInFrames, forma
   const firstProblem = scenes.find((s) => !s.ready) ?? null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 overflow-y-auto rounded-none p-4 sm:h-auto sm:max-h-[92dvh] sm:max-w-5xl sm:rounded-xl">
+      <DialogContent className="h-dvh max-h-dvh w-screen max-w-none gap-3 rounded-none p-4 sm:h-auto sm:max-h-[92dvh] sm:max-w-5xl sm:rounded-xl">
         <DialogHeader>
           <DialogTitle>Duyệt nhanh</DialogTitle>
           <DialogDescription>Xem cả video với ảnh và giọng thật. Ổn thì duyệt tất cả, chưa ổn thì quay lại sửa.</DialogDescription>
@@ -49,7 +49,7 @@ export function QuickReview({ open, onOpenChange, props, durationInFrames, forma
           <div className={cn('mx-auto w-full', format === 'portrait' && 'max-w-xs')}>
             <StoryboardPlayer props={props} durationInFrames={durationInFrames} format={format} seek={seek} />
           </div>
-          <ol className="flex max-h-80 flex-col gap-1.5 overflow-y-auto md:max-h-[60dvh]" aria-label="Các cảnh">
+          <ol className="flex flex-col gap-1.5" aria-label="Các cảnh">
             {scenes.map((s, i) => (
               <li key={s.id}>
                 <button type="button" onClick={() => onSeek(i)} className={cn('flex min-h-11 w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-small hover:bg-accent', !s.ready && 'border-warning/40 bg-warning-soft')}>
@@ -64,7 +64,7 @@ export function QuickReview({ open, onOpenChange, props, durationInFrames, forma
             ))}
           </ol>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onBack(firstProblem?.id ?? null)}>
             <Undo2 aria-hidden />
             Quay lại sửa{firstProblem ? ` cảnh ${scenes.indexOf(firstProblem) + 1}` : ''}
@@ -73,7 +73,7 @@ export function QuickReview({ open, onOpenChange, props, durationInFrames, forma
             <CircleCheck aria-hidden />
             Duyệt tất cả{approvable.length ? ` (${approvable.length})` : ''}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

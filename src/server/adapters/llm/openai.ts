@@ -6,7 +6,7 @@ import { UserFacingError } from '@/core/domain/errors';
 import { extractJson } from '@/core/script/script';
 import type { LlmSettings } from '@/server/modules/settings/settings.types';
 
-import { toolSchema, type LlmClient } from './llm.types';
+import { toolSchema, type LlmClient, type LlmUsage } from './llm.types';
 
 /** Strict structured output rejects $schema and the safe-integer bounds zod adds to .int(). */
 function strictSchema(schema: z.ZodType): Record<string, unknown> {
@@ -29,6 +29,13 @@ const rejectsJsonSchema = (e: unknown) => {
   return (err.status === 400 || err.status === 422) && /response_format|json_schema|schema/i.test(String(err.message));
 };
 
+/** OpenAI counts cached tokens inside prompt_tokens; split them out so they are priced separately. */
+const usageOf = (u: OpenAI.CompletionUsage | undefined): LlmUsage | undefined => {
+  if (!u) return undefined;
+  const cached = u.prompt_tokens_details?.cached_tokens ?? 0;
+  return { input: Math.max(0, u.prompt_tokens - cached), output: u.completion_tokens, cached };
+};
+
 export function openaiClient(llm: LlmSettings): LlmClient {
   const client = new OpenAI({ apiKey: llm.apiKey || 'not-needed', ...(llm.baseUrl ? { baseURL: llm.baseUrl } : {}) });
 
@@ -38,7 +45,7 @@ export function openaiClient(llm: LlmSettings): LlmClient {
     if (choice?.message?.refusal) throw new UserFacingError(`AI từ chối yêu cầu: ${choice.message.refusal}`);
     const text = choice?.message?.content;
     if (!text) throw new UserFacingError(`AI không trả về nội dung (finish_reason=${choice?.finish_reason})`);
-    return text;
+    return { text, usage: usageOf(r.usage) };
   };
 
   return {
@@ -49,13 +56,15 @@ export function openaiClient(llm: LlmSettings): LlmClient {
         { role: 'user', content: user },
       ];
       try {
-        return extractJson(await complete(messages, { type: 'json_schema', json_schema: { name: 'video_script', strict: true, schema: json } }));
+        const first = await complete(messages, { type: 'json_schema', json_schema: { name: 'video_script', strict: true, schema: json } });
+        return { object: extractJson(first.text), usage: first.usage };
       } catch (e) {
         if (!rejectsJsonSchema(e)) throw e;
       }
       // Servers without structured output: plain JSON mode with the schema in the prompt.
       messages[1] = { role: 'user', content: `${user}\n\nChỉ trả về MỘT object JSON đúng JSON Schema sau, không giải thích thêm:\n${JSON.stringify(json)}` };
-      return extractJson(await complete(messages, { type: 'json_object' }));
+      const second = await complete(messages, { type: 'json_object' });
+      return { object: extractJson(second.text), usage: second.usage };
     },
     async chat({ system, messages, tools }) {
       const out: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
@@ -88,7 +97,7 @@ export function openaiClient(llm: LlmSettings): LlmClient {
         const extra = (c as unknown as { extra_content?: Record<string, unknown> }).extra_content;
         return [{ id: c.id, name: c.function.name, args, ...(extra ? { meta: extra } : {}) }];
       });
-      return { text: (choice?.message?.content ?? '').trim(), toolCalls };
+      return { text: (choice?.message?.content ?? '').trim(), toolCalls, usage: usageOf(r.usage) };
     },
     async ping() {
       const r = await client.chat.completions.create({ model: llm.model, messages: [{ role: 'user', content: 'Trả lời đúng một chữ: OK' }] });

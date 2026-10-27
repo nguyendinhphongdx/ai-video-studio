@@ -5,7 +5,10 @@ import { isReady, settingsService } from '@/server/modules/settings/settings.ser
 import { PROVIDERS, type LlmSettings, type LlmSettingsInput, type LlmTestResult } from '@/server/modules/settings/settings.types';
 
 import { anthropicClient } from './anthropic';
-import type { LlmClient } from './llm.types';
+import { estimateTokens } from '@/core/usage/cost';
+import { usageService } from '@/server/modules/usage/usage.service';
+
+import type { LlmClient, LlmUsage } from './llm.types';
 import { openaiClient } from './openai';
 
 export function clientFor(llm: LlmSettings): LlmClient {
@@ -32,6 +35,15 @@ export function describeLlmError(e: unknown, llm: LlmSettings): string {
   return msg.split('\n')[0]!.slice(0, 300);
 }
 
+/** Writes the call to the cost ledger; when the provider reported no usage, estimates it from the text and says so. */
+function track(settings: LlmSettings, usage: LlmUsage | undefined, text: { in: string; out: string }, purpose: string | undefined, started: number) {
+  const reported = usage ?? { input: estimateTokens(text.in), output: estimateTokens(text.out), cached: 0 };
+  usageService.record({
+    kind: 'llm', provider: settings.provider, model: settings.model, purpose, durationMs: Date.now() - started, estimated: !usage,
+    usage: { inputTokens: reported.input, outputTokens: reported.output, cachedTokens: reported.cached, units: 0 },
+  });
+}
+
 export const llm: LlmPort = {
   async isReady() {
     return isReady(await settingsService.llm());
@@ -39,8 +51,12 @@ export const llm: LlmPort = {
   async chat(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key.');
+    usageService.assertWithinBudget();
+    const started = Date.now();
     try {
-      return { ...(await clientFor(settings).chat(input)), model: settings.model };
+      const { usage, ...out } = await clientFor(settings).chat(input);
+      track(settings, usage, { in: input.system + JSON.stringify(input.messages), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
+      return { ...out, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;
       throw new UserFacingError(`AI lỗi: ${describeLlmError(e, settings)}`, String((e as Error)?.stack ?? e));
@@ -49,8 +65,12 @@ export const llm: LlmPort = {
   async generateObject(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key, hoặc dùng chế độ dán kịch bản.');
+    usageService.assertWithinBudget();
+    const started = Date.now();
     try {
-      return { object: await clientFor(settings).generateObject(input), model: settings.model };
+      const { object, usage } = await clientFor(settings).generateObject(input);
+      track(settings, usage, { in: input.system + input.user, out: JSON.stringify(object) }, input.purpose, started);
+      return { object, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;
       throw new UserFacingError(`AI lỗi: ${describeLlmError(e, settings)}`, String((e as Error)?.stack ?? e));

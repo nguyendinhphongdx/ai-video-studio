@@ -7,6 +7,12 @@ import type { LlmSettings } from '@/server/modules/settings/settings.types';
 
 import { toolSchema, type LlmClient } from './llm.types';
 
+const usageOf = (u: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null }) => ({
+  input: u.input_tokens + (u.cache_creation_input_tokens ?? 0),
+  output: u.output_tokens,
+  cached: u.cache_read_input_tokens ?? 0,
+});
+
 export function anthropicClient(llm: LlmSettings): LlmClient {
   const client = new Anthropic({ apiKey: llm.apiKey, ...(llm.baseUrl ? { baseURL: llm.baseUrl } : {}) });
   return {
@@ -22,7 +28,7 @@ export function anthropicClient(llm: LlmSettings): LlmClient {
         throw new UserFacingError(`AI từ chối yêu cầu: ${response.stop_details?.explanation ?? 'không rõ lý do'}`);
       }
       if (!response.parsed_output) throw new UserFacingError(`AI không trả về kịch bản hợp lệ (stop_reason=${response.stop_reason})`);
-      return response.parsed_output;
+      return { object: response.parsed_output, usage: usageOf(response.usage) };
     },
     async chat({ system, messages, tools }) {
       const out: Anthropic.MessageParam[] = [];
@@ -51,7 +57,7 @@ export function anthropicClient(llm: LlmSettings): LlmClient {
       if (response.stop_reason === 'refusal') throw new UserFacingError('AI từ chối yêu cầu này.');
       const text = response.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim();
       const toolCalls = response.content.flatMap((b) => (b.type === 'tool_use' ? [{ id: b.id, name: b.name, args: (b.input ?? {}) as Record<string, unknown> }] : []));
-      return { text, toolCalls };
+      return { text, toolCalls, usage: usageOf(response.usage) };
     },
     async ping() {
       const r = await client.messages.create({ model: llm.model, max_tokens: 16, messages: [{ role: 'user', content: 'Trả lời đúng một chữ: OK' }] });

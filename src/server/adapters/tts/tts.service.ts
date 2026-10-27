@@ -8,11 +8,13 @@ import { promisify } from 'node:util';
 
 import { VOICES, googleVoiceName, isGoogleVoice, type VoiceId } from '@/core/domain/catalog';
 import { UserFacingError } from '@/core/domain/errors';
-import type { TtsPort } from '@/core/ports';
-import { MEDIA_DIR } from '@/server/config';
+import type { TtsPort, UsageMeta } from '@/core/ports';
+import { GEMINI_TTS_MODEL, MEDIA_DIR } from '@/server/config';
 import { createLogger } from '@/server/logger';
 import { probeDuration } from '@/server/adapters/video/video.service';
 import { settingsService } from '@/server/modules/settings/settings.service';
+import { usageService } from '@/server/modules/usage/usage.service';
+import { estimateTokens, TTS_TOKENS_PER_SECOND, type Usage } from '@/core/usage/cost';
 
 const run = promisify(execFile);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -35,7 +37,6 @@ export async function ttsAvailable(): Promise<boolean> {
   }
 }
 
-const GEMINI_TTS_MODEL = () => process.env.AVS_GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
 /** Gemini TTS follows plain-language direction. Without it every line comes out flat, like a reading of a list. */
 const GOOGLE_DIRECTION = 'Say the following Vietnamese narration like a skilled human storyteller: warm, engaged and conversational, with natural rises and falls in pitch, short pauses at commas and between sentences, extra emphasis on the key word or number, and a pace that speeds up slightly in exciting moments and slows down for important ones. Never flat or robotic:';
 const DIRECTION_VERSION = 'd2';
@@ -51,7 +52,10 @@ export async function voiceAvailable(voice: string): Promise<boolean> {
 }
 
 /** Gemini TTS answers with raw 16-bit PCM; ffmpeg turns it into the mp3 the rest of the pipeline expects. */
-async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promise<void> {
+/** Tokens Gemini billed for one speech request, when it said so (otherwise null). */
+type GoogleSpeech = { promptTokenCount?: number; candidatesTokenCount?: number } | null;
+
+async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promise<GoogleSpeech> {
   const key = await settingsService.googleKey();
   if (!key) throw new UserFacingError('Chưa có Google API key cho giọng Google. Nhập key ở Cài đặt (mục Tạo ảnh AI) hoặc chọn giọng Edge.');
   await fs.mkdir(path.dirname(outFile), { recursive: true });
@@ -68,7 +72,7 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
           generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: googleVoiceName(voice) } } } },
         }),
       });
-      const body = (await res.json().catch(() => null)) as { error?: { message?: string }; candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[] } | null;
+      const body = (await res.json().catch(() => null)) as { error?: { message?: string }; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }; candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[] } | null;
       if (!res.ok) throw Object.assign(new Error(body?.error?.message ?? `HTTP ${res.status}`), { status: res.status });
       const part = body?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
       if (!part?.data) throw Object.assign(new Error('Google không trả âm thanh'), { status: 502 });
@@ -80,7 +84,7 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
       } finally {
         await fs.rm(pcm, { force: true });
       }
-      return;
+      return body?.usageMetadata ?? null;
     } catch (e) {
       const status = (e as { status?: number }).status;
       const delay = GOOGLE_RETRY_DELAYS_MS[attempt];
@@ -96,16 +100,27 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
   }
 }
 
-async function speak(text: string, voice: VoiceId, outFile: string): Promise<void> {
+async function speak(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<void> {
   if (!VOICES[voice]) throw new UserFacingError('Giọng đọc không hợp lệ');
-  if (isGoogleVoice(voice)) return speakGoogle(text, voice, outFile);
+  if (isGoogleVoice(voice)) {
+    usageService.assertWithinBudget();
+    const started = Date.now();
+    const reported = await speakGoogle(text, voice, outFile);
+    const seconds = await probeDuration(outFile);
+    // Audio comes back as tokens; if the response carried no count, estimate it from the text and the audio length.
+    const usage: Usage = { inputTokens: reported?.promptTokenCount ?? estimateTokens(text), outputTokens: reported?.candidatesTokenCount ?? Math.round(seconds * TTS_TOKENS_PER_SECOND), cachedTokens: 0, units: seconds };
+    usageService.record({ kind: 'tts', provider: 'gemini', model: GEMINI_TTS_MODEL(), purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage, estimated: !reported });
+    return;
+  }
   await fs.mkdir(path.dirname(outFile), { recursive: true });
   for (let attempt = 1; ; attempt++) {
     const wait = lastCall + GAP_MS - Date.now();
     if (wait > 0) await sleep(wait);
     lastCall = Date.now();
     try {
+      const started = Date.now();
       await run(bin(), ['--voice', voice, `--rate=${RATE}`, '--text', text, '--write-media', outFile]);
+      usageService.record({ kind: 'tts', provider: 'edge', model: voice, purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: await probeDuration(outFile).catch(() => 0) } });
       return;
     } catch (e) {
       const err = e as Error & { stderr?: string };
@@ -122,8 +137,8 @@ async function speak(text: string, voice: VoiceId, outFile: string): Promise<voi
 }
 
 export const tts: TtsPort = {
-  async synthesize(text, voice, outFile) {
-    await speak(text, voice, outFile);
+  async synthesize(text, voice, outFile, meta) {
+    await speak(text, voice, outFile, meta);
     return probeDuration(outFile);
   },
 };
@@ -136,7 +151,7 @@ export async function previewLine(text: string, voice: VoiceId): Promise<string>
   try {
     await fs.access(abs);
   } catch {
-    await speak(text, voice, abs);
+    await speak(text, voice, abs, { purpose: 'tts_preview' });
   }
   return rel;
 }

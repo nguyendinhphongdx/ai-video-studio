@@ -8,6 +8,7 @@ import { UserFacingError } from '@/core/domain/errors';
 import type { ImagePort } from '@/core/ports';
 import { createLogger } from '@/server/logger';
 import { settingsService } from '@/server/modules/settings/settings.service';
+import { usageService } from '@/server/modules/usage/usage.service';
 import { IMAGE_PROVIDERS, type ImageSettings, type ImageSettingsInput } from '@/server/modules/settings/settings.types';
 
 const logger = createLogger('image');
@@ -67,14 +68,18 @@ export const images: ImagePort = {
     const s = await settingsService.image();
     return Boolean(s.apiKey && s.model);
   },
-  async generate(prompt, outFile) {
+  async generate(prompt, outFile, meta) {
     const s = await settingsService.image();
     if (!s.apiKey) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, chọn nhà cung cấp ảnh và nhập API key.');
+    usageService.assertWithinBudget();
+    const started = Date.now();
     for (let attempt = 0; ; attempt++) {
       try {
         const png = s.provider === 'gemini' ? await gemini(s, prompt) : await openai(s, prompt);
         await fs.mkdir(path.dirname(outFile), { recursive: true });
         await fs.writeFile(outFile, png);
+        // One billed picture per success; a retry after an error was not billed.
+        usageService.record({ kind: 'image', provider: s.provider, model: s.model, purpose: meta?.purpose ?? 'scene_image', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: 1 } });
         return;
       } catch (e) {
         const status = (e as { status?: number })?.status;

@@ -91,3 +91,15 @@ Ideas here are adapted from video-shotcraft (Apache-2.0); see NOTICE for what wa
 - **More blocks:** `kinetic` (words moving in), `counter` (rolling number), `chart` (bars from "Name: number" lines), `timeline` (camera travels along dated milestones), `gauge` (needle sweep and readout), `dots` (share lit in a crowd of dots). They need no AI picture.
 - **Sound effects** (`src/core/audio/sfx.ts`): a block can declare `sfx(scene)` cues (a thud on a stamp, ticks on typed text); `planCues` adds a sweep into each cut, spaces cues, and keeps them under the voice. The assemble step mixes them into the final file in the same ffmpeg call as the music. Sounds are synthesised with ffmpeg on first use (`src/server/adapters/sfx/`), and files a person drops into `data/sfx/<kind>/` win. On/off and level are in Settings (`app_prefs`).
 - **Checks on the finished file:** `VideoPort.analyze` runs ffmpeg blackdetect, silencedetect and volumedetect; the `av-health` check turns black holes, long silences, clipping and a too-quiet mix into warnings in the video stage. Design text has a minimum size, and a full-frame panel over AI art is kept to a veil.
+
+### Software-window scenes
+
+`remotion/ui` plays a scene inside an app window (traffic-light bar, generic cards and rows) in ten looks listed in `remotion/shots/ui/meta.ts` and drawn in `looks.tsx`: cards flying in, row cascade, stack fan, cursor select, chip filter, toggle, search typing, notification stack, tab switch, progress. The content slots are generic (`title`, `items` one per line, `target` the item a cursor clicks), so any product fits. Looks with a cursor click at `CLICK_FRAME`, which the block's sound cues use for a tick. `auto` rotates through the looks by ordinal (`uiLookFor`). The default skill lists it, with an AI guide that limits it to software topics.
+
+## The template library
+
+`/templates` (reached from the channel's advanced section and the scene editor, not the main menu) lists every text shot, entrance, camera move, light effect, rhythm cut and scene type, each running live on the channel's colours. `src/features/templates/lib/catalog.ts` builds the list from the same meta files the editor reads, so a new shot appears there without extra work; previews only mount while on screen and use a built-in sample picture (no AI call).
+
+## Make it all
+
+"Làm hết giúp tôi" on the storyboard confirms once what will be made (pictures and voices still missing), the estimated cost against the budgets, and whether to approve afterwards; it queues the usual `scene_assets` job for all scenes. `src/core/scenes/make-plan.ts` computes the plan and the budget warnings for both the screen and the assistant's read-only `estimate_cost` tool. "Duyệt nhanh" plays the whole video with real pictures and voices and approves everything ready in one call.

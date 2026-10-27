@@ -34,6 +34,9 @@ Adapted from it, rewritten for this project's blocks, pipeline and Vietnamese-la
   - Intro/outro vocabulary (design.ts anims materialize, stamp, glitch, crash-in, drop; shapes glow, rays, grid; the marquee layer): new
     implementations of the opening and outro recipes (letterspace-materialize, brand-ink-open, grain-dissolve, neon-triple-marquee,
     magician-card-flourish, logo-shrink-wordmark-lockup).
+  - remotion/shots/ui/* and remotion/blocks/ui.tsx (software-window scene): new implementations of the ui-entrance and interaction recipes
+    (cards flying into a window, row cascades, cursor selection, filter chips, toggles, search typing, notification stacks, tab switch, progress);
+    the motion ideas are theirs, the code and content slots are ours.
 
 No audio, image or other media files from video-shotcraft are included. Sound effects are synthesised on the user's
 machine with ffmpeg (src/server/adapters/sfx/sfx.service.ts), and a person may add their own files.

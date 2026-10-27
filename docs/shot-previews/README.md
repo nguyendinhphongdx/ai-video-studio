@@ -23,3 +23,7 @@ Sheet: data-scenes.jpg
 
 Channel intro designs using the newer vocabulary (marquee, materialize+glow, stamp+rays, glitch+grid, drop+glow; two moments each):
 Sheet: intro-designs.jpg
+
+Software-window looks (`remotion/ui`, still taken after the cursor clicks):
+Sheet 1: cards-fly, rows-cascade, stack-fan, click-select, chip-filter, toggle-switch
+Sheet 2: type-search, notify-stack, tab-switch, progress-done

@@ -1,5 +1,6 @@
 // Dev tool: bundle the Remotion project once and render stills of scenes, to look at a block or shot without running
 // the whole app. Usage: node scripts/stills.mjs <jobs.json> <outDir>
+//   (a job may carry `brand` fields, for example an introDesign, to override the sample brand)
 //   jobs.json = [{ "name": "kinetic-rise", "block": "remotion/kinetic", "props": {...}, "frame": 60, "ordinal": 1, "width": 1920, "height": 1080, "durationSec": 6, "palette": ["#0F172A", "#F59E0B"] }]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +18,7 @@ for (const job of jobs) {
     block: job.block,
     props: job.props ?? {},
     ordinal: job.ordinal ?? 1,
-    brand: { name: 'Bí ẩn quanh ta', font: 'Baloo2', logoSrc: null, avatarSrc: null, introDesign: null, outroDesign: null, introArtSrc: null, outroArtSrc: null, outroText: 'Hẹn gặp lại', subscribeText: 'ĐĂNG KÝ', palette: job.palette ?? ['#0F172A', '#F59E0B', '#38BDF8'] },
+    brand: { name: 'Bí ẩn quanh ta', font: 'Baloo2', logoSrc: null, avatarSrc: null, introDesign: null, outroDesign: null, introArtSrc: null, outroArtSrc: null, outroText: 'Hẹn gặp lại', subscribeText: 'ĐĂNG KÝ', palette: job.palette ?? ['#0F172A', '#F59E0B', '#38BDF8'], ...(job.brand ?? {}) },
     durationSec: job.durationSec ?? 6,
     narrationSrc: null,
     width: job.width ?? 1920,

@@ -427,3 +427,20 @@ describe('rhythm cuts and data scenes', () => {
     }
   });
 });
+
+describe('choosing how a scene opens', () => {
+  it('uses the entrance a scene names, ignores an unknown one, and every content block offers the choice', async () => {
+    const { entranceFor } = await import('../../remotion/shots/transitions');
+    const { ENTRANCE_META } = await import('../../remotion/shots/entrance-meta');
+    const { toolCatalog } = await import('@/tools/registry');
+    expect(entranceFor('remotion/vox', 3, 'glitch')).toBe('glitch');
+    expect(entranceFor('remotion/vox', 3, 'auto')).toBe(entranceFor('remotion/vox', 3));
+    expect(entranceFor('remotion/vox', 3, 'nope')).toBe(entranceFor('remotion/vox', 3));
+    for (const ref of ['vox', 'picture', 'kinetic', 'counter', 'chart', 'timeline', 'gauge', 'dots']) {
+      const b = toolCatalog.block(`remotion/${ref}`)!;
+      const f = b.fields.find((x) => x.key === 'transition')!;
+      expect(f.options).toHaveLength(ENTRANCE_META.length + 1);
+      expect((b.defaults as Record<string, unknown>).transition).toBe('auto');
+    }
+  });
+});

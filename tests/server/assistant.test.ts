@@ -179,6 +179,21 @@ describe('scene and series tools', () => {
     expect(env.systems.at(-1)).toContain('Cảnh đang mở: cảnh 3'); // the channel intro is scene 1
   });
 
+  it('changes the type of one scene to another block the skill allows, starting from that block\'s defaults', async () => {
+    const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Đổi loại cảnh', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
+    const id = made.episode.id;
+    s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [scene('sc1', 'a market', 'Một.'), scene('sd1', 'a boat', 'Hai.')] });
+    const t = await s.assistant.assistantService.create(channelId, 'auto');
+    env.script.push({ calls: [{ name: 'edit_scene', args: { episodeId: id, sceneId: 'sd1', block: 'remotion/counter', props: { value: '25', unit: 'cm' } } }, { name: 'edit_scene', args: { episodeId: id, sceneId: 'sc1', block: 'remotion/nope' } }] }, { text: 'Xong.' });
+    const v = await say(t.thread.id, 'Đổi cảnh 2 thành con số', { route: `/episodes/${id}`, episodeId: id, sceneId: 'sd1' });
+    expect(v.messages.filter((m) => m.role === 'tool').map((m) => m.status)).toEqual(['done', 'error']);
+    const after = (await s.episodes.episodeService.get(id)).episode.scenes.filter((x) => !x.locked);
+    expect(after.map((x) => x.block)).toEqual(['remotion/picture', 'remotion/counter']);
+    expect(after[1]!.props).toMatchObject({ value: '25', unit: 'cm', transition: 'auto' });
+    expect(after[1]!.props).not.toHaveProperty('imagePrompt');
+    expect(after[1]!.approved).toBe(false);
+  });
+
   it('creates a series with its roadmap from the channel skill', async () => {
     const t = await s.assistant.assistantService.create(channelId, 'auto');
     env.script.push(

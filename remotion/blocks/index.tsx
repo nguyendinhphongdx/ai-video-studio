@@ -2,6 +2,9 @@
 import type { ReactElement } from 'react';
 
 import { CardsScene, type CardsSceneProps } from './cards';
+import { ChartScene, type ChartSceneProps } from './chart';
+import { CounterScene, type CounterSceneProps } from './counter';
+import { KineticScene, type KineticSceneProps } from './kinetic';
 import { OutroScene, type OutroSceneProps } from './outro';
 import { PictureScene, type PictureSceneProps } from './picture';
 import { QuizScene, type QuizSceneProps } from './quiz';
@@ -10,7 +13,7 @@ import { TitleScene, type TitleSceneProps } from './title';
 import { VoxScene, type VoxSceneProps } from './vox';
 import { WhiteboardScene, type WhiteboardSceneProps } from './whiteboard';
 
-export type { CardsSceneProps, OutroSceneProps, PictureSceneProps, QuizSceneProps, RecapSceneProps, TitleSceneProps, VoxSceneProps, WhiteboardSceneProps };
+export type { CardsSceneProps, ChartSceneProps, CounterSceneProps, KineticSceneProps, OutroSceneProps, PictureSceneProps, QuizSceneProps, RecapSceneProps, TitleSceneProps, VoxSceneProps, WhiteboardSceneProps };
 
 type Draw = (props: Record<string, unknown>, ordinal: number) => ReactElement;
 
@@ -22,5 +25,8 @@ export const BLOCKS: Record<string, Draw> = {
   'remotion/quiz': (p) => <QuizScene {...(p as unknown as QuizSceneProps)} />,
   'remotion/vox': (p, ordinal) => <VoxScene {...(p as unknown as VoxSceneProps)} ordinal={ordinal} image={typeof p.image === 'string' ? p.image : undefined} />,
   'remotion/picture': (p, ordinal) => <PictureScene {...(p as unknown as PictureSceneProps)} ordinal={ordinal} image={typeof p.image === 'string' ? p.image : undefined} />,
+  'remotion/kinetic': (p, ordinal) => <KineticScene {...(p as unknown as KineticSceneProps)} ordinal={ordinal} />,
+  'remotion/counter': (p) => <CounterScene {...(p as unknown as CounterSceneProps)} />,
+  'remotion/chart': (p) => <ChartScene {...(p as unknown as ChartSceneProps)} />,
   'remotion/outro': (p) => <OutroScene {...(p as unknown as OutroSceneProps)} />,
 };

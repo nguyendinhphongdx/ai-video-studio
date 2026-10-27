@@ -1,5 +1,6 @@
 // A dial whose needle is thrown to the end of the scale and back, then settles on the value, with a digital readout that
 // counts with it (the "self-test sweep" of video-shotcraft's gauge recipes, Apache-2.0; see NOTICE).
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
@@ -7,6 +8,7 @@ import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
 import { parseNumber } from './data-parse';
 
 export interface GaugeSceneProps {
+  transition: 'auto' | EntranceId;
   value: string;
   min: string;
   max: string;

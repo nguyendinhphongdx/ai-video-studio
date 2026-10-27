@@ -1,10 +1,12 @@
 // A big number rolling up to its value, with a unit and a caption. The odometer roll is adapted from video-shotcraft's
 // DigitRoll (Apache-2.0), see NOTICE.
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
 
 export interface CounterSceneProps {
+  transition: 'auto' | EntranceId;
   value: string;
   unit: string;
   caption: string;

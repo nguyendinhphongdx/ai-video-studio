@@ -1,6 +1,7 @@
 // Kinetic text: a short statement set in motion. The shots (remotion/shots/text) come in two kinds: entrances that
 // bring one phrase in, and cycles that rotate through lines. The recipes they are based on are the typography shots
 // of video-shotcraft (Apache-2.0), see NOTICE.
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
@@ -10,6 +11,7 @@ import type { TextShotId } from '../shots/text/meta';
 import { kineticLookFor } from './variants';
 
 export interface KineticSceneProps {
+  transition: 'auto' | EntranceId;
   text: string;
   emphasis: string;
   /** Lines for the shots that rotate through them (one per line). */

@@ -1,6 +1,7 @@
 // A timeline the camera travels along: milestones on a ruler, the view sliding from one to the next, each card standing up
 // as it is reached. The travel-and-stop grammar is adapted from the timeline-travel recipe of video-shotcraft (Apache-2.0),
 // see NOTICE.
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
@@ -8,6 +9,7 @@ import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
 import { parseTimeline } from './data-parse';
 
 export interface TimelineSceneProps {
+  transition: 'auto' | EntranceId;
   title: string;
   data: string;
 }

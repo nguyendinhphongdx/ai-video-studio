@@ -1,3 +1,4 @@
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { useLayout } from '../primitives';
@@ -11,6 +12,7 @@ import { FxLayer } from '../shots/fx';
 import { autoMotion, cutFor, fxFor, cornerFor, labelStyleFor, layeredFor, type Corner, type Motion } from './variants';
 
 export interface VoxSceneProps {
+  transition: 'auto' | EntranceId;
   label: string;
   imagePrompt: string;
   motion: 'auto' | Motion;

@@ -1,3 +1,4 @@
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { shade, useBrand, useFont, useLayout } from '../primitives';
@@ -11,6 +12,7 @@ import { FxLayer } from '../shots/fx';
 import { autoMotion, cutFor, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
 
 export interface PictureSceneProps {
+  transition: 'auto' | EntranceId;
   caption: string;
   imagePrompt: string;
   motion: 'auto' | Motion;

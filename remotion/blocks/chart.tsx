@@ -1,5 +1,6 @@
 // Horizontal bars growing in, the biggest one picked out in the accent colour. Rows land faster and faster (the
 // "speed comes from acceleration" rule of video-shotcraft's aesthetic notes, Apache-2.0, see NOTICE).
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { shade, stageBackground, useBrand, useFont, useLayout } from '../primitives';
@@ -7,6 +8,7 @@ import { shade, stageBackground, useBrand, useFont, useLayout } from '../primiti
 import { parseChart } from './chart-data';
 
 export interface ChartSceneProps {
+  transition: 'auto' | EntranceId;
   title: string;
   unit: string;
   data: string;

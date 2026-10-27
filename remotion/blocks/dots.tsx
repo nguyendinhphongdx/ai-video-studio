@@ -1,5 +1,6 @@
 // A crowd of dots that gathers into a grid and lights up the share that matters ("3 in 10"). The three-act regroup is
 // adapted from the unit-dot-swarm recipe of video-shotcraft (Apache-2.0), see NOTICE.
+import type { EntranceId } from '../shots/entrance-meta';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { mulberry32 } from '../camera/noise';
@@ -8,6 +9,7 @@ import { stageBackground, useBrand, useFont, useLayout } from '../primitives';
 import { parseNumber } from './data-parse';
 
 export interface DotsSceneProps {
+  transition: 'auto' | EntranceId;
   part: string;
   whole: string;
   caption: string;

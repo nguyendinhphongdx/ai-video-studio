@@ -4,6 +4,7 @@ import { cardsBlock } from './blocks/cards';
 import { chartBlock } from './blocks/chart';
 import { counterBlock } from './blocks/counter';
 import { dotsBlock } from './blocks/dots';
+import { uiBlock } from './blocks/ui';
 import { gaugeBlock } from './blocks/gauge';
 import { kineticBlock } from './blocks/kinetic';
 import { timelineBlock } from './blocks/timeline';
@@ -28,5 +29,5 @@ export const remotionTool = defineTool({
   version: REMOTION_VERSION,
   requires: 'Chrome Headless Shell (Remotion tự tải lần đầu), ffmpeg',
   previewable: true,
-  blocks: [titleBlock, cardsBlock, whiteboardBlock, recapBlock, quizBlock, pictureBlock, voxBlock, kineticBlock, counterBlock, chartBlock, timelineBlock, gaugeBlock, dotsBlock, outroBlock],
+  blocks: [titleBlock, cardsBlock, whiteboardBlock, recapBlock, quizBlock, pictureBlock, voxBlock, kineticBlock, counterBlock, chartBlock, timelineBlock, gaugeBlock, dotsBlock, uiBlock, outroBlock],
 });

@@ -3,7 +3,7 @@ name: Điện ảnh đa năng
 description: "Video kể chuyện, giải thích hoặc giới thiệu cho mọi chủ đề: ảnh AI theo phong cách của kênh, camera chuyển động có chiều sâu, xen cảnh chữ, con số và biểu đồ, âm thanh đi kèm. Mạch chuyện có câu hỏi, leo thang, bước ngoặt và kết."
 version: 1
 tags: [general, story, cinematic]
-tools: [remotion/picture, remotion/kinetic, remotion/counter, remotion/chart, remotion/timeline, remotion/gauge, remotion/dots]
+tools: [remotion/picture, remotion/kinetic, remotion/counter, remotion/chart, remotion/timeline, remotion/gauge, remotion/dots, remotion/ui]
 scenes: 8-14
 ---
 

@@ -444,3 +444,30 @@ describe('choosing how a scene opens', () => {
     }
   });
 });
+
+describe('intro/outro vocabulary', () => {
+  it('accepts the newer entrances, shapes and the marquee layer, and clamps a marquee into drawable values', async () => {
+    const { SceneDesignSchema, normalizeDesign, fallbackDesign } = await import('@/core/domain/design');
+    const base = fallbackDesign('intro', ['#112233']);
+    const f = { x: 50, y: 50, w: 100, h: 16 };
+    const design = {
+      ...base,
+      layers: [
+        { kind: 'shape', anim: 'blur-in', delay: 0, land: f, port: f, shape: 'glow', fill: '#38BDF8', opacity: 0.4, radius: 0, rotate: 0 },
+        { kind: 'marquee', anim: 'fade', delay: 0, land: f, port: f, text: 'x'.repeat(80), size: 99, color: 'nope', outline: true, direction: 'left', opacity: 7 },
+        { kind: 'text', anim: 'materialize', delay: 0.2, land: f, port: f, text: '{channel}', size: 4, weight: '600', color: '#FFFFFF', font: 'brand', upper: true, spacing: 18, align: 'center' },
+      ],
+    };
+    const parsed = SceneDesignSchema.parse(design);
+    expect(parsed.layers).toHaveLength(3);
+    const out = normalizeDesign(parsed, ['#112233', '#F59E0B']);
+    expect(out.layers[1]).toMatchObject({ kind: 'marquee', size: 30, color: '#F59E0B', opacity: 1 });
+    expect((out.layers[1] as { text: string }).text).toHaveLength(40);
+    expect(() => SceneDesignSchema.parse({ ...design, layers: [{ ...design.layers[2], anim: 'explode' }] })).toThrow();
+  });
+
+  it('tells the assistant the valid entrances', async () => {
+    const { DESIGN_GUIDE } = await import('@/core/assistant/guides');
+    for (const a of ['materialize', 'stamp', 'glitch', 'crash-in', 'marquee', 'rays']) expect(DESIGN_GUIDE).toContain(a);
+  });
+});

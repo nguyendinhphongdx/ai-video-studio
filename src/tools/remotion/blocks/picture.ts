@@ -6,7 +6,7 @@ import { defineBlock } from '@/core/tools/tool';
 import type { PictureSceneProps } from '@video/blocks';
 import { autoMotion, captionLookFor, cutFor } from '@video/blocks/variants';
 
-import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
+import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 const props = z.object({
   caption: z.string().describe('Chú thích ngắn hiện trên ảnh, tối đa 50 ký tự (tên, con số, ý chính của cảnh). Có thể để trống'),
@@ -15,6 +15,7 @@ const props = z.object({
   fx: FxEnum,
   rhythm: RhythmEnum,
   shot: ShotEnum,
+  transition: TransitionEnum,
 });
 export type _PictureMatchesComponent = Assert<Same<z.infer<typeof props>, PictureSceneProps>>;
 
@@ -46,8 +47,9 @@ export const pictureBlock = defineBlock({
     { key: 'fx', label: 'Hiệu ứng ánh sáng', kind: 'choice', options: FX_OPTIONS },
     { key: 'rhythm', label: 'Cắt nhịp', kind: 'choice', options: RHYTHM_OPTIONS },
     { key: 'motion', label: 'Chuyển động', kind: 'choice', options: MOTION_OPTIONS },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', motion: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto' },
+  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', motion: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto', transition: 'auto' },
   varyBy: ['shot'],
   minSeconds: 4,
   // Empty style: the channel's own image style is used (see the images pipeline step).

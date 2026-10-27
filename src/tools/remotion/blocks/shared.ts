@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { SfxCue } from '@/core/audio/sfx';
+import { ENTRANCE_META, type EntranceId } from '@video/shots/entrance-meta';
 import { CUT_META, type CutId } from '@video/shots/cut-meta';
 import { FX_META, type FxId } from '@video/shots/fx-meta';
 
@@ -120,3 +121,9 @@ export function cutCue(cut: string): SfxCue[] {
   if (cut === 'quad') return [0, 4, 8, 12].map((f) => ({ kind: 'tick' as const, at: f / 30 }));
   return [];
 }
+
+export const TransitionEnum = z
+  .enum(['auto', ...ENTRANCE_META.map((m) => m.id)] as ['auto', EntranceId, ...EntranceId[]])
+  .default('auto')
+  .describe('Cách cảnh này mở ra: "auto" (hệ thống đổi luân phiên giữa các cảnh) hoặc để trống. Chỉ chọn riêng khi cảnh cần một mở đầu đặc biệt (glitch cho công nghệ, light-leak cho hoài niệm, iris cho tiêu điểm...)');
+export const TRANSITION_OPTIONS = [{ value: 'auto', label: 'Tự động (đổi luân phiên)' }, ...ENTRANCE_META.map((m) => ({ value: m.id, label: m.name }))];

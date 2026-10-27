@@ -5,7 +5,7 @@ import { defineBlock } from '@/core/tools/tool';
 import type { GaugeSceneProps } from '@video/blocks';
 import { parseNumber } from '@video/blocks/data-parse';
 
-import { type Assert, type Same } from './shared';
+import { type Assert, type Same, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 const props = z.object({
   value: z.string().describe('Giá trị cần đọc trên đồng hồ, chỉ chữ số và dấu phân cách (ví dụ "72", "3,5"); phải nằm giữa min và max. Chỉ dùng số chắc chắn đúng'),
@@ -13,6 +13,7 @@ const props = z.object({
   max: z.string().describe('Cận trên của thang đo (ví dụ "100", "200")'),
   unit: z.string().describe('Đơn vị ngắn, tối đa 10 ký tự (ví dụ "%", "km/h", "°C"); có thể để trống'),
   caption: z.string().describe('Dòng chú thích dưới số, tối đa 60 ký tự, nói số đo cái gì'),
+  transition: TransitionEnum,
 });
 export type _GaugeMatchesComponent = Assert<Same<z.infer<typeof props>, GaugeSceneProps>>;
 
@@ -34,8 +35,9 @@ export const gaugeBlock = defineBlock({
     { key: 'max', label: 'Thang đến', kind: 'text', maxLength: 10 },
     { key: 'unit', label: 'Đơn vị', kind: 'text', maxLength: 12 },
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 64 },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { value: '72', min: '0', max: '100', unit: '%', caption: 'đại dương chưa được khám phá' },
+  defaults: { value: '72', min: '0', max: '100', unit: '%', caption: 'đại dương chưa được khám phá', transition: 'auto' },
   minSeconds: 5,
   sfx: gaugeCues,
   normalize: (p) => {

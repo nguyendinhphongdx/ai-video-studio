@@ -6,7 +6,7 @@ import { defineBlock } from '@/core/tools/tool';
 import type { VoxSceneProps } from '@video/blocks';
 import { autoMotion, cutFor, labelStyleFor } from '@video/blocks/variants';
 
-import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, DEPTH_OPTIONS, DepthEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot } from './shared';
+import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, DEPTH_OPTIONS, DepthEnum, MOTION_OPTIONS, MotionEnum, SHOT_OPTIONS, SHOT_TEXT, ShotEnum, type Assert, type Same, type Shot, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 /** Default look of a Vox image, used when the skill (or channel) declares no imageStyle of its own. */
 export const VOX_IMAGE_STYLE =
@@ -20,6 +20,7 @@ const props = z.object({
   fx: FxEnum,
   rhythm: RhythmEnum,
   shot: ShotEnum,
+  transition: TransitionEnum,
 });
 export type _VoxMatchesComponent = Assert<Same<z.infer<typeof props>, VoxSceneProps>>;
 
@@ -54,8 +55,9 @@ export const voxBlock = defineBlock({
     { key: 'rhythm', label: 'Cắt nhịp', kind: 'choice', options: RHYTHM_OPTIONS },
     { key: 'motion', label: 'Chuyển động', kind: 'choice', options: MOTION_OPTIONS },
     { key: 'depth', label: 'Chiều sâu', kind: 'choice', options: DEPTH_OPTIONS },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { label: '', imagePrompt: 'a vintage airliner on grid paper', motion: 'auto', depth: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto' },
+  defaults: { label: '', imagePrompt: 'a vintage airliner on grid paper', motion: 'auto', depth: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto', transition: 'auto' },
   varyBy: ['shot'],
   sfx: voxCues,
   minSeconds: 4,

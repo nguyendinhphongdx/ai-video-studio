@@ -5,11 +5,12 @@ import { defineBlock } from '@/core/tools/tool';
 import type { TimelineSceneProps } from '@video/blocks';
 import { parseTimeline } from '@video/blocks/data-parse';
 
-import { type Assert, type Same } from './shared';
+import { type Assert, type Same, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 const props = z.object({
   title: z.string().describe('Tiêu đề dòng thời gian, tối đa 40 ký tự (ví dụ "Từ tia lửa đến mặt trăng")'),
   data: z.string().describe('2-6 dòng, mỗi dòng "Mốc: sự kiện" theo thứ tự thời gian (ví dụ "1957: Vệ tinh đầu tiên bay vào quỹ đạo"). Mốc ngắn (năm, tháng), sự kiện tối đa 70 ký tự. Chỉ dùng mốc chắc chắn đúng'),
+  transition: TransitionEnum,
 });
 export type _TimelineMatchesComponent = Assert<Same<z.infer<typeof props>, TimelineSceneProps>>;
 
@@ -32,8 +33,9 @@ export const timelineBlock = defineBlock({
   fields: [
     { key: 'title', label: 'Tiêu đề', kind: 'text', maxLength: 44 },
     { key: 'data', label: 'Các mốc (mỗi dòng "Mốc: sự kiện")', kind: 'textarea', maxLength: 500, hint: 'Ví dụ: 1969: Con người đặt chân lên Mặt Trăng' },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { title: 'Đường tới Mặt Trăng', data: '1957: Vệ tinh đầu tiên\n1961: Người đầu tiên bay vào vũ trụ\n1969: Đặt chân lên Mặt Trăng' },
+  defaults: { title: 'Đường tới Mặt Trăng', data: '1957: Vệ tinh đầu tiên\n1961: Người đầu tiên bay vào vũ trụ\n1969: Đặt chân lên Mặt Trăng', transition: 'auto' },
   minSeconds: 7,
   sfx: timelineCues,
   normalize: (p) => ({ ...p, title: p.title.trim().slice(0, 44), data: parseTimeline(p.data).map((i) => `${i.label}: ${i.text}`).join('\n') }),

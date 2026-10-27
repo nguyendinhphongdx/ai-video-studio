@@ -6,7 +6,7 @@ import type { KineticSceneProps } from '@video/blocks';
 import { kineticLookFor } from '@video/blocks/variants';
 import { TEXT_SHOT_META, type TextShotId } from '@video/shots/text/meta';
 
-import { type Assert, type Same } from './shared';
+import { type Assert, type Same, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 const IDS = TEXT_SHOT_META.map((m) => m.id) as [TextShotId, ...TextShotId[]];
 
@@ -15,6 +15,7 @@ const props = z.object({
   emphasis: z.string().describe('MỘT từ trong câu cần nhấn (hiện màu nhấn của kênh); để trống thì lấy từ dài nhất'),
   items: z.string().default('').describe('Các dòng cho kiểu xoay nhiều ý (mỗi dòng một ý ngắn, 2-6 dòng); để trống nếu dùng kiểu một câu'),
   look: z.enum(['auto', ...IDS]).default('auto').describe('Kiểu chữ chuyển động; để "auto" để hệ thống đổi luân phiên giữa các cảnh'),
+  transition: TransitionEnum,
 });
 export type _KineticMatchesComponent = Assert<Same<z.infer<typeof props>, KineticSceneProps>>;
 
@@ -49,8 +50,9 @@ export const kineticBlock = defineBlock({
     { key: 'emphasis', label: 'Từ nhấn', kind: 'text', maxLength: 20 },
     { key: 'items', label: 'Các dòng (cho kiểu xoay nhiều ý)', kind: 'textarea', maxLength: 200, hint: 'Mỗi dòng một ý ngắn; để trống nếu chỉ một câu.' },
     { key: 'look', label: 'Kiểu chuyển động', kind: 'choice', options: [{ value: 'auto', label: 'Tự động (đổi luân phiên)' }, ...TEXT_SHOT_META.map((m) => ({ value: m.id, label: m.name }))] },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { text: 'Điều gì đang nằm dưới đáy biển?', emphasis: 'đáy', items: '', look: 'auto' },
+  defaults: { text: 'Điều gì đang nằm dưới đáy biển?', emphasis: 'đáy', items: '', look: 'auto', transition: 'auto' },
   minSeconds: 3.5,
   sfx: kineticCues,
   normalize: (p) => ({ ...p, text: p.text.trim().slice(0, 80), emphasis: p.emphasis.trim().split(/\s+/)[0]?.slice(0, 20) ?? '', items: p.items.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 6).map((l) => l.slice(0, 40)).join('\n') }),

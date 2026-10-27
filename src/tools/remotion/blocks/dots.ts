@@ -5,12 +5,13 @@ import { defineBlock } from '@/core/tools/tool';
 import type { DotsSceneProps } from '@video/blocks';
 import { parseNumber } from '@video/blocks/data-parse';
 
-import { type Assert, type Same } from './shared';
+import { type Assert, type Same, TRANSITION_OPTIONS, TransitionEnum } from './shared';
 
 const props = z.object({
   part: z.string().describe('Phần được nhấn, chỉ chữ số (ví dụ "3" trong "3 trên 10", "30" trong "30%"). Chỉ dùng số chắc chắn đúng'),
   whole: z.string().describe('Tổng (ví dụ "10" hoặc "100"). Nếu tổng nhỏ hơn 100 thì mỗi chấm là một đơn vị; lớn hơn thì mỗi chấm là một phần trăm'),
   caption: z.string().describe('Câu nói tỉ lệ đó là gì, tối đa 60 ký tự (ví dụ "người dân chưa từng thấy biển")'),
+  transition: TransitionEnum,
 });
 export type _DotsMatchesComponent = Assert<Same<z.infer<typeof props>, DotsSceneProps>>;
 
@@ -29,8 +30,9 @@ export const dotsBlock = defineBlock({
     { key: 'part', label: 'Phần được nhấn', kind: 'text', maxLength: 10 },
     { key: 'whole', label: 'Tổng', kind: 'text', maxLength: 10 },
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 64 },
+    { key: 'transition', label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { part: '3', whole: '10', caption: 'người chưa từng thấy biển' },
+  defaults: { part: '3', whole: '10', caption: 'người chưa từng thấy biển', transition: 'auto' },
   minSeconds: 5,
   sfx: dotsCues,
   normalize: (p) => {

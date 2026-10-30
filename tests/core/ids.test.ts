@@ -26,4 +26,8 @@ describe('ids', () => {
   it('caps slugs at 40 characters', () => {
     expect(slugify('a'.repeat(100))).toHaveLength(40);
   });
+
+  it('generates 12 character ids without dashes', () => {
+    expect(newId()).toMatch(/^[0-9a-f]{12}$/);
+  });
 });

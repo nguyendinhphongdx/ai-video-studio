@@ -8,4 +8,10 @@ describe('UserFacingError', () => {
     expect(e.message).toBe('Lỗi');
     expect(e.detail).toBe('stack info');
   });
+
+  it('is an Error and has no detail by default', () => {
+    const e = new UserFacingError('Lỗi');
+    expect(e).toBeInstanceOf(Error);
+    expect(e.detail).toBeUndefined();
+  });
 });

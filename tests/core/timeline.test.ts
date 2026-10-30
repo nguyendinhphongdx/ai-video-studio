@@ -27,4 +27,8 @@ describe('timeline', () => {
   it('ignores repeated whitespace when counting words', () => {
     expect(estimateSpeechSec('a   b\n c')).toBeCloseTo(3 / 2.6);
   });
+
+  it('builds an empty timeline for no scenes', () => {
+    expect(buildTimeline([], () => 1, () => 0)).toEqual({ scenes: [], total: 0 });
+  });
 });

@@ -23,4 +23,8 @@ describe('timeline', () => {
   it('estimates speech at 2.6 words per second', () => {
     expect(estimateSpeechSec('một hai ba bốn năm')).toBeCloseTo(5 / 2.6);
   });
+
+  it('ignores repeated whitespace when counting words', () => {
+    expect(estimateSpeechSec('a   b\n c')).toBeCloseTo(3 / 2.6);
+  });
 });

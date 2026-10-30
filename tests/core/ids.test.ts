@@ -14,4 +14,8 @@ describe('ids', () => {
   it('maps đ to d', () => {
     expect(slugify('Đường đi')).toBe('duong-di');
   });
+
+  it('trims leading and trailing separators', () => {
+    expect(slugify('  --Hi!--  ')).toBe('hi');
+  });
 });

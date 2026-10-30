@@ -15,4 +15,8 @@ describe('timeline', () => {
   it('treats silent scenes as the block minimum', () => {
     expect(sceneDuration(3, 0)).toBe(3);
   });
+
+  it('estimates zero seconds for empty text', () => {
+    expect(estimateSpeechSec('   ')).toBe(0);
+  });
 });

@@ -14,4 +14,8 @@ describe('UserFacingError', () => {
     expect(e).toBeInstanceOf(Error);
     expect(e.detail).toBeUndefined();
   });
+
+  it('can be told apart from plain errors', () => {
+    expect(new Error('x') instanceof UserFacingError).toBe(false);
+  });
 });

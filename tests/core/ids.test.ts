@@ -18,4 +18,8 @@ describe('ids', () => {
   it('trims leading and trailing separators', () => {
     expect(slugify('  --Hi!--  ')).toBe('hi');
   });
+
+  it('falls back to "video" when nothing usable is left', () => {
+    expect(slugify('!!!')).toBe('video');
+  });
 });

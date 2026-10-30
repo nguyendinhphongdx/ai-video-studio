@@ -10,4 +10,8 @@ describe('ids', () => {
   it('strips Vietnamese diacritics', () => {
     expect(slugify('Tiếng Việt')).toBe('tieng-viet');
   });
+
+  it('maps đ to d', () => {
+    expect(slugify('Đường đi')).toBe('duong-di');
+  });
 });

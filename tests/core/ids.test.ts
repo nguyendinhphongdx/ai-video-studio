@@ -22,4 +22,8 @@ describe('ids', () => {
   it('falls back to "video" when nothing usable is left', () => {
     expect(slugify('!!!')).toBe('video');
   });
+
+  it('caps slugs at 40 characters', () => {
+    expect(slugify('a'.repeat(100))).toHaveLength(40);
+  });
 });

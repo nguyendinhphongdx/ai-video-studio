@@ -18,4 +18,8 @@ describe('UserFacingError', () => {
   it('can be told apart from plain errors', () => {
     expect(new Error('x') instanceof UserFacingError).toBe(false);
   });
+
+  it('keeps detail out of the message', () => {
+    expect(new UserFacingError('ok', 'secret').message).not.toContain('secret');
+  });
 });

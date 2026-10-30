@@ -11,4 +11,8 @@ describe('timeline', () => {
   it('stretches to narration plus delay and tail padding', () => {
     expect(sceneDuration(2, 10)).toBeCloseTo(10 + NARRATION_DELAY_SEC + 0.7);
   });
+
+  it('treats silent scenes as the block minimum', () => {
+    expect(sceneDuration(3, 0)).toBe(3);
+  });
 });

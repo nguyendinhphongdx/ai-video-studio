@@ -19,4 +19,8 @@ describe('timeline', () => {
   it('estimates zero seconds for empty text', () => {
     expect(estimateSpeechSec('   ')).toBe(0);
   });
+
+  it('estimates speech at 2.6 words per second', () => {
+    expect(estimateSpeechSec('một hai ba bốn năm')).toBeCloseTo(5 / 2.6);
+  });
 });

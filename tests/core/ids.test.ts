@@ -30,4 +30,8 @@ describe('ids', () => {
   it('generates 12 character ids without dashes', () => {
     expect(newId()).toMatch(/^[0-9a-f]{12}$/);
   });
+
+  it('generates distinct ids', () => {
+    expect(newId()).not.toBe(newId());
+  });
 });

@@ -31,4 +31,14 @@ describe('timeline', () => {
   it('builds an empty timeline for no scenes', () => {
     expect(buildTimeline([], () => 1, () => 0)).toEqual({ scenes: [], total: 0 });
   });
+
+  it('lays scenes back to back and sums the total', () => {
+    const scenes = [{ id: 'a', block: 'x' }, { id: 'b', block: 'y' }] as unknown as Scene[];
+    const t = buildTimeline(scenes, (b) => (b === 'x' ? 4 : 6), () => 0);
+    expect(t.scenes).toEqual([
+      { sceneId: 'a', start: 0, duration: 4 },
+      { sceneId: 'b', start: 4, duration: 6 },
+    ]);
+    expect(t.total).toBe(10);
+  });
 });

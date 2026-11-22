@@ -14,9 +14,22 @@ export const GET = route<{ path: string[] }>(async (req, { path }) => {
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') ?? '');
   const body = (start: number, end: number) => Readable.toWeb(fs.createReadStream(file, { start, end })) as ReadableStream;
   if (range) {
-    const start = range[1] ? Number(range[1]) : 0;
-    const end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    const unsatisfiable = () => new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}`, 'accept-ranges': 'bytes' } });
+    let start: number;
+    let end: number;
+    if (!range[1] && range[2]) {
+      // Suffix range: the last N bytes.
+      const n = Number(range[2]);
+      if (n === 0) return unsatisfiable();
+      start = Math.max(size - n, 0);
+      end = size - 1;
+    } else {
+      start = range[1] ? Number(range[1]) : 0;
+      end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    }
+    if (size === 0 || start >= size || start > end) return unsatisfiable();
     return new Response(body(start, end), { status: 206, headers: { 'content-type': type, 'content-range': `bytes ${start}-${end}/${size}`, 'accept-ranges': 'bytes', 'content-length': String(end - start + 1) } });
   }
+  if (size === 0) return new Response(null, { headers: { 'content-type': type, 'content-length': '0' } });
   return new Response(body(0, size - 1), { headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=3600' } });
 });

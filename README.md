@@ -25,3 +25,13 @@ npm run studio     # Remotion Studio để xem các khối dựng
 ```
 
 Dữ liệu chạy (SQLite, file video, API key) nằm trong `data/`, không đưa lên git.
+
+## Bảo mật
+
+Ứng dụng chưa có đăng nhập. Vì vậy `npm run dev` và `npm start` chỉ lắng nghe ở `127.0.0.1` (chỉ máy bạn truy cập được).
+Đừng mở cổng ra mạng ngoài hoặc đổi sang `0.0.0.0` khi chưa đặt một lớp xác thực phía trước (reverse proxy có auth, VPN).
+API key lưu trong `data/settings.json` (quyền 0600, nằm ngoài git); có thể để trống và dùng biến môi trường trong `.env`.
+
+## Kiểm tra chất lượng
+
+`npm run typecheck` và `npm test` chạy tự động trong CI (`.github/workflows/ci.yml`) cho mỗi push và pull request.

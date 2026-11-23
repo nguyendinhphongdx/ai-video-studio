@@ -19,7 +19,7 @@ export const characterRefs = (ctx: Partial<Pick<StyleCtx, 'series'>>): string[] 
 
 /** Separates the style proper from the character rule, so a background-only block can drop the rule. */
 export const CHARACTER_MARK = '\u2063';
-const CHARACTER_RULE = 'Keep every recurring character exactly as in the attached reference images: same face, proportions, hair, outfit and colours, in this same drawing style.';
+const CHARACTER_RULE = 'Keep every recurring character exactly as in the attached reference images when the scene is about them: same face, proportions, hair, outfit and colours, in this same drawing style. Never add them to a scene about other subjects; draw any other character described in the notes from the notes.';
 
 /**
  * The picture style a video is made in: the skill's own look first, else the channel's, plus the series' character

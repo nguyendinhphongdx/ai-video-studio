@@ -116,7 +116,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
     return m;
   }, [draft.scenes, view.assets]);
   const music = view.episode.music ? musicSrc(channel?.music) : null;
-  const preview = useMemo(() => storyboardProps(draft.scenes, blocks, brand, { voice: useVoice ? voiceLines : undefined, images, sprites: view.sprites, music }), [draft.scenes, blocks, brand, voiceLines, images, view.sprites, useVoice, music]);
+  const preview = useMemo(() => storyboardProps(draft.scenes, blocks, brand, { voice: useVoice ? voiceLines : undefined, images, sprites: view.sprites, cast: view.cast, music }), [draft.scenes, blocks, brand, voiceLines, images, view.sprites, view.cast, useVoice, music]);
   const total = preview.durationInFrames / FPS;
   const ordinalOf = (s: Scene) => draft.scenes.slice(0, draft.scenes.indexOf(s) + 1).filter((x) => x.block === s.block).length;
 
@@ -170,7 +170,7 @@ export function Storyboard({ view }: { view: EpisodeView }) {
   const voiceCost = useEstimate(0, voiceTexts, view.episode.voice);
   const approvable = draft.scenes.filter((x) => !x.approved && view.assets[x.id]?.ready);
   const plan = useMemo(() => makePlan(draft.scenes, view.assets, new Set(draft.scenes.filter((x) => x.approved).map((x) => x.id))), [draft.scenes, view.assets]);
-  const reviewPreview = useMemo(() => (reviewOpen ? storyboardProps(draft.scenes, blocks, brand, { voice: voiceLines, images, sprites: view.sprites, music }) : null), [reviewOpen, draft.scenes, blocks, brand, voiceLines, images, view.sprites, music]);
+  const reviewPreview = useMemo(() => (reviewOpen ? storyboardProps(draft.scenes, blocks, brand, { voice: voiceLines, images, sprites: view.sprites, cast: view.cast, music }) : null), [reviewOpen, draft.scenes, blocks, brand, voiceLines, images, view.sprites, view.cast, music]);
   useEffect(() => {
     if (!approveAfter || assetJob || assets.isPending || approval.isPending) return;
     setApproveAfter(false);

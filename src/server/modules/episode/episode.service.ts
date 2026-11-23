@@ -57,6 +57,7 @@ function baseView(e: Episode): EpisodeView {
     slots: [],
     durationSec: null,
     sprites: {},
+    cast: {},
   };
 }
 
@@ -115,7 +116,7 @@ export const episodeService = {
       blocks: s.fill === 'ai' ? slotBlocks(s, appDeps.tools).map((b) => b.ref) : [],
       scenes: s.scenes,
     }));
-    return { ...baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])) };
+    return { ...baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])), cast: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterCast ?? {}).map(([k, v]) => [k, mediaUrl(v)])) };
   },
 
   async create(input: CreateEpisodeInput): Promise<EpisodeView> {

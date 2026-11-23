@@ -10,6 +10,7 @@ export const SeriesBibleSchema = z.object({
   avoid: z.array(z.string().max(200)).max(30).default([]),
   characterAssets: z.array(z.string()).max(20).default([]),
   characters: z.string().max(2000).default(''),
+  characterCast: z.record(z.string().regex(/^[a-z0-9-]{1,24}$/), z.string()).default({}),
   characterSprites: z.partialRecord(z.enum(['neutral', 'talk', 'blink', 'happy', 'angry', 'sad', 'surprised']), z.string()).default({}),
 });
 

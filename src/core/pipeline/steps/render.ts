@@ -12,7 +12,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
   label: 'Dựng cảnh',
   after: ['voice', 'images'],
   weight: 75,
-  inputs: ({ episode, channel, bible }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt, sprites: bible?.characterSprites ?? {} }),
+  inputs: ({ episode, channel, bible }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt, sprites: bible?.characterSprites ?? {}, cast: bible?.characterCast ?? {} }),
   reusable: async ({ deps }, out) => (await Promise.all(Object.values(out.clips).flat().map((f) => deps.media.exists(f)))).every(Boolean),
   async run({ deps, episode, brand, dir, bible }, prev, progress) {
     const voice = prev.voice as VoiceOutput;
@@ -32,10 +32,16 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
 
     // Whole-body sprites of the series' puppet character, inlined once for the scenes that act with it.
     const sprites: Record<string, string> = {};
+    const cast: Record<string, string> = {};
     if (scenes.some((s) => s.block === 'remotion/puppet')) {
       for (const [expr, rel] of Object.entries(bible?.characterSprites ?? {})) {
         const file = deps.media.absolute(rel);
         if (await deps.media.exists(file)) sprites[expr] = await deps.media.dataUri(file);
+      }
+      for (const id of new Set(scenes.filter((s) => s.block === 'remotion/puppet').flatMap((s) => [s.props.companion, s.props.item]).filter((v): v is string => typeof v === 'string' && v !== ''))) {
+        const rel = bible?.characterCast?.[id];
+        if (!rel) throw new UserFacingError(`Cảnh "Nhân vật diễn" gọi "${id}" nhưng series chưa có ảnh này trong dàn nhân vật phụ.`);
+        cast[id] = await deps.media.dataUri(deps.media.absolute(rel));
       }
       if (!sprites.neutral) throw new UserFacingError('Cảnh "Nhân vật diễn" cần ảnh nhân vật Bình thường. Tải ảnh ở phần Nhân vật diễn của series rồi thử lại.');
     }
@@ -52,7 +58,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         await deps.renderers.get(block.tool.id).render(
           {
             block: block.ref,
-            props: { ...scene.props, ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}), ...(scene.block === 'remotion/puppet' ? { sprites } : {}) },
+            props: { ...scene.props, ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}), ...(scene.block === 'remotion/puppet' ? { sprites, cast } : {}) },
             ordinal: scenes.slice(0, si + 1).filter((x) => x.block === scene.block).length,
             brand,
             format,

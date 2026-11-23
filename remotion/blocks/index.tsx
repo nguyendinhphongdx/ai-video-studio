@@ -30,7 +30,7 @@ export const BLOCKS: Record<string, Draw> = {
   'remotion/quiz': (p) => <QuizScene {...(p as unknown as QuizSceneProps)} />,
   'remotion/vox': (p, ordinal) => <VoxScene {...(p as unknown as VoxSceneProps)} ordinal={ordinal} image={typeof p.image === 'string' ? p.image : undefined} />,
   'remotion/picture': (p, ordinal) => <PictureScene {...(p as unknown as PictureSceneProps)} ordinal={ordinal} image={typeof p.image === 'string' ? p.image : undefined} />,
-  'remotion/puppet': (p) => <PuppetScene {...(p as unknown as PuppetSceneProps)} image={typeof p.image === 'string' ? p.image : undefined} sprites={(p.sprites as Record<string, string> | undefined) ?? undefined} />,
+  'remotion/puppet': (p) => <PuppetScene {...(p as unknown as PuppetSceneProps)} image={typeof p.image === 'string' ? p.image : undefined} sprites={(p.sprites as Record<string, string> | undefined) ?? undefined} cast={(p.cast as Record<string, string> | undefined) ?? undefined} />,
   'remotion/kinetic': (p, ordinal) => <KineticScene {...(p as unknown as KineticSceneProps)} ordinal={ordinal} />,
   'remotion/counter': (p) => <CounterScene {...(p as unknown as CounterSceneProps)} />,
   'remotion/timeline': (p) => <TimelineScene {...(p as unknown as TimelineSceneProps)} />,

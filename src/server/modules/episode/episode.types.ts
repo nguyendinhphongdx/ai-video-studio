@@ -98,6 +98,8 @@ export interface EpisodeView {
   assets: Record<string, SceneAssetView>;
   /** Media URLs of the series' puppet sprites by expression (empty when none), for previews. */
   sprites: Record<string, string>;
+  /** Media URLs of the series' supporting characters and props by id (for previews). */
+  cast: Record<string, string>;
   /** Target duration from the series format, if any. */
   durationSec: { min: number; max: number } | null;
 }

@@ -40,3 +40,11 @@ Adapted from it, rewritten for this project's blocks, pipeline and Vietnamese-la
 
 No audio, image or other media files from video-shotcraft are included. Sound effects are synthesised on the user's
 machine with ffmpeg (src/server/adapters/sfx/sfx.service.ts), and a person may add their own files.
+
+stickman-video-director (https://github.com/kaomei/stickman-video-director)
+Copyright the stickman-video-director authors. Licensed under the MIT License.
+
+Adapted from it, rewritten as a Remotion block:
+  - remotion/puppet/rig.ts: the idea of per-layer keyframes (shot-relative t with x, y, scale/w, angle, alpha, smoothstep
+    between keys), of a hand-off between whole-body expression sprites, and of the 20-second preview with sound that a
+    person approves before the full render. The motion functions, the sprite model and the block are new code.

@@ -12,8 +12,27 @@ export interface ImageSpec {
   hash: string;
 }
 
-/** The picture style a video is made in: the skill's own look first, else the channel's. */
-export const imageStyleOf = (ctx: { skill: { imageStyle: string }; channel: { imageStyle: string } }): string => ctx.skill.imageStyle.trim() || ctx.channel.imageStyle;
+type StyleCtx = { skill: { imageStyle: string }; channel: { imageStyle: string }; series?: { version: { bible: { characterAssets?: string[]; characters?: string } } } | null };
+
+/** Reference pictures (media paths) of the series' recurring characters; every scene picture is made against them. */
+export const characterRefs = (ctx: Partial<Pick<StyleCtx, 'series'>>): string[] => ctx.series?.version.bible.characterAssets ?? [];
+
+/** Separates the style proper from the character rule, so a background-only block can drop the rule. */
+export const CHARACTER_MARK = '\u2063';
+const CHARACTER_RULE = 'Keep every recurring character exactly as in the attached reference images when the scene is about them: same face, proportions, hair, outfit and colours, in this same drawing style. Never add them to a scene about other subjects; draw any other character described in the notes from the notes.';
+
+/**
+ * The picture style a video is made in: the skill's own look first, else the channel's, plus the series' character
+ * rule. Folding the characters in here makes the hash of every picture change when the reference images change.
+ */
+export const imageStyleOf = (ctx: StyleCtx): string => {
+  const base = ctx.skill.imageStyle.trim() || ctx.channel.imageStyle;
+  const refs = characterRefs(ctx);
+  if (!refs.length) return base;
+  const notes = ctx.series?.version.bible.characters?.trim();
+  const ids = refs.map((r) => r.split(/[\\/]/).pop()).join(', ');
+  return `${base}${CHARACTER_MARK}${CHARACTER_RULE}${notes ? ` Characters: ${notes}` : ''} (references: ${ids})`;
+};
 
 /** The final picture prompt of a scene (its subject + the block's or the channel's style), or null when the block needs no picture. */
 export function imageSpec(scene: Scene, tools: ToolCatalog, channelStyle: string): ImageSpec | null {
@@ -22,7 +41,11 @@ export function imageSpec(scene: Scene, tools: ToolCatalog, channelStyle: string
   const subject = String(scene.props[slot.promptKey] ?? '').trim();
   if (!subject) throw new UserFacingError('Có cảnh chưa có mô tả ảnh. Điền "Mô tả ảnh" của cảnh rồi thử lại.');
   const framing = slot.compose?.(scene.props).trim();
-  const prompt = `${subject}${framing ? `. ${framing}` : ''}. ${channelStyle.trim() || slot.style || DEFAULT_IMAGE_STYLE}`;
+  // A background-only block must not be told to draw the characters.
+  const style = slot.background ? channelStyle.split(CHARACTER_MARK)[0]! : channelStyle;
+  // The skill's own look may talk about characters; the last words of the prompt win, so say it again at the end.
+  const plate = slot.background ? ' Final rule: this is an empty background plate. Do not draw any person, character, animal, figure or creature anywhere in the picture; scenery and objects only.' : '';
+  const prompt = `${subject}${framing ? `. ${framing}` : ''}. ${style.trim() || slot.style || DEFAULT_IMAGE_STYLE}${plate}`;
   return { prompt, hash: hashOf(prompt) };
 }
 

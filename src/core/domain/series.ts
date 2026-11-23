@@ -14,6 +14,12 @@ export interface SeriesBible {
   avoid: string[];
   /** Uploaded character images (media paths) blocks can reuse. */
   characterAssets: string[];
+  /** Plain-text look of the recurring characters (names, outfit, colours); sent to the picture model with the reference images. */
+  characters: string;
+  /** Whole-body sprites of the puppet character by expression (neutral, talk, blink, happy, angry, sad, surprised): media paths. */
+  characterSprites: Record<string, string>;
+  /** Other transparent sprites a puppet scene can bring on stage (supporting characters, props) by short id: media paths. */
+  characterCast: Record<string, string>;
 }
 
 export interface PublishTemplate {

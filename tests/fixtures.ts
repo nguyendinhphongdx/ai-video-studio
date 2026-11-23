@@ -24,7 +24,7 @@ export const seriesFormat: EpisodeFormat = {
 
 export const version: SeriesVersion = {
   seriesId: 's1', version: 2, skillId: 'kids-cards', format: seriesFormat, createdAt: '',
-  bible: { premise: 'Gà Bông dạy đếm', instructions: 'Luôn vui vẻ.', host: 'Gà Bông', catchphrases: ['Gà Bông đây'], avoid: ['ma quỷ'], characterAssets: [] },
+  bible: { premise: 'Gà Bông dạy đếm', instructions: 'Luôn vui vẻ.', host: 'Gà Bông', catchphrases: ['Gà Bông đây'], avoid: ['ma quỷ'], characterAssets: [], characters: '', characterSprites: {}, characterCast: {} },
   publish: { title: '{series} | Tập {n}: {topic}', hashtags: ['#gabong'], descriptionFooter: 'Đăng ký kênh nhé' },
 };
 

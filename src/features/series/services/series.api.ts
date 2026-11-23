@@ -15,6 +15,14 @@ export const seriesApi = {
   create: (input: CreateSeriesInput) => api<SeriesView>('/series', { body: input }),
   update: (id: string, patch: SeriesPatch) => api<SeriesView>(s(id), { method: 'PATCH', body: patch }),
   saveRules: (id: string, rules: SeriesRulesInput) => api<SeriesView>(s(id, '/rules'), { method: 'PUT', body: rules }),
+  uploadCharacter: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api<{ path: string }>('/series/characters', { form });
+  },
+  /** Queues the AI expression sprites; poll `job` and read `result.sprites` when it is done. */
+  generateSprites: (body: { reference: string; existing: Record<string, string> }) => api<Job>('/series/characters/sprites', { body }),
+  job: (id: string) => api<Job>(`/jobs/${id}`),
   versions: (id: string) => api<SeriesView['rules'][]>(s(id, '/versions')),
   importFile: (channelId: string, file: SeriesFile) => api<SeriesView>('/series/import', { body: { channelId, file } }),
   template: (channelId: string, skillId: string) => api<SeriesProposal>(`/series/template?channelId=${encodeURIComponent(channelId)}&skillId=${encodeURIComponent(skillId)}`),

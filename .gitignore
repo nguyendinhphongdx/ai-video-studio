@@ -9,3 +9,5 @@ next-env.d.ts
 data/
 # media from the pre-Next.js MVP
 projects/
+# local Claude Code state
+.claude/

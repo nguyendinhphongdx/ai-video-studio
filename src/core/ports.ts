@@ -130,7 +130,7 @@ export interface VideoPort {
 export interface ImagePort {
   isReady(): Promise<boolean>;
   /** Writes one 16:9 picture for the prompt to `outFile` (png/jpg). */
-  generate(prompt: string, outFile: string, meta?: UsageMeta): Promise<void>;
+  generate(prompt: string, outFile: string, meta?: UsageMeta, refs?: string[]): Promise<void>;
 }
 
 export interface AiRunStore {

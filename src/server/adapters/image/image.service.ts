@@ -2,10 +2,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 
 import { UserFacingError } from '@/core/domain/errors';
 import type { ImagePort } from '@/core/ports';
+import { mimeOf } from '@/server/adapters/media/media.service';
 import { createLogger } from '@/server/logger';
 import { settingsService } from '@/server/modules/settings/settings.service';
 import { usageService } from '@/server/modules/usage/usage.service';
@@ -15,11 +16,17 @@ const logger = createLogger('image');
 const RETRY_DELAYS_MS = [3000, 8000];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function gemini(s: ImageSettings, prompt: string): Promise<Buffer> {
+/** Reference pictures go in before the text so the model treats them as the look to keep. */
+async function refParts(refs: string[]) {
+  return Promise.all(refs.map(async (f) => ({ inlineData: { mimeType: mimeOf(f), data: (await fs.readFile(f)).toString('base64') } })));
+}
+
+async function gemini(s: ImageSettings, prompt: string, refs: string[] = []): Promise<Buffer> {
+  const parts = [...(await refParts(refs)), { text: prompt }];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(s.model)}:generateContent`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': s.apiKey },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9' } } }),
+    body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9' } } }),
   });
   const body = (await res.json().catch(() => null)) as {
     error?: { message?: string };
@@ -33,9 +40,12 @@ async function gemini(s: ImageSettings, prompt: string): Promise<Buffer> {
   return Buffer.from(data, 'base64');
 }
 
-async function openai(s: ImageSettings, prompt: string): Promise<Buffer> {
+async function openai(s: ImageSettings, prompt: string, refs: string[] = []): Promise<Buffer> {
   const client = new OpenAI({ apiKey: s.apiKey });
-  const r = await client.images.generate({ model: s.model, prompt, size: '1536x1024' });
+  // Only the gpt-image family can take reference pictures; other models draw from the text rule alone.
+  const r = refs.length && /^gpt-image/i.test(s.model)
+    ? await client.images.edit({ model: s.model, prompt, size: '1536x1024', image: await Promise.all(refs.map(async (f) => toFile(await fs.readFile(f), path.basename(f), { type: mimeOf(f) }))) })
+    : await client.images.generate({ model: s.model, prompt, size: '1536x1024' });
   const b64 = r.data?.[0]?.b64_json;
   if (!b64) throw new UserFacingError('AI không trả về ảnh. Thử đổi mô tả ảnh của cảnh.');
   return Buffer.from(b64, 'base64');
@@ -68,14 +78,14 @@ export const images: ImagePort = {
     const s = await settingsService.image();
     return Boolean(s.apiKey && s.model);
   },
-  async generate(prompt, outFile, meta) {
+  async generate(prompt, outFile, meta, refs = []) {
     const s = await settingsService.image();
     if (!s.apiKey) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, chọn nhà cung cấp ảnh và nhập API key.');
     usageService.assertWithinBudget();
     const started = Date.now();
     for (let attempt = 0; ; attempt++) {
       try {
-        const png = s.provider === 'gemini' ? await gemini(s, prompt) : await openai(s, prompt);
+        const png = s.provider === 'gemini' ? await gemini(s, prompt, refs) : await openai(s, prompt, refs);
         await fs.mkdir(path.dirname(outFile), { recursive: true });
         await fs.writeFile(outFile, png);
         // One billed picture per success; a retry after an error was not billed.

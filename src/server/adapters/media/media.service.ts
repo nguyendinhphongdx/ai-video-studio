@@ -61,3 +61,12 @@ export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar'
   await fs.writeFile(file, data);
   return path.relative(MEDIA_DIR, file);
 }
+
+/** Stores a series character reference picture; returns the media-relative path. */
+export async function saveCharacterFile(data: Buffer, ext: string): Promise<string> {
+  const dir = path.join(MEDIA_DIR, 'series-characters');
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, `character-${Date.now().toString(36)}${ext}`);
+  await fs.writeFile(file, data);
+  return path.relative(MEDIA_DIR, file);
+}

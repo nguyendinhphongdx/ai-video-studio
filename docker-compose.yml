@@ -1,0 +1,33 @@
+# docker compose up -d --build
+# Web and worker share ./data (SQLite + media), so they must run on the same machine.
+# Put a reverse proxy with HTTPS (Caddy, Nginx) in front of 127.0.0.1:3300; the app has its own settings page for API keys.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3300:3300"
+    volumes:
+      - ./data:/data
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["npx", "tsx", "src/worker/index.ts"]
+    volumes:
+      - ./data:/data
+    env_file:
+      - path: .env
+        required: false
+    # Remotion renders with Chrome, which needs more shared memory than Docker's 64 MB default.
+    shm_size: "1gb"
+    depends_on:
+      - web

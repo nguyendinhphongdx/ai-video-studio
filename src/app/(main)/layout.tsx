@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { MainSidebar, MainTopbar, MobileTabBar } from '@/components/layout/main';
 import { SystemStatus } from '@/features/app';
@@ -17,7 +17,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         <main className="flex-1 overflow-y-auto overscroll-contain">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:px-12 md:py-10 md:pb-10">
             <SystemStatus />
-            {children}
+            {/* Pages read the URL (useSearchParams); without a boundary the production build cannot prerender them. */}
+            <Suspense>{children}</Suspense>
           </div>
         </main>
       </div>

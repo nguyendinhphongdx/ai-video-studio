@@ -9,6 +9,8 @@ export const SeriesBibleSchema = z.object({
   catchphrases: z.array(z.string().max(200)).max(10).default([]),
   avoid: z.array(z.string().max(200)).max(30).default([]),
   characterAssets: z.array(z.string()).max(20).default([]),
+  characters: z.string().max(2000).default(''),
+  characterSprites: z.partialRecord(z.enum(['neutral', 'talk', 'blink', 'happy', 'angry', 'sad', 'surprised']), z.string()).default({}),
 });
 
 export const PublishTemplateSchema = z.object({

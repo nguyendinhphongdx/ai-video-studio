@@ -134,7 +134,7 @@ export const seriesService = {
     return {
       name: '',
       skillId,
-      bible: { premise: '', instructions: '', host: '', catchphrases: [], avoid: [], characterAssets: [] },
+      bible: { premise: '', instructions: '', host: '', catchphrases: [], avoid: [], characterAssets: [], characters: '', characterSprites: {} },
       format: defaultFormat(skill, toolCatalog),
       publish: { title: '{series} | Tập {n}: {topic}', hashtags: [], descriptionFooter: '' },
       roadmap: [],

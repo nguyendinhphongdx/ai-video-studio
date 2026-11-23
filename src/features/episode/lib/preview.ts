@@ -53,7 +53,7 @@ export function storyboardProps(
   scenes: Scene[],
   blocks: Map<string, BlockInfo>,
   brand: SceneBrand,
-  opts: { voice?: Map<string, VoiceLine>; images?: Map<string, string>; music: string | null },
+  opts: { voice?: Map<string, VoiceLine>; images?: Map<string, string>; sprites?: Record<string, string>; music: string | null },
 ): { props: StoryboardProps; durationInFrames: number; starts: number[] } {
   const sbScenes: StoryboardScene[] = [];
   const starts: number[] = [];
@@ -65,7 +65,7 @@ export function storyboardProps(
     sbScenes.push({
       key: s.id,
       block: s.block,
-      props: opts.images?.has(s.id) ? { ...s.props, image: opts.images.get(s.id) } : s.props,
+      props: { ...s.props, ...(opts.images?.has(s.id) ? { image: opts.images.get(s.id) } : {}), ...(s.block === 'remotion/puppet' && opts.sprites ? { sprites: opts.sprites } : {}) },
       ordinal: scenes.slice(0, i + 1).filter((x) => x.block === s.block).length,
       durationSec: sec,
       narrationSrc: opts.voice?.get(s.id)?.url ?? null,

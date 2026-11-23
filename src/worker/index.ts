@@ -7,6 +7,7 @@ import { generateSceneAssets, type SceneAssetsRequest } from '@/core/workflows/a
 import { reviseScript, writeScript } from '@/core/workflows/script';
 import { createCoreDeps } from '@/server/core-deps';
 import { createLogger } from '@/server/logger';
+import { characterSpriteService } from '@/server/modules/series/character-sprites.service';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { assistantService } from '@/server/modules/assistant/assistant.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
@@ -40,6 +41,7 @@ const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: str
   scene_assets: (job, p) => generateSceneAssets(deps, episodeOf(job), job.payload as unknown as SceneAssetsRequest, p),
   produce: (job, p) => produce(deps, episodeOf(job), p),
   summarize: (job) => summarizeEpisode(deps, episodeOf(job)),
+  generate_sprites: (job, p) => characterSpriteService.run(job, p),
   generate_art: async (job) => {
     const p = job.payload as { channelId: string; kind: 'intro' | 'outro'; prompt: string };
     await channelService.generateArt(p.channelId, p.kind, p.prompt);
@@ -70,8 +72,9 @@ async function runJob(): Promise<boolean> {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
     const episode = job.episodeId ? episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
-    await withUsageScope({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
-    jobRepository.finish(job.id);
+    const result = await withUsageScope({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
+    // Only jobs that produce data (not an episode change) keep their return value.
+    jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });
   } catch (e) {
     const message = shortMessage(e);

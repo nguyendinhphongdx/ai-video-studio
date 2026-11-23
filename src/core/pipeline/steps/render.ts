@@ -12,9 +12,9 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
   label: 'Dựng cảnh',
   after: ['voice', 'images'],
   weight: 75,
-  inputs: ({ episode, channel }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt }),
+  inputs: ({ episode, channel, bible }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt, sprites: bible?.characterSprites ?? {} }),
   reusable: async ({ deps }, out) => (await Promise.all(Object.values(out.clips).flat().map((f) => deps.media.exists(f)))).every(Boolean),
-  async run({ deps, episode, brand, dir }, prev, progress) {
+  async run({ deps, episode, brand, dir, bible }, prev, progress) {
     const voice = prev.voice as VoiceOutput;
     const images = prev.images as ImagesOutput;
     const scenes = episode.scenes;
@@ -30,6 +30,16 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
     const pictures = new Map<string, string>();
     for (const [id, file] of Object.entries(images.files)) pictures.set(id, await deps.media.dataUri(file));
 
+    // Whole-body sprites of the series' puppet character, inlined once for the scenes that act with it.
+    const sprites: Record<string, string> = {};
+    if (scenes.some((s) => s.block === 'remotion/puppet')) {
+      for (const [expr, rel] of Object.entries(bible?.characterSprites ?? {})) {
+        const file = deps.media.absolute(rel);
+        if (await deps.media.exists(file)) sprites[expr] = await deps.media.dataUri(file);
+      }
+      if (!sprites.neutral) throw new UserFacingError('Cảnh "Nhân vật diễn" cần ảnh nhân vật Bình thường. Tải ảnh ở phần Nhân vật diễn của series rồi thử lại.');
+    }
+
     const clips: RenderOutput['clips'] = {};
     const total = episode.formats.length * scenes.length;
     for (const [fi, format] of episode.formats.entries()) {
@@ -42,7 +52,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         await deps.renderers.get(block.tool.id).render(
           {
             block: block.ref,
-            props: pictures.has(scene.id) ? { ...scene.props, image: pictures.get(scene.id) } : scene.props,
+            props: { ...scene.props, ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}), ...(scene.block === 'remotion/puppet' ? { sprites } : {}) },
             ordinal: scenes.slice(0, si + 1).filter((x) => x.block === scene.block).length,
             brand,
             format,

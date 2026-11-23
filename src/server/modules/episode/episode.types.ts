@@ -96,6 +96,8 @@ export interface EpisodeView {
   knowledge: { used: number | null; current: number | null };
   /** Per scene id: picture, voice and whether it can be approved. */
   assets: Record<string, SceneAssetView>;
+  /** Media URLs of the series' puppet sprites by expression (empty when none), for previews. */
+  sprites: Record<string, string>;
   /** Target duration from the series format, if any. */
   durationSec: { min: number; max: number } | null;
 }

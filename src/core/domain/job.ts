@@ -1,4 +1,4 @@
-export type JobKind = 'write_script' | 'revise_script' | 'produce' | 'summarize' | 'generate_art' | 'scene_assets' | 'assistant_turn';
+export type JobKind = 'write_script' | 'revise_script' | 'produce' | 'summarize' | 'generate_art' | 'generate_sprites' | 'scene_assets' | 'assistant_turn';
 export type JobState = 'queued' | 'running' | 'done' | 'failed';
 
 export interface Job {

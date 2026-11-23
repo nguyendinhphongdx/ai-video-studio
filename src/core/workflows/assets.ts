@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { UserFacingError } from '../domain/errors';
 import type { CoreDeps, ProgressFn } from '../ports';
-import { imageSpec, imageStyleOf, needsVoice, readiness, voiceHashOf } from '../scenes/assets';
+import { characterRefs, imageSpec, imageStyleOf, needsVoice, readiness, voiceHashOf } from '../scenes/assets';
 
 import { buildContext } from './context';
 
@@ -39,6 +39,7 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
   if (!work.length) return { images: 0, voices: 0 };
   if (work.some((w) => w.kind === 'image') && !(await deps.images.isReady())) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, nhập Google API key ở mục Tạo ảnh AI.');
 
+  const refs = characterRefs(ctx).map((r) => deps.media.absolute(r));
   let images = 0;
   let voices = 0;
   for (const [n, w] of work.entries()) {
@@ -48,7 +49,7 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
       // A redo writes a new file (the old name is cached by the browser) and asks for another composition.
       const redo = Boolean(req.force);
       const file = path.join(dir, 'images', `${scene.id}-${spec.hash}${redo ? `-${Date.now().toString(36)}` : ''}.png`);
-      await deps.images.generate(redo ? `${spec.prompt} ${REDO_HINTS[Date.now() % REDO_HINTS.length]}` : spec.prompt, file, { sceneId: scene.id });
+      await deps.images.generate(redo ? `${spec.prompt} ${REDO_HINTS[Date.now() % REDO_HINTS.length]}` : spec.prompt, file, { sceneId: scene.id }, deps.tools.block(scene.block)?.image?.background ? [] : refs);
       await deps.episodes.updateScene(episodeId, scene.id, { imagePath: deps.media.relative(file), imageHash: spec.hash, approved: false });
       images++;
     } else if (needsVoice(scene)) {

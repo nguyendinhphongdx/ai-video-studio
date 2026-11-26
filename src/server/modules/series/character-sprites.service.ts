@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
-import { EXPRESSIONS, expressionPrompt, missingExpressions, type Expression } from '@/core/character/expressions';
+import { EXPRESSIONS, expressionPrompt, missingExpressions, SPRITES } from '@/core/character/expressions';
 import { UserFacingError } from '@/core/domain';
 import type { Job } from '@/core/domain';
 import type { ImagePort } from '@/core/ports';
@@ -18,8 +18,8 @@ import { jobRepository } from '@/server/modules/job/job.repository';
 export const SpriteRequest = z.object({
   /** Media-relative path of the character's reference picture (bible.characterAssets[0]). */
   reference: z.string().min(1).max(300),
-  /** Expressions to make; sprites the series already has are passed in `existing` and kept. */
-  expressions: z.array(z.enum(EXPRESSIONS)).min(1).max(EXPRESSIONS.length).optional(),
+  /** Sprites to make (expressions and/or poses; default: the expressions); ones the series already has are passed in `existing` and kept. */
+  expressions: z.array(z.enum(SPRITES)).min(1).max(SPRITES.length).optional(),
   existing: z.record(z.string(), z.string()).default({}),
 });
 export type SpriteRequest = z.infer<typeof SpriteRequest>;
@@ -46,9 +46,9 @@ export async function generateSprites(req: SpriteRequest, deps: { images: ImageP
     let neutralFile = req.existing.neutral ? resolve(req.existing.neutral) : null;
     let canvas: SpriteCanvas | undefined;
     for (const [i, expr] of todo.entries()) {
-      progress(i / todo.length, `Vẽ biểu cảm ${expr}`);
+      progress(i / todo.length, `Vẽ ${expr}`);
       const raw = path.join(dir, `${expr}.png`);
-      await deps.images.generate(expressionPrompt(expr as Expression), raw, { purpose: 'character_sprite' }, neutralFile && expr !== 'neutral' ? [reference, neutralFile] : [reference]);
+      await deps.images.generate(expressionPrompt(expr), raw, { purpose: 'character_sprite' }, neutralFile && expr !== 'neutral' ? [reference, neutralFile] : [reference]);
       const out = await toSprite(await fs.readFile(raw), canvas);
       if (expr === 'neutral') canvas = out.canvas;
       made[expr] = await save(out.png);
@@ -65,7 +65,7 @@ export const characterSpriteService = {
   async request(input: unknown): Promise<Job> {
     const req = SpriteRequest.parse(input);
     resolveMedia(req.reference);
-    if (!spriteCount(req)) throw new UserFacingError('Đã có đủ biểu cảm, không cần tạo thêm.');
+    if (!spriteCount(req)) throw new UserFacingError('Đã có đủ ảnh, không cần tạo thêm.');
     if (!(await images.isReady())) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, nhập API key ở mục Tạo ảnh AI.');
     return jobRepository.insert(null, 'generate_sprites', req);
   },

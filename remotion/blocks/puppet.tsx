@@ -1,7 +1,7 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { useBrand, useFont, useLayout } from '../primitives';
-import { ANCHOR_X, ENTER_SECONDS, EXIT_SECONDS, expressionAt, poseAt, smoothstep, talkBounce, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
+import { ANCHOR_X, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
 
 export interface PuppetSceneProps {
@@ -22,8 +22,8 @@ export interface PuppetSceneProps {
 const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
 
 /**
- * A character (set of expression sprites from the series bible) acting on an AI-painted empty background:
- * it walks in, talks (mouth sprite and bounce), blinks, shows an emotion, and walks out.
+ * A character (expression and pose sprites from the series bible) acting on an AI-painted empty background:
+ * it walks in (walk cycle), talks (mouth sprite and bounce), blinks, shows an emotion, gestures (wave, point, bow…) and walks out.
  */
 export function PuppetScene({ caption, emotion, action, side, mood, companion, item, image, sprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
   const frame = useCurrentFrame();
@@ -37,10 +37,10 @@ export function PuppetScene({ caption, emotion, action, side, mood, companion, i
   const talkFrom = action === 'enter' ? ENTER_SECONDS : 0.3;
   const talkTo = action === 'exit' ? duration - EXIT_SECONDS : duration - 0.4;
   const talking = t > talkFrom && t < talkTo;
-  const pose = poseAt(action, side, t, duration);
+  const pose = poseAt(action, side, t, duration, hasFrames(action, available));
   const bounce = talkBounce(t, talking);
-  const expr = expressionAt({ emotion, talking, t, available });
-  const sprite = sprites?.[expr] ?? sprites?.neutral;
+  const shown = spriteAt({ action, side, emotion, talking, t, duration, available });
+  const sprite = sprites?.[shown.sprite] ?? sprites?.neutral;
   // A slow push-in with a sideways drift; the base zoom also crops the thin frame line some pictures carry at their edge.
   const bgZoom = interpolate(frame, [0, durationInFrames], [1.05, 1.13], { extrapolateRight: 'clamp' });
   const drift = interpolate(frame, [0, durationInFrames], [0, side === 'left' ? 22 : -22], { extrapolateRight: 'clamp' }) * u;
@@ -68,7 +68,7 @@ export function PuppetScene({ caption, emotion, action, side, mood, companion, i
         }}
       >
         {sprite ? (
-          <Img src={src(sprite)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%' }} />
+          <Img src={src(sprite)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: shown.flip ? 'scaleX(-1)' : undefined }} />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: font, fontSize: 40 * u, textAlign: 'center', border: `${4 * u}px dashed ${accent}`, borderRadius: 24 * u }}>
             Chưa có ảnh nhân vật

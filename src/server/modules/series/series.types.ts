@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { SPRITES } from '@/core/character/expressions';
 import { EpisodeFormatSchema } from '@/core/series/format';
 
 export const SeriesBibleSchema = z.object({
@@ -11,7 +12,7 @@ export const SeriesBibleSchema = z.object({
   characterAssets: z.array(z.string()).max(20).default([]),
   characters: z.string().max(2000).default(''),
   characterCast: z.record(z.string().regex(/^[a-z0-9-]{1,24}$/), z.string()).default({}),
-  characterSprites: z.partialRecord(z.enum(['neutral', 'talk', 'blink', 'happy', 'angry', 'sad', 'surprised']), z.string()).default({}),
+  characterSprites: z.partialRecord(z.enum(SPRITES), z.string()).default({}),
 });
 
 export const PublishTemplateSchema = z.object({

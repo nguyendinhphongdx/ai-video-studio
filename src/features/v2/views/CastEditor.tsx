@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { EXPRESSIONS } from '@/core/character/expressions';
+import { EXPRESSIONS, POSES, type SpriteKey } from '@/core/character/expressions';
 import type { SeriesBible } from '@/core/domain/series';
 import { seriesApi, type SeriesView } from '@/features/series/services/series.api';
 import { usageApi } from '@/features/usage/services/usage.api';
@@ -13,7 +13,11 @@ import { errorMessage } from '@/lib/api/client';
 import { usd } from '../model';
 
 export const media = (p: string) => `/api/v1/media/${p.split('/').map(encodeURIComponent).join('/')}`;
-const EXPRESSION: Record<string, string> = { neutral: 'Bình thường', talk: 'Đang nói', blink: 'Nháy mắt', happy: 'Vui', angry: 'Giận', sad: 'Buồn', surprised: 'Ngạc nhiên' };
+const LABEL: Record<SpriteKey, string> = {
+  neutral: 'Bình thường', talk: 'Đang nói', blink: 'Nháy mắt', happy: 'Vui', angry: 'Giận', sad: 'Buồn', surprised: 'Ngạc nhiên',
+  walk1: 'Bước 1', walk2: 'Bước 2', walk3: 'Bước 3', walk4: 'Bước 4', wave1: 'Vẫy 1', wave2: 'Vẫy 2', point: 'Chỉ tay', think: 'Suy nghĩ',
+  cross: 'Khoanh tay', bow: 'Cúi chào', sit: 'Ngồi', crouch: 'Lấy đà', leap: 'Bật nhảy', cheer: 'Ăn mừng',
+};
 const MAX_REFERENCES = 4;
 const CAST_ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
 
@@ -78,25 +82,42 @@ export function CastEditor({ series }: { series: SeriesView }) {
   useEffect(() => {
     if (!jobId || !state) return;
     if (state === 'failed') {
-      toast.error(job.data?.error ?? 'Chưa tạo được bộ biểu cảm. Thử lại nhé.');
+      toast.error(job.data?.error ?? 'Chưa vẽ được ảnh nhân vật. Thử lại nhé.');
       setJobId(null);
     } else if (state === 'done') {
       const made = (job.data?.result as { sprites?: Record<string, string> } | null)?.sprites ?? {};
       setBible((b) => ({ ...b, characterSprites: { ...b.characterSprites, ...made } }));
-      toast.success('Đã vẽ xong bộ biểu cảm. Nhớ bấm Lưu.');
+      toast.success('Đã vẽ xong. Nhớ bấm Lưu.');
       setJobId(null);
     }
   }, [jobId, state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reference = bible.characterAssets[0];
-  const missing = EXPRESSIONS.filter((e) => !bible.characterSprites[e]);
-  const estimate = useQuery({ queryKey: ['estimate', 'sprites', missing.length], queryFn: () => usageApi.estimate({ images: missing.length, texts: [], voice: '' }), enabled: missing.length > 0, staleTime: 60_000 });
   const generate = useMutation({
-    mutationFn: () => seriesApi.generateSprites({ reference: reference!, existing: bible.characterSprites }),
+    mutationFn: (keys: readonly SpriteKey[]) => seriesApi.generateSprites({ reference: reference!, existing: bible.characterSprites, expressions: [...keys] }),
     onSuccess: (j) => setJobId(j.id),
     onError: (e) => toast.error(errorMessage(e)),
   });
   const working = Boolean(jobId);
+  const setSprite = (k: SpriteKey, path: string | null) => {
+    const next = { ...bible.characterSprites };
+    if (path) next[k] = path;
+    else delete next[k];
+    set({ characterSprites: next });
+  };
+  const grid = (title: string, keys: readonly SpriteKey[], hint: string) => (
+    <SpriteGroup
+      title={title}
+      keys={keys}
+      hint={hint}
+      sprites={bible.characterSprites}
+      canGenerate={Boolean(reference)}
+      working={working}
+      progress={job.data?.progress ?? 0}
+      onGenerate={(missing) => generate.mutate(missing)}
+      onSet={setSprite}
+    />
+  );
 
   const [castId, setCastId] = useState('');
   const castIdOk = CAST_ID.test(castId) && !(castId in bible.characterCast);
@@ -140,51 +161,8 @@ export function CastEditor({ series }: { series: SeriesView }) {
         </div>
 
         <div className="col grow">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="eyebrow">Biểu cảm · {EXPRESSIONS.length - missing.length}/{EXPRESSIONS.length}</span>
-            <button className="btn sm dark" disabled={!reference || missing.length === 0 || working || generate.isPending} onClick={() => generate.mutate()} title={!reference ? 'Cần ảnh chuẩn trước' : undefined}>
-              {working
-                ? `Đang vẽ… ${Math.round((job.data?.progress ?? 0) * 100)}%`
-                : missing.length === 0
-                  ? 'Đã đủ biểu cảm'
-                  : `Vẽ ${missing.length} biểu cảm còn thiếu · ${estimate.data?.usd == null ? 'chưa rõ giá' : usd(estimate.data.usd)}`}
-            </button>
-          </div>
-          <div className="grid4" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
-            {EXPRESSIONS.map((k) => {
-              const p = bible.characterSprites[k];
-              return (
-                <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
-                  {p ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={media(p)} alt={EXPRESSION[k]} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <div className="sprite" style={{ borderStyle: 'dashed' }} />
-                  )}
-                  <figcaption className="cap" style={{ textAlign: 'center' }}>
-                    {EXPRESSION[k]}
-                  </figcaption>
-                  <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
-                    <UploadButton label={p ? 'Đổi' : 'Tải lên'} className="btn sm ghost" disabled={working} onUploaded={(path) => set({ characterSprites: { ...bible.characterSprites, [k]: path } })} />
-                    {p && (
-                      <button
-                        className="btn sm ghost"
-                        disabled={working}
-                        onClick={() => {
-                          const next = { ...bible.characterSprites };
-                          delete next[k];
-                          set({ characterSprites: next });
-                        }}
-                      >
-                        Bỏ
-                      </button>
-                    )}
-                  </div>
-                </figure>
-              );
-            })}
-          </div>
-          <span className="cap">Ảnh toàn thân, nền trong suốt. Cần ít nhất Bình thường; thêm Đang nói và Nháy mắt để nhân vật nói và chớp mắt.</span>
+          {grid('Biểu cảm', EXPRESSIONS, 'Ảnh toàn thân, nền trong suốt. Cần ít nhất Bình thường; thêm Đang nói và Nháy mắt để nhân vật nói và chớp mắt.')}
+          {grid('Tư thế', POSES, 'Bước 1–4 tạo dáng đi khi nhân vật vào, ra và đi ngang (vẽ hướng sang phải, đi sang trái tự lật). Vẫy 1–2 cho vẫy tay, Lấy đà và Bật nhảy cho nhảy. Thiếu tư thế nào thì cảnh đó dùng ảnh biểu cảm như cũ.')}
 
           <span className="eyebrow" style={{ marginTop: 8 }}>
             Nhân vật phụ và đạo cụ · {Object.keys(bible.characterCast).length}
@@ -238,5 +216,66 @@ export function CastEditor({ series }: { series: SeriesView }) {
         <span className="hint">{bible.characters.length} / 2000 ký tự</span>
       </div>
     </div>
+  );
+}
+
+/** One row of sprites (expressions or poses): upload, remove, or have the AI draw the missing ones (with a cost estimate). */
+function SpriteGroup({ title, keys, hint, sprites, canGenerate, working, progress, onGenerate, onSet }: {
+  title: string;
+  keys: readonly SpriteKey[];
+  hint: string;
+  sprites: Record<string, string>;
+  canGenerate: boolean;
+  working: boolean;
+  progress: number;
+  onGenerate: (missing: SpriteKey[]) => void;
+  onSet: (k: SpriteKey, path: string | null) => void;
+}) {
+  const missing = keys.filter((k) => !sprites[k]);
+  // Drawing anything also draws the neutral sprite first when it is missing.
+  const cost = missing.length + (!sprites.neutral && !missing.includes('neutral') ? 1 : 0);
+  const estimate = useQuery({ queryKey: ['estimate', 'sprites', cost], queryFn: () => usageApi.estimate({ images: cost, texts: [], voice: '' }), enabled: cost > 0, staleTime: 60_000 });
+  return (
+    <>
+      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+        <span className="eyebrow">
+          {title} · {keys.length - missing.length}/{keys.length}
+        </span>
+        <button className="btn sm dark" disabled={!canGenerate || missing.length === 0 || working} onClick={() => onGenerate(missing)} title={!canGenerate ? 'Cần ảnh chuẩn trước' : undefined}>
+          {working
+            ? `Đang vẽ… ${Math.round(progress * 100)}%`
+            : missing.length === 0
+              ? `Đã đủ ${title.toLowerCase()}`
+              : `Vẽ ${missing.length} ${title.toLowerCase()} còn thiếu · ${estimate.data?.usd == null ? 'chưa rõ giá' : usd(estimate.data.usd)}`}
+        </button>
+      </div>
+      <div className="grid4" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
+        {keys.map((k) => {
+          const p = sprites[k];
+          return (
+            <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
+              {p ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={media(p)} alt={LABEL[k]} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
+              ) : (
+                <div className="sprite" style={{ borderStyle: 'dashed' }} />
+              )}
+              <figcaption className="cap" style={{ textAlign: 'center' }}>
+                {LABEL[k]}
+              </figcaption>
+              <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
+                <UploadButton label={p ? 'Đổi' : 'Tải lên'} className="btn sm ghost" disabled={working} onUploaded={(path) => onSet(k, path)} />
+                {p && (
+                  <button className="btn sm ghost" disabled={working} onClick={() => onSet(k, null)}>
+                    Bỏ
+                  </button>
+                )}
+              </div>
+            </figure>
+          );
+        })}
+      </div>
+      <span className="cap">{hint}</span>
+    </>
   );
 }

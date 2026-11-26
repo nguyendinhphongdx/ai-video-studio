@@ -21,7 +21,7 @@ export const seriesApi = {
     return api<{ path: string }>('/series/characters', { form });
   },
   /** Queues the AI expression sprites; poll `job` and read `result.sprites` when it is done. */
-  generateSprites: (body: { reference: string; existing: Record<string, string> }) => api<Job>('/series/characters/sprites', { body }),
+  generateSprites: (body: { reference: string; existing: Record<string, string>; expressions?: string[] }) => api<Job>('/series/characters/sprites', { body }),
   job: (id: string) => api<Job>(`/jobs/${id}`),
   versions: (id: string) => api<SeriesView['rules'][]>(s(id, '/versions')),
   importFile: (channelId: string, file: SeriesFile) => api<SeriesView>('/series/import', { body: { channelId, file } }),

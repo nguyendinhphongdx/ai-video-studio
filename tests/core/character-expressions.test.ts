@@ -15,6 +15,7 @@ describe('expression prompts', () => {
     expect(new Set(prompts).size).toBe(POSES.length);
     for (const p of prompts) expect(p).toContain('in this pose');
     expect(expressionPrompt('walk1')).toContain('towards the right');
+    expect(expressionPrompt('walk1')).toContain('ribbons');
   });
 
   it('draws neutral first when poses are asked for without it', () => {

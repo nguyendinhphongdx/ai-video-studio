@@ -86,6 +86,8 @@ function spritePrompt(body: string, props = 'no props'): string {
   return [
     'Redraw the exact same character shown in the reference picture(s): same face shape, colours, outfit, proportions and art style.',
     body,
+    // Side and three-quarter views made the model drop flowing parts of the outfit (scarves, sashes, ribbons).
+    'Keep every part of the outfit and accessories exactly as in the reference, seen from this angle: scarves, sashes, ribbons, belts, jewellery and hair ornaments must all still be there.',
     `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, ${props}, no other characters, no text.`,
     'Do not use green anywhere on the character.',
   ].join(' ');

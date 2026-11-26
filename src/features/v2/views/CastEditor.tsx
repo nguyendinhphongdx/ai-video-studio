@@ -1,0 +1,242 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import { EXPRESSIONS } from '@/core/character/expressions';
+import type { SeriesBible } from '@/core/domain/series';
+import { seriesApi, type SeriesView } from '@/features/series/services/series.api';
+import { usageApi } from '@/features/usage/services/usage.api';
+import { errorMessage } from '@/lib/api/client';
+
+import { usd } from '../model';
+
+export const media = (p: string) => `/api/v1/media/${p.split('/').map(encodeURIComponent).join('/')}`;
+const EXPRESSION: Record<string, string> = { neutral: 'Bình thường', talk: 'Đang nói', blink: 'Nháy mắt', happy: 'Vui', angry: 'Giận', sad: 'Buồn', surprised: 'Ngạc nhiên' };
+const MAX_REFERENCES = 4;
+const CAST_ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
+
+/** Hidden file input behind a button; uploads the picture and hands back its media path. */
+function UploadButton({ label, onUploaded, className = 'btn sm', disabled }: { label: string; onUploaded: (path: string) => void; className?: string; disabled?: boolean }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <button type="button" className={className} disabled={disabled || busy} onClick={() => ref.current?.click()}>
+        {busy ? 'Đang tải lên…' : label}
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy(true);
+          try {
+            onUploaded((await seriesApi.uploadCharacter(file)).path);
+          } catch (err) {
+            toast.error(errorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    </>
+  );
+}
+
+/**
+ * Edits one series' characters: reference pictures (every scene picture is drawn to match them), the description the
+ * AI reads, the puppet's expression sprites (uploaded or generated from the reference) and the supporting cast.
+ * Saving writes a new series version; episodes already written keep the version they pinned.
+ */
+export function CastEditor({ series }: { series: SeriesView }) {
+  const qc = useQueryClient();
+  const saved = series.rules.bible as SeriesBible;
+  const [bible, setBible] = useState<SeriesBible>(saved);
+  useEffect(() => setBible(series.rules.bible as SeriesBible), [series.rules]);
+  const dirty = JSON.stringify(bible) !== JSON.stringify(saved);
+  const set = (patch: Partial<SeriesBible>) => setBible((b) => ({ ...b, ...patch }));
+
+  const save = useMutation({
+    mutationFn: () => seriesApi.saveRules(series.id, { skillId: series.rules.skillId, bible, format: series.rules.format, publish: series.rules.publish }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['series', series.channelId] });
+      toast.success('Đã lưu nhân vật · bản mới của series');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  // AI expression set: a worker job; when done, the new sprites join the ones already set (still unsaved).
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = useQuery({ queryKey: ['sprite-job', jobId], queryFn: () => seriesApi.job(jobId!), enabled: Boolean(jobId), refetchInterval: 1500 });
+  const state = job.data?.state;
+  useEffect(() => {
+    if (!jobId || !state) return;
+    if (state === 'failed') {
+      toast.error(job.data?.error ?? 'Chưa tạo được bộ biểu cảm. Thử lại nhé.');
+      setJobId(null);
+    } else if (state === 'done') {
+      const made = (job.data?.result as { sprites?: Record<string, string> } | null)?.sprites ?? {};
+      setBible((b) => ({ ...b, characterSprites: { ...b.characterSprites, ...made } }));
+      toast.success('Đã vẽ xong bộ biểu cảm. Nhớ bấm Lưu.');
+      setJobId(null);
+    }
+  }, [jobId, state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reference = bible.characterAssets[0];
+  const missing = EXPRESSIONS.filter((e) => !bible.characterSprites[e]);
+  const estimate = useQuery({ queryKey: ['estimate', 'sprites', missing.length], queryFn: () => usageApi.estimate({ images: missing.length, texts: [], voice: '' }), enabled: missing.length > 0, staleTime: 60_000 });
+  const generate = useMutation({
+    mutationFn: () => seriesApi.generateSprites({ reference: reference!, existing: bible.characterSprites }),
+    onSuccess: (j) => setJobId(j.id),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const working = Boolean(jobId);
+
+  const [castId, setCastId] = useState('');
+  const castIdOk = CAST_ID.test(castId) && !(castId in bible.characterCast);
+
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <span className="eyebrow">Series · bản {series.currentVersion}</span>
+          <h2>{series.name}</h2>
+        </div>
+        <div className="row">
+          {dirty && <span className="chip warn">Chưa lưu</span>}
+          {dirty && (
+            <button className="btn sm ghost" onClick={() => setBible(saved)}>
+              Bỏ thay đổi
+            </button>
+          )}
+          <button className="btn sm pri" disabled={!dirty || save.isPending || working} onClick={() => save.mutate()}>
+            Lưu nhân vật
+          </button>
+        </div>
+      </div>
+
+      <div className="row" style={{ alignItems: 'flex-start', gap: 24 }}>
+        <div className="col" style={{ flex: '0 0 220px' }}>
+          <span className="eyebrow">Ảnh chuẩn · {bible.characterAssets.length}/{MAX_REFERENCES}</span>
+          <div className="grid2" style={{ gap: 8 }}>
+            {bible.characterAssets.map((p, i) => (
+              <div key={p} style={{ position: 'relative' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={media(p)} alt={`Ảnh chuẩn ${i + 1}`} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
+                <button className="btn sm" aria-label="Bỏ ảnh này" style={{ position: 'absolute', top: 4, right: 4, minHeight: 24, padding: '0 6px' }} onClick={() => set({ characterAssets: bible.characterAssets.filter((x) => x !== p) })}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          {bible.characterAssets.length < MAX_REFERENCES && <UploadButton label="+ Thêm ảnh chuẩn" onUploaded={(p) => set({ characterAssets: [...bible.characterAssets, p] })} />}
+          <span className="cap">Mọi ảnh cảnh được vẽ theo các ảnh này. Đổi ảnh thì các cảnh cần tạo lại ảnh.</span>
+        </div>
+
+        <div className="col grow">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="eyebrow">Biểu cảm · {EXPRESSIONS.length - missing.length}/{EXPRESSIONS.length}</span>
+            <button className="btn sm dark" disabled={!reference || missing.length === 0 || working || generate.isPending} onClick={() => generate.mutate()} title={!reference ? 'Cần ảnh chuẩn trước' : undefined}>
+              {working
+                ? `Đang vẽ… ${Math.round((job.data?.progress ?? 0) * 100)}%`
+                : missing.length === 0
+                  ? 'Đã đủ biểu cảm'
+                  : `Vẽ ${missing.length} biểu cảm còn thiếu · ${estimate.data?.usd == null ? 'chưa rõ giá' : usd(estimate.data.usd)}`}
+            </button>
+          </div>
+          <div className="grid4" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
+            {EXPRESSIONS.map((k) => {
+              const p = bible.characterSprites[k];
+              return (
+                <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
+                  {p ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={media(p)} alt={EXPRESSION[k]} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <div className="sprite" style={{ borderStyle: 'dashed' }} />
+                  )}
+                  <figcaption className="cap" style={{ textAlign: 'center' }}>
+                    {EXPRESSION[k]}
+                  </figcaption>
+                  <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
+                    <UploadButton label={p ? 'Đổi' : 'Tải lên'} className="btn sm ghost" disabled={working} onUploaded={(path) => set({ characterSprites: { ...bible.characterSprites, [k]: path } })} />
+                    {p && (
+                      <button
+                        className="btn sm ghost"
+                        disabled={working}
+                        onClick={() => {
+                          const next = { ...bible.characterSprites };
+                          delete next[k];
+                          set({ characterSprites: next });
+                        }}
+                      >
+                        Bỏ
+                      </button>
+                    )}
+                  </div>
+                </figure>
+              );
+            })}
+          </div>
+          <span className="cap">Ảnh toàn thân, nền trong suốt. Cần ít nhất Bình thường; thêm Đang nói và Nháy mắt để nhân vật nói và chớp mắt.</span>
+
+          <span className="eyebrow" style={{ marginTop: 8 }}>
+            Nhân vật phụ và đạo cụ · {Object.keys(bible.characterCast).length}
+          </span>
+          <div className="grid4" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 }}>
+            {Object.entries(bible.characterCast).map(([k, p]) => (
+              <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={media(p)} alt={k} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
+                <figcaption className="mono cap" style={{ textAlign: 'center' }}>
+                  {k}
+                </figcaption>
+                <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
+                  <UploadButton label="Đổi" className="btn sm ghost" onUploaded={(path) => set({ characterCast: { ...bible.characterCast, [k]: path } })} />
+                  <button
+                    className="btn sm ghost"
+                    onClick={() => {
+                      const next = { ...bible.characterCast };
+                      delete next[k];
+                      set({ characterCast: next });
+                    }}
+                  >
+                    Bỏ
+                  </button>
+                </div>
+              </figure>
+            ))}
+          </div>
+          <div className="row" style={{ alignItems: 'flex-end' }}>
+            <div className="field" style={{ width: 220 }}>
+              <label htmlFor={`cast-${series.id}`}>Thêm nhân vật phụ hoặc đạo cụ</label>
+              <input id={`cast-${series.id}`} className="input mono" placeholder="ví dụ: ngao-binh" value={castId} onChange={(e) => setCastId(e.target.value.toLowerCase())} />
+            </div>
+            <UploadButton
+              label="Chọn ảnh và thêm"
+              disabled={!castIdOk}
+              onUploaded={(path) => {
+                set({ characterCast: { ...bible.characterCast, [castId]: path } });
+                setCastId('');
+              }}
+            />
+            {castId && !castIdOk && <span className="cap">Id chỉ gồm chữ thường, số và dấu gạch, không trùng.</span>}
+          </div>
+          <span className="cap">Cảnh có nhân vật diễn gọi các id này ở ô Nhân vật phụ và Bảo vật.</span>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor={`chars-${series.id}`}>Mô tả nhân vật cho AI</label>
+        <textarea id={`chars-${series.id}`} className="area" rows={4} maxLength={2000} value={bible.characters} onChange={(e) => set({ characters: e.target.value })} placeholder="Tên và đặc điểm cố định, ví dụ: Na Tra: bé trai tóc búi hai bên, áo đỏ, vòng vàng." />
+        <span className="hint">{bible.characters.length} / 2000 ký tự</span>
+      </div>
+    </div>
+  );
+}

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description: 'AI viết, lồng tiếng và dựng video cho kênh của bạn; bạn duyệt.',
   applicationName: 'AI Video Studio',
   appleWebApp: { capable: true, title: 'Video Studio', statusBarStyle: 'black-translucent' },
-  icons: { icon: [{ url: '/pwa-icon/192', sizes: '192x192', type: 'image/png' }], apple: [{ url: '/pwa-icon/180', sizes: '180x180', type: 'image/png' }] },
+  icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml' }, { url: '/pwa-icon/192', sizes: '192x192', type: 'image/png' }], apple: [{ url: '/pwa-icon/180', sizes: '180x180', type: 'image/png' }] },
   formatDetection: { telephone: false },
 };
 

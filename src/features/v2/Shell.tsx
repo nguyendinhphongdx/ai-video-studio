@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { LogoMark } from '@/components/brand/LogoMark';
+
 import { projectHref } from './model';
 
 type NavItem = { href: string; label: string; exact?: boolean };
@@ -32,7 +34,7 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
     <div className="app" style={{ minHeight: '100dvh' }}>
       <aside className="side">
         <Link href="/" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
-          <i />
+          <LogoMark />
           Studio
         </Link>
         {nav}

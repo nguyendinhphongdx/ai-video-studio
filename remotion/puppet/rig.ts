@@ -61,6 +61,8 @@ const STEP_HZ = 2.4;
 export const ENTER_SECONDS = 1.1;
 export const EXIT_SECONDS = 0.9;
 const WAVE_SECONDS = 2.4;
+/** Wave frame changes per second: slow enough to read as a wave, not a flicker. */
+const WAVE_HZ = 2.5;
 const BOW_FROM = 0.3;
 const BOW_TO = 1.9;
 const JUMP_PERIOD = 1.2;
@@ -213,7 +215,7 @@ export function spriteAt(opts: { action: PuppetAction; side: Side; emotion: Emot
   // The series' own pose, held whenever the body stands (it wins over the action's standard gesture).
   const own = opts.pose ? (`pose:${opts.pose}` as const) : null;
   if (own && !moving && has(own)) return posed(own);
-  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return posed(Math.floor(t * 4) % 2 ? 'wave2' : 'wave1');
+  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return posed(Math.floor(t * WAVE_HZ) % 2 ? 'wave2' : 'wave1');
   if (action === 'jump') {
     const p = (t % JUMP_PERIOD) / JUMP_PERIOD;
     const ground = p < 0.12 || p > 0.88;
@@ -222,7 +224,8 @@ export function spriteAt(opts: { action: PuppetAction; side: Side; emotion: Emot
   }
   if (action === 'bow' && t > BOW_FROM && t < BOW_TO && has('bow')) return posed('bow');
   const held = HELD[action];
-  if (held && has(held)) return posed(held);
+  // The point sprite points to the right; a hero on the right points back towards the middle (and the companion).
+  if (held && has(held)) return posed(held, held === 'point' && opts.side === 'right');
   return { sprite: expressionAt(opts), flip: false, posed: false };
 }
 
@@ -236,10 +239,13 @@ export function hasFrames(action: PuppetAction, available: readonly string[]): b
  * A supporting character's picture at `t`: one of its pose sprites (named by pose in `available`), or null for its
  * base picture. `talk` flaps the mouth like the hero; `wave` alternates two frames for a while; `point` holds.
  */
+/** Mirror a supporting character's sprite: its point pose points right, and it should point towards the hero. */
+export const companionFlip = (pose: string | null, heroSide: Side) => pose === 'point' && heroSide !== 'right';
+
 export function companionPoseAt(action: CompanionAction, t: number, available: readonly string[], talkTo = Infinity): 'talk' | 'wave1' | 'wave2' | 'point' | null {
   const has = (k: string) => available.includes(k);
   if (action === 'talk' && t > 0.3 && t < talkTo && has('talk') && mouthOpen(t)) return 'talk';
-  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return Math.floor(t * 4) % 2 ? 'wave2' : 'wave1';
+  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return Math.floor(t * WAVE_HZ) % 2 ? 'wave2' : 'wave1';
   if (action === 'point' && has('point')) return 'point';
   return null;
 }

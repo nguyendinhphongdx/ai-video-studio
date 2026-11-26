@@ -136,22 +136,47 @@ export function alphaBounds(k: Keyed, min = 16): { left: number; top: number; wi
   return { left: x0, top: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 };
 }
 
+/**
+ * Top row of the character's body inside `box`: the first row as wide as half the figure's typical row. A raised hand
+ * or fist is much narrower than the head, so it is skipped and the size of a waving sprite matches a standing one.
+ */
+export function bodyTop(k: Keyed, box: { left: number; top: number; width: number; height: number }, min = 16): number {
+  const counts: number[] = [];
+  for (let y = box.top; y < box.top + box.height; y++) {
+    let n = 0;
+    for (let x = box.left; x < box.left + box.width; x++) if (k.data[(y * k.width + x) * 4 + 3]! > min) n++;
+    counts.push(n);
+  }
+  const typical = [...counts].sort((a, b) => a - b)[counts.length >> 1] ?? 0;
+  const i = counts.findIndex((n) => n >= typical * 0.5);
+  return box.top + Math.max(0, i);
+}
+
+/** Height of the body (feet to head, raised hands left out) of the figure in `box`. */
+const bodyHeight = (k: Keyed, box: { left: number; top: number; width: number; height: number }) => box.top + box.height - bodyTop(k, box);
+
 const MARGIN = 24;
 const LONG_SIDE = 1000;
+/** Room above the neutral figure (a share of its height) so a raised hand or a leap fits without shrinking the body. */
+export const HEADROOM = 0.3;
+
+/** The same canvas with headroom above the figure (for canvases made before headroom existed). */
+export const withHeadroom = (c: SpriteCanvas): SpriteCanvas => ({ ...c, height: Math.max(c.height, Math.round(c.figure * (1 + HEADROOM)) + 2 * MARGIN) });
 
 /** The transparent canvas every sprite of one character shares, and how tall the character stands on it in its neutral sprite. */
 export interface SpriteCanvas {
   width: number;
   height: number;
-  /** Height in canvas pixels of the character in its neutral sprite; other sprites are sized from it. */
+  /** Height in canvas pixels of the character's body (feet to head, raised hands left out) in its neutral sprite; other sprites are sized from it. */
   figure: number;
 }
 
 /** The canvas of an existing sprite (its size, and the height of the figure on it). */
 export async function canvasOf(png: Buffer): Promise<SpriteCanvas> {
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const box = alphaBounds({ data, width: info.width, height: info.height });
-  return { width: info.width, height: info.height, figure: box?.height ?? info.height - 2 * MARGIN };
+  const k = { data, width: info.width, height: info.height };
+  const box = alphaBounds(k);
+  return { width: info.width, height: info.height, figure: box ? bodyHeight(k, box) : info.height - 2 * MARGIN };
 }
 
 /**
@@ -161,7 +186,7 @@ export async function canvasOf(png: Buffer): Promise<SpriteCanvas> {
 async function place(keyed: Keyed, c: SpriteCanvas, ratio: number): Promise<Buffer> {
   const box = alphaBounds(keyed);
   if (!box) throw new Error('Không tìm thấy nhân vật trong ảnh (toàn ảnh là nền).');
-  const s = Math.min((c.figure * ratio) / box.height, (c.width - 2 * MARGIN) / box.width, (c.height - 2 * MARGIN) / box.height);
+  const s = Math.min((c.figure * ratio) / bodyHeight(keyed, box), (c.width - 2 * MARGIN) / box.width, (c.height - 2 * MARGIN) / box.height);
   const cut = await sharp(keyed.data, { raw: { width: keyed.width, height: keyed.height, channels: 4 } }).extract(box).resize(Math.max(1, Math.round(box.width * s)), Math.max(1, Math.round(box.height * s))).png().toBuffer();
   const meta = await sharp(cut).metadata();
   return sharp({ create: { width: c.width, height: c.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
@@ -180,7 +205,8 @@ export async function toSprite(input: Buffer, canvas?: SpriteCanvas, opts?: KeyO
   const box = alphaBounds(keyed);
   if (!box) throw new Error('Không tìm thấy nhân vật trong ảnh (toàn ảnh là nền).');
   const own = Math.min(LONG_SIDE / box.width, LONG_SIDE / box.height);
-  const c: SpriteCanvas = canvas ?? { width: Math.round(box.width * own) + 2 * MARGIN, height: Math.round(box.height * own) + 2 * MARGIN, figure: Math.round(box.height * own) };
+  const figure = Math.round(bodyHeight(keyed, box) * own);
+  const c: SpriteCanvas = canvas ?? { width: Math.round(box.width * own) + 2 * MARGIN, height: Math.max(Math.round(box.height * own), Math.round(figure * (1 + HEADROOM))) + 2 * MARGIN, figure };
   return { png: await place(keyed, c, canvas ? ratio : 1), canvas: c };
 }
 

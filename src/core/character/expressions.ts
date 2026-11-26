@@ -47,7 +47,7 @@ const POSE_LOOK: Record<Pose, string> = {
   walk4: `${WALK}: legs passing under the body, right knee lifted slightly, arms close to the sides`,
   wave1: 'facing the viewer and smiling, one hand raised high beside the head with the palm open, waving, the hand tilted outward',
   wave2: 'facing the viewer and smiling, one hand raised high beside the head with the palm open, waving, the hand tilted inward towards the head',
-  point: 'facing the viewer, one arm stretched straight out to the side with the index finger pointing at something off to the side',
+  point: 'facing the viewer, one arm stretched straight out towards the right side of the frame (the viewer’s right) with the index finger pointing at something there',
   think: 'facing the viewer, one hand touching the chin, eyes looking up, thinking hard',
   cross: 'facing the viewer, arms crossed firmly over the chest, confident',
   bow: 'bowing politely to the viewer, upper body bent forward from the waist, hands together in front',
@@ -57,8 +57,8 @@ const POSE_LOOK: Record<Pose, string> = {
   cheer: 'standing, both fists raised high above the head in celebration, big happy smile',
 };
 
-/** How tall the character stands in each pose, relative to its neutral sprite (the picture model draws every one at a different scale). */
-const HEIGHT: Partial<Record<Pose, number>> = { wave1: 1.06, wave2: 1.06, bow: 0.86, sit: 0.68, crouch: 0.76, leap: 0.95, cheer: 1.12 };
+/** How tall the body (feet to head, raised hands left out) stands in each pose, relative to the neutral sprite (the picture model draws every one at a different scale). */
+const HEIGHT: Partial<Record<Pose, number>> = { bow: 0.86, sit: 0.68, crouch: 0.76, leap: 0.95 };
 /** Height ratio for any sprite key; expressions, walk frames and the series' own poses stand as tall as neutral. */
 export const heightRatio = (key: string): number => HEIGHT[key as Pose] ?? 1;
 

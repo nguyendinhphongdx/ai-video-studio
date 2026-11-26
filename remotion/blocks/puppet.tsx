@@ -1,7 +1,7 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { useBrand, useFont, useLayout } from '../primitives';
-import { ANCHOR_X, companionPoseAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
+import { ANCHOR_X, companionFlip, companionPoseAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
 
 export interface PuppetSceneProps {
@@ -67,7 +67,7 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
     <AbsoluteFill style={{ background: '#1b1b1b' }}>
       {image ? <Img src={src(image)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `translateX(${drift}px) scale(${bgZoom})` }} /> : null}
       <Atmosphere mood={mood ?? 'calm'} frame={frame} fps={fps} width={width} height={height} u={u} />
-      {companionSrc ? <Companion src={companionSrc} side={side} t={t} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} /> : null}
+      {companionSrc ? <Companion src={companionSrc} side={side} t={t} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} flip={companionFlip(companionPose, side)} /> : null}
       <div
         style={{
           position: 'absolute',
@@ -101,7 +101,7 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
 }
 
 /** A supporting character on the side opposite the hero: it slides in, then breathes and sways. */
-function Companion({ src: file, side, t, width, stageH, ground, u, talking }: { src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number; talking: boolean }) {
+function Companion({ src: file, side, t, width, stageH, ground, u, talking, flip }: { src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number; talking: boolean; flip: boolean }) {
   const from = side === 'right' ? 'left' : 'right';
   const k = smoothstep((t - 0.2) / 0.9);
   const x = (from === 'left' ? -0.2 : 1.2) + (ANCHOR_X[from === 'left' ? 'left' : 'right'] - (from === 'left' ? -0.2 : 1.2)) * k;
@@ -112,7 +112,7 @@ function Companion({ src: file, side, t, width, stageH, ground, u, talking }: { 
     <>
       <div style={{ position: 'absolute', left: x * width - h * 0.18, bottom: ground - 12 * u, width: h * 0.36, height: 24 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
       <div style={{ position: 'absolute', left: x * width - (h * STAGE_ASPECT) / 2, bottom: ground + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
-        <Img src={file} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%' }} />
+        <Img src={file} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: flip ? 'scaleX(-1)' : undefined }} />
       </div>
     </>
   );

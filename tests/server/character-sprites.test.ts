@@ -80,6 +80,20 @@ describe('chroma key', () => {
     expect(Math.abs((await h(await refitSprite(tiny.png, a.canvas, 0.5))) - a.canvas.figure * 0.5)).toBeLessThan(3);
   });
 
+  it('leaves a raised hand out of the body height, so a waving sprite keeps the standing size', async () => {
+    // A body 60 wide x 120 tall, then the same body with a thin "hand" 8 px wide raised 30 px above it (a quarter of its height).
+    const body = await sharp({ create: { width: 60, height: 120, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();
+    const hand = await sharp({ create: { width: 8, height: 30, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();
+    const green = { r: 0, g: 255, b: 0 };
+    const stand = await sharp({ create: { width: 200, height: 260, channels: 3, background: green } }).composite([{ input: body, left: 70, top: 110 }]).png().toBuffer();
+    const wave = await sharp({ create: { width: 200, height: 260, channels: 3, background: green } }).composite([{ input: body, left: 70, top: 110 }, { input: hand, left: 120, top: 80 }]).png().toBuffer();
+    const a = await toSprite(stand);
+    const b = await toSprite(wave, a.canvas);
+    const width = async (png: Buffer) => alphaBounds(await decode(png))!.width;
+    // Same body width means the same scale: the hand did not shrink the waving figure.
+    expect(Math.abs((await width(b.png)) - (await width(a.png)))).toBeLessThan(4);
+  });
+
   it('finds the background colour by itself when the model paints a muted green, not pure #00FF00', async () => {
     const bgc = { r: 160, g: 205, b: 120 };
     const body = await sharp({ create: { width: 60, height: 120, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();

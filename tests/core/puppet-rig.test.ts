@@ -60,7 +60,7 @@ describe('puppet rig', () => {
     });
 
     it('alternates the wave frames, then talks', () => {
-      expect(new Set([0, 0.25, 0.5, 0.75].map((t) => at('wave', t).sprite))).toEqual(new Set(['wave1', 'wave2']));
+      expect(new Set([0, 0.45, 0.9, 1.3].map((t) => at('wave', t).sprite))).toEqual(new Set(['wave1', 'wave2']));
       expect(at('wave', 4).posed).toBe(false);
     });
 
@@ -71,6 +71,9 @@ describe('puppet rig', () => {
 
     it('holds a gesture pose and bows only for a moment', () => {
       expect(at('point', 3).sprite).toBe('point');
+      // Drawn pointing right: from the right side it is mirrored to point back towards the middle.
+      expect(at('point', 3, all, 'left').flip).toBe(false);
+      expect(at('point', 3, all, 'right').flip).toBe(true);
       expect(at('bow', 1).sprite).toBe('bow');
       expect(at('bow', 4).posed).toBe(false);
     });
@@ -94,7 +97,7 @@ describe('puppet rig', () => {
     const all = ['talk', 'wave1', 'wave2', 'point'];
     expect(new Set([0.5, 0.7, 0.9, 1.1, 1.3, 1.5].map((t) => companionPoseAt('talk', t, all)))).toEqual(new Set(['talk', null]));
     expect(companionPoseAt('talk', 2, all, 1)).toBeNull();
-    expect(new Set([0, 0.25].map((t) => companionPoseAt('wave', t, all)))).toEqual(new Set(['wave1', 'wave2']));
+    expect(new Set([0, 0.45].map((t) => companionPoseAt('wave', t, all)))).toEqual(new Set(['wave1', 'wave2']));
     expect(companionPoseAt('point', 3, all)).toBe('point');
     expect(companionPoseAt('point', 3, [])).toBeNull();
   });

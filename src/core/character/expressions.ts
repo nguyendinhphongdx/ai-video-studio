@@ -57,6 +57,16 @@ const POSE_LOOK: Record<Pose, string> = {
   cheer: 'standing, both fists raised high above the head in celebration, big happy smile',
 };
 
+/** How tall the character stands in each pose, relative to its neutral sprite (the picture model draws every one at a different scale). */
+const HEIGHT: Partial<Record<Pose, number>> = { wave1: 1.06, wave2: 1.06, bow: 0.86, sit: 0.68, crouch: 0.76, leap: 0.95, cheer: 1.12 };
+/** Height ratio for any sprite key; expressions, walk frames and the series' own poses stand as tall as neutral. */
+export const heightRatio = (key: string): number => HEIGHT[key as Pose] ?? 1;
+
+/** Pose sprites get a canvas wider than tall (arms and sleeves out); it stays narrower than the stage box (STAGE_ASPECT in
+ * the puppet scene) so every sprite is drawn at the same scale there. */
+export const POSE_CANVAS_ASPECT = 1.5;
+export const isPoseKey = (key: string) => (POSES as readonly string[]).includes(key) || key.startsWith('pose:');
+
 const isPose = (k: SpriteKey): k is Pose => (POSES as readonly string[]).includes(k);
 
 const inPose = (look: string) => `Show the full body, centred, the whole figure inside the frame with hands and feet visible, in this pose: ${look}.`;

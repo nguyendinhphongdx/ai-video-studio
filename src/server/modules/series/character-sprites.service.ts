@@ -6,12 +6,12 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
-import { CAST_POSES, customPosePrompt, EXPRESSIONS, expressionPrompt, POSE_ID, SPRITES } from '@/core/character/expressions';
+import { CAST_POSES, customPosePrompt, EXPRESSIONS, expressionPrompt, heightRatio, isPoseKey, POSE_CANVAS_ASPECT, POSE_ID, SPRITES } from '@/core/character/expressions';
 import { UserFacingError } from '@/core/domain';
 import type { Job } from '@/core/domain';
 import type { ImagePort } from '@/core/ports';
 import { images } from '@/server/adapters/image/image.service';
-import { toSprite, type SpriteCanvas } from '@/server/adapters/media/chroma-key';
+import { canvasOf, toSprite, type SpriteCanvas } from '@/server/adapters/media/chroma-key';
 import { resolveMedia, saveCharacterFile } from '@/server/adapters/media/media.service';
 import { jobRepository } from '@/server/modules/job/job.repository';
 
@@ -65,12 +65,14 @@ export async function generateSprites(req: SpriteRequest, deps: { images: ImageP
     // The neutral sprite (new or existing) is also sent with the other sprites and fixes the size of all of them.
     // A supporting character has no neutral sprite: its own picture is the only reference.
     let neutralFile = !cast && req.existing.neutral ? resolve(req.existing.neutral) : null;
-    let canvas: SpriteCanvas | undefined;
+    // Size every new sprite from the character as it stands in its neutral sprite (or the cast member's own picture).
+    let canvas: SpriteCanvas | undefined = cast ? await canvasOf(await fs.readFile(reference)) : neutralFile ? await canvasOf(await fs.readFile(neutralFile)) : undefined;
+    const sized = (c: SpriteCanvas, key: string): SpriteCanvas => (!cast && isPoseKey(key) ? { ...c, width: Math.max(c.width, Math.round(c.height * POSE_CANVAS_ASPECT)) } : c);
     for (const [i, [expr, prompt]] of todo.entries()) {
       progress(i / todo.length, `Vẽ ${expr}`);
       const raw = path.join(dir, `${expr.replace(':', '-')}.png`);
       await deps.images.generate(prompt, raw, { purpose: 'character_sprite' }, neutralFile && expr !== 'neutral' ? [reference, neutralFile] : [reference]);
-      const out = await toSprite(await fs.readFile(raw), canvas);
+      const out = await toSprite(await fs.readFile(raw), canvas && sized(canvas, expr), undefined, heightRatio(expr));
       if (expr === 'neutral') canvas = out.canvas;
       made[expr] = await save(out.png);
       if (expr === 'neutral') neutralFile = resolve(made[expr]);

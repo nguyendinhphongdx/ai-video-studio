@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/server/adapters/image/image.service', () => ({ images: { isReady: async () => true, generate: async () => {} } }));
 vi.mock('@/server/modules/job/job.repository', () => ({ jobRepository: { insert: () => ({}) } }));
 
-import { alphaBounds, keyOut, toSprite } from '@/server/adapters/media/chroma-key';
+import { alphaBounds, keyOut, refitSprite, toSprite } from '@/server/adapters/media/chroma-key';
 import type { ImagePort } from '@/core/ports';
 import { generateSprites, spriteCount } from '@/server/modules/series/character-sprites.service';
 
@@ -68,6 +68,16 @@ describe('chroma key', () => {
     expect(smaller.canvas).toEqual(a.canvas);
     const bigger = await toSprite(await paint(60, 150, 50, 40), a.canvas);
     expect(alphaBounds(await decode(bigger.png))!.height).toBeLessThanOrEqual(a.canvas.height);
+  });
+
+  it('sizes a sprite from the neutral figure, whatever size the model drew it, and by pose', async () => {
+    const a = await toSprite(await paint());
+    const tiny = await toSprite(await paint(30, 60, 60, 100), a.canvas);
+    const h = async (png: Buffer) => alphaBounds(await decode(png))!.height;
+    expect(Math.abs((await h(tiny.png)) - a.canvas.figure)).toBeLessThan(3);
+    const sit = await toSprite(await paint(30, 60, 60, 100), a.canvas, undefined, 0.68);
+    expect(Math.abs((await h(sit.png)) - a.canvas.figure * 0.68)).toBeLessThan(3);
+    expect(Math.abs((await h(await refitSprite(tiny.png, a.canvas, 0.5))) - a.canvas.figure * 0.5)).toBeLessThan(3);
   });
 
   it('finds the background colour by itself when the model paints a muted green, not pure #00FF00', async () => {

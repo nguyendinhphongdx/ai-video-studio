@@ -23,6 +23,10 @@ export interface PuppetSceneProps {
   transition: 'auto' | import('../shots/entrance-meta').EntranceId;
 }
 
+/** Width / height of the box a sprite is drawn in (feet at the bottom centre). Wider than any sprite canvas (pose
+ * canvases are 1.5 : 1), so every sprite is fitted by its height and the character keeps one size. */
+const STAGE_ASPECT = 1.6;
+
 const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
 
 /**
@@ -67,9 +71,9 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
       <div
         style={{
           position: 'absolute',
-          left: pose.x * width - stageH * 0.55,
+          left: pose.x * width - (stageH * STAGE_ASPECT) / 2,
           bottom: ground + (pose.y + bounce.y) * height,
-          width: stageH * 1.1,
+          width: stageH * STAGE_ASPECT,
           height: stageH,
           opacity: pose.alpha,
           transformOrigin: '50% 100%',
@@ -107,7 +111,7 @@ function Companion({ src: file, side, t, width, stageH, ground, u, talking }: { 
   return (
     <>
       <div style={{ position: 'absolute', left: x * width - h * 0.18, bottom: ground - 12 * u, width: h * 0.36, height: 24 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
-      <div style={{ position: 'absolute', left: x * width - h * 0.55, bottom: ground + bounce.y * stageH, width: h * 1.1, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
+      <div style={{ position: 'absolute', left: x * width - (h * STAGE_ASPECT) / 2, bottom: ground + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
         <Img src={file} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%' }} />
       </div>
     </>

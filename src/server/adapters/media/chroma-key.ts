@@ -110,53 +110,82 @@ export async function keyOut(input: Buffer, opts: KeyOptions = {}): Promise<Keye
   return { data: out, width: w, height: h };
 }
 
-/** Smallest box holding every pixel with alpha above `min`; null when the picture is empty. */
+/**
+ * Smallest box holding the picture's figure (alpha above `min`); null when the picture is empty. A row or column counts
+ * only with a few opaque pixels in it, so stray specks the model leaves near the corners do not stretch the box.
+ */
 export function alphaBounds(k: Keyed, min = 16): { left: number; top: number; width: number; height: number } | null {
-  let x0 = k.width;
-  let y0 = k.height;
-  let x1 = -1;
-  let y1 = -1;
+  const rows = new Uint32Array(k.height);
+  const cols = new Uint32Array(k.width);
   for (let y = 0; y < k.height; y++) {
     for (let x = 0; x < k.width; x++) {
       if (k.data[(y * k.width + x) * 4 + 3]! > min) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
+        rows[y]!++;
+        cols[x]!++;
       }
     }
   }
-  return x1 < 0 ? null : { left: x0, top: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 };
+  const need = (n: number) => Math.max(1, Math.min(3, Math.round(n * 0.004)));
+  const first = (a: Uint32Array, n: number) => a.findIndex((v) => v >= n);
+  const last = (a: Uint32Array, n: number) => a.length - 1 - [...a].reverse().findIndex((v) => v >= n);
+  const y0 = first(rows, need(k.width));
+  const x0 = first(cols, need(k.height));
+  if (y0 < 0 || x0 < 0) return null;
+  const y1 = last(rows, need(k.width));
+  const x1 = last(cols, need(k.height));
+  return { left: x0, top: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 };
 }
 
 const MARGIN = 24;
 const LONG_SIDE = 1000;
 
-/** Size of the transparent canvas and the scale every expression of one character is drawn at (taken from its neutral sprite). */
+/** The transparent canvas every sprite of one character shares, and how tall the character stands on it in its neutral sprite. */
 export interface SpriteCanvas {
   width: number;
   height: number;
-  scale: number;
+  /** Height in canvas pixels of the character in its neutral sprite; other sprites are sized from it. */
+  figure: number;
+}
+
+/** The canvas of an existing sprite (its size, and the height of the figure on it). */
+export async function canvasOf(png: Buffer): Promise<SpriteCanvas> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const box = alphaBounds({ data, width: info.width, height: info.height });
+  return { width: info.width, height: info.height, figure: box?.height ?? info.height - 2 * MARGIN };
+}
+
+/**
+ * Places a cut-out (RGBA pixels) on the canvas, feet on the bottom edge and centred, the figure `ratio` times as tall as
+ * the neutral one (a sitting pose is shorter, arms raised taller), shrunk only when it would not fit.
+ */
+async function place(keyed: Keyed, c: SpriteCanvas, ratio: number): Promise<Buffer> {
+  const box = alphaBounds(keyed);
+  if (!box) throw new Error('Không tìm thấy nhân vật trong ảnh (toàn ảnh là nền).');
+  const s = Math.min((c.figure * ratio) / box.height, (c.width - 2 * MARGIN) / box.width, (c.height - 2 * MARGIN) / box.height);
+  const cut = await sharp(keyed.data, { raw: { width: keyed.width, height: keyed.height, channels: 4 } }).extract(box).resize(Math.max(1, Math.round(box.width * s)), Math.max(1, Math.round(box.height * s))).png().toBuffer();
+  const meta = await sharp(cut).metadata();
+  return sharp({ create: { width: c.width, height: c.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: cut, left: Math.round((c.width - (meta.width ?? 0)) / 2), top: c.height - MARGIN - (meta.height ?? 0) }])
+    .png()
+    .toBuffer();
 }
 
 /**
  * Cuts the character out and places it on a transparent canvas, feet on the bottom edge and centred.
- * The first sprite (neutral) decides the canvas, tight around the character; pass it back in for the other expressions
- * so they all keep the same size and the head does not jump between sprites.
+ * Without a canvas (the neutral sprite) the canvas is made tight around the character; pass it back in for the other
+ * sprites so the character keeps its size whatever size the model drew it at.
  */
-export async function toSprite(input: Buffer, canvas?: SpriteCanvas, opts?: KeyOptions): Promise<{ png: Buffer; canvas: SpriteCanvas }> {
+export async function toSprite(input: Buffer, canvas?: SpriteCanvas, opts?: KeyOptions, ratio = 1): Promise<{ png: Buffer; canvas: SpriteCanvas }> {
   const keyed = await keyOut(input, opts);
   const box = alphaBounds(keyed);
   if (!box) throw new Error('Không tìm thấy nhân vật trong ảnh (toàn ảnh là nền).');
   const own = Math.min(LONG_SIDE / box.width, LONG_SIDE / box.height);
-  const c: SpriteCanvas = canvas ?? { scale: own, width: Math.round(box.width * own) + 2 * MARGIN, height: Math.round(box.height * own) + 2 * MARGIN };
-  // Keep the neutral's scale; shrink only when this expression would not fit the canvas.
-  const s = Math.min(c.scale, (c.width - 2 * MARGIN) / box.width, (c.height - 2 * MARGIN) / box.height);
-  const cut = await sharp(keyed.data, { raw: { width: keyed.width, height: keyed.height, channels: 4 } }).extract(box).resize(Math.max(1, Math.round(box.width * s)), Math.max(1, Math.round(box.height * s))).png().toBuffer();
-  const meta = await sharp(cut).metadata();
-  const png = await sharp({ create: { width: c.width, height: c.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-    .composite([{ input: cut, left: Math.round((c.width - (meta.width ?? 0)) / 2), top: c.height - MARGIN - (meta.height ?? 0) }])
-    .png()
-    .toBuffer();
-  return { png, canvas: c };
+  const c: SpriteCanvas = canvas ?? { width: Math.round(box.width * own) + 2 * MARGIN, height: Math.round(box.height * own) + 2 * MARGIN, figure: Math.round(box.height * own) };
+  return { png: await place(keyed, c, canvas ? ratio : 1), canvas: c };
+}
+
+/** Re-places an already transparent sprite on a canvas (fixes the size of a sprite drawn at the wrong scale). */
+export async function refitSprite(png: Buffer, canvas: SpriteCanvas, ratio = 1): Promise<Buffer> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return place({ data, width: info.width, height: info.height }, canvas, ratio);
 }

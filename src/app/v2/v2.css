@@ -242,3 +242,14 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
 .switch.on { background: var(--ok); } .switch.on::after { left: 18px; }
 }
+
+/* Scrollbars stay hidden until the pointer is over the scrolling area (space is kept, so nothing shifts). */
+.v2, .v2 * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.v2:hover, .v2 *:hover { scrollbar-color: rgba(20, 19, 15, 0.28) transparent; }
+.v2 .ed:hover, .v2 .ed *:hover { scrollbar-color: rgba(237, 235, 229, 0.28) transparent; }
+.v2 ::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+.v2 ::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
+.v2 *:hover::-webkit-scrollbar-thumb { background: rgba(20, 19, 15, 0.28); }
+.v2 .ed *:hover::-webkit-scrollbar-thumb { background: rgba(237, 235, 229, 0.28); }
+html:has(.v2), body:has(.v2) { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+html:has(.v2):hover { scrollbar-color: rgba(20, 19, 15, 0.28) transparent; }

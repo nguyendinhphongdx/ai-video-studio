@@ -11,7 +11,7 @@ type NavItem = { href: string; label: string; exact?: boolean };
 function Nav({ label, items, group }: { label: string; items: NavItem[]; group?: { at: number; text: string } }) {
   const path = usePathname();
   const isOn = (i: NavItem) => (i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`));
-  // The longest matching href wins, so "/v2" does not light up on every page.
+  // The longest matching href wins, so "/" does not light up on every page.
   const on = items.filter(isOn).sort((a, b) => b.href.length - a.href.length)[0];
   return (
     <nav className="nav" aria-label={label}>
@@ -31,7 +31,7 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
   return (
     <div className="app" style={{ minHeight: '100dvh' }}>
       <aside className="side">
-        <Link href="/v2" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link href="/" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
           <i />
           Studio
         </Link>
@@ -45,10 +45,10 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
 /** Product level: overview of every project. */
 export function ProductShell({ children }: { children: ReactNode }) {
   const items: NavItem[] = [
-    { href: '/v2', label: 'Trang chủ', exact: true },
-    { href: '/v2/library', label: 'Thư viện' },
-    { href: '/v2/skills', label: 'Kho skill' },
-    { href: '/v2/settings', label: 'Cài đặt và chi phí' },
+    { href: '/', label: 'Trang chủ', exact: true },
+    { href: '/library', label: 'Thư viện' },
+    { href: '/skills', label: 'Kho skill' },
+    { href: '/settings', label: 'Cài đặt và chi phí' },
   ];
   return <Frame nav={<Nav label="Chính" items={items} />}>{children}</Frame>;
 }
@@ -56,7 +56,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
 /** Project level: everything one project owns. */
 export function ProjectShell({ projectId, name, children }: { projectId: string; name: string; children: ReactNode }) {
   const items: NavItem[] = [
-    { href: '/v2', label: '← Tất cả dự án', exact: true },
+    { href: '/', label: '← Tất cả dự án', exact: true },
     { href: projectHref(projectId), label: 'Các tập', exact: false },
     { href: projectHref(projectId, 'library'), label: 'Thư viện dự án' },
     { href: projectHref(projectId, 'style'), label: 'Phong cách và skill' },

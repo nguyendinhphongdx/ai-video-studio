@@ -25,10 +25,7 @@ export function HomeView() {
   return (
     <>
       <Topbar crumbs={['Trang chủ']}>
-        <Link className="btn" href="/">
-          Mở bản cũ
-        </Link>
-        <Link className="btn pri" href="/channels">
+        <Link className="btn pri" href="/projects/new">
           + Dự án mới
         </Link>
       </Topbar>
@@ -66,7 +63,7 @@ export function HomeView() {
         ) : list.length === 0 ? (
           <Empty title="Chưa có dự án nào">
             <p className="muted">Tạo dự án đầu tiên để bắt đầu viết tập phim.</p>
-            <Link className="btn pri" href="/channels">
+            <Link className="btn pri" href="/projects/new">
               + Dự án mới
             </Link>
           </Empty>

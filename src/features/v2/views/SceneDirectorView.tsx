@@ -17,7 +17,7 @@ import { usageApi } from '@/features/usage/services/usage.api';
 
 import { episodeHref, usd } from '../model';
 
-const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/v2/direct/${projectId}/${episodeId}/${sceneId}`;
+const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/direct/${projectId}/${episodeId}/${sceneId}`;
 export { sceneHref };
 
 /** Field keys read as part of the "what happens" sentence, in sentence order, with the words between them. */
@@ -207,7 +207,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             </div>
             <span className="cap">
               Đổi ở{' '}
-              <Link href={`/v2/projects/${projectId}/style`} style={{ color: 'inherit' }}>
+              <Link href={`/projects/${projectId}/style`} style={{ color: 'inherit' }}>
                 Phong cách và skill
               </Link>
               .

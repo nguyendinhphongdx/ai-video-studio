@@ -1,7 +1,7 @@
 import type { EpisodeStatus } from '@/core/domain';
 
 /** v2 calls a channel a "project": it owns its episodes, library, style, skills and settings. */
-export const projectHref = (projectId: string, sub = '') => `/v2/projects/${projectId}${sub ? `/${sub}` : ''}`;
+export const projectHref = (projectId: string, sub = '') => `/projects/${projectId}${sub ? `/${sub}` : ''}`;
 
 export const EPISODE_STEPS = [
   { key: 'script', label: 'Kịch bản' },

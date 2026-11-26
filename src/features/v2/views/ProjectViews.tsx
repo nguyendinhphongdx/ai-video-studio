@@ -155,7 +155,7 @@ export function ProjectStyleView({ projectId }: { projectId: string }) {
             <div className="card">
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <h2>Skill của dự án</h2>
-                <Link className="btn sm" href="/v2/skills">
+                <Link className="btn sm" href="/skills">
                   + Thêm từ kho
                 </Link>
               </div>

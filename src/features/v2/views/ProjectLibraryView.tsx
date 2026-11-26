@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { seriesApi } from '@/features/series/services/series.api';
@@ -30,10 +29,7 @@ export function ProjectLibraryView({ projectId }: { projectId: string }) {
           <Loading />
         ) : (series.data ?? []).length === 0 ? (
           <Empty title="Dự án chưa có series nào">
-            <p className="muted">Nhân vật thuộc về series. Tạo series để có bảng nhân vật.</p>
-            <Link className="btn" href="/series/new">
-              Tạo series
-            </Link>
+            <p className="muted">Nhân vật thuộc về series. Nhờ Đạo diễn lập series cho dự án, rồi dựng nhân vật ở đây.</p>
           </Empty>
         ) : (
           (series.data ?? []).map((s) => <CastEditor key={s.id} series={s} />)

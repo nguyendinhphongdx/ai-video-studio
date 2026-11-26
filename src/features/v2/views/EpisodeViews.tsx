@@ -9,6 +9,7 @@ import { downloadUrl, episodeApi, type EpisodeView } from '@/features/episode/se
 
 import { currentStep, EPISODE_STEPS, episodeHref, stepIndex, type EpisodeStep } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
+import { sceneHref } from './SceneDirectorView';
 
 const narrationOf = (v: EpisodeView) => v.episode.scenes.map((s) => s.narration).join(' ');
 const blockName = (ref: unknown) => (typeof ref === 'string' ? ref : String((ref as { id?: string })?.id ?? ''));
@@ -143,7 +144,7 @@ export function ScriptStep({ episodeId }: { episodeId: string }) {
 }
 
 /** 08 Storyboard: every scene's picture and voice, generated and approved scene by scene. */
-export function StoryboardStep({ episodeId }: { episodeId: string }) {
+export function StoryboardStep({ projectId, episodeId }: { projectId: string; episodeId: string }) {
   const v = useEpisode(episodeId).data!;
   const gen = useEpisodeAction(episodeId, (sceneIds: string[] | null) => episodeApi.assets(episodeId, { sceneIds, image: true, voice: true }), 'Đã giao việc tạo ảnh và giọng');
   const approve = useEpisodeAction(episodeId, (sceneIds: string[] | null) => episodeApi.approvals(episodeId, { sceneIds, approved: true }));
@@ -185,6 +186,9 @@ export function StoryboardStep({ episodeId }: { episodeId: string }) {
                 {s.approved ? <span className="chip ok">Đã duyệt</span> : a?.ready ? <span className="chip info">Sẵn sàng</span> : null}
               </div>
               <div className="row" style={{ gap: 6 }}>
+                <Link className="btn sm dark" href={sceneHref(projectId, episodeId, s.id)}>
+                  Đạo diễn cảnh
+                </Link>
                 <button className="btn sm" disabled={busy || gen.isPending} onClick={() => gen.mutate([s.id])}>
                   {a?.imageUrl ? 'Tạo lại' : 'Tạo ảnh và giọng'}
                 </button>

@@ -1,10 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { seriesApi } from '@/features/series/services/series.api';
 
+import { projectHref } from '../model';
 import { Empty, Loading, Page, Topbar } from '../Shell';
 import { CastEditor } from './CastEditor';
 
@@ -16,7 +18,11 @@ export function ProjectLibraryView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <Topbar crumbs={[c?.name ?? 'Dự án', 'Thư viện dự án']} />
+      <Topbar crumbs={[c?.name ?? 'Dự án', 'Thư viện dự án']}>
+        <Link className="btn pri" href={projectHref(projectId, 'series/new')}>
+          + Series mới
+        </Link>
+      </Topbar>
       <Page>
         <div className="head">
           <div>
@@ -29,7 +35,10 @@ export function ProjectLibraryView({ projectId }: { projectId: string }) {
           <Loading />
         ) : (series.data ?? []).length === 0 ? (
           <Empty title="Dự án chưa có series nào">
-            <p className="muted">Nhân vật thuộc về series. Nhờ Đạo diễn lập series cho dự án, rồi dựng nhân vật ở đây.</p>
+            <p className="muted">Nhân vật thuộc về series. Tạo series (hoặc nhờ Đạo diễn lập), rồi dựng nhân vật ở đây.</p>
+            <Link className="btn pri" href={projectHref(projectId, 'series/new')}>
+              + Series mới
+            </Link>
           </Empty>
         ) : (
           (series.data ?? []).map((s) => <CastEditor key={s.id} series={s} />)

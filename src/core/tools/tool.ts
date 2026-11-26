@@ -80,9 +80,14 @@ export function defineTool(def: ToolDefinition): ToolDefinition {
   return def;
 }
 
-/** Parse props with the block's schema, then apply its normalizer. */
+/**
+ * Parse props with the block's schema, then apply its normalizer. A prop the scene does not have takes the block's
+ * default first, so scenes written before a block gained a prop (a puppet scene without `mood`) still save and render.
+ */
 export function cleanProps(block: BlockDefinition, props: unknown): Record<string, unknown> {
-  const parsed = block.props.parse(props);
+  const given = props && typeof props === 'object' && !Array.isArray(props) ? (props as Record<string, unknown>) : null;
+  const filled = given ? { ...(block.defaults as Record<string, unknown>), ...Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)) } : props;
+  const parsed = block.props.parse(filled);
   return (block.normalize ? block.normalize(parsed) : parsed) as Record<string, unknown>;
 }
 

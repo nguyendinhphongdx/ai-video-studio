@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANCHOR_X, ENTER_SECONDS, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys, spriteAt } from '@video/puppet/rig';
+import { ANCHOR_X, ENTER_SECONDS, companionPoseAt, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys, spriteAt } from '@video/puppet/rig';
 
 describe('puppet rig', () => {
   it('interpolates keyframes and holds the ends', () => {
@@ -81,5 +81,21 @@ describe('puppet rig', () => {
       expect(poseAt('wave', 'center', 0.5, 6, false).angle).not.toBe(0);
     });
   });
-});
 
+  it('holds the series own pose while standing, walks while moving, ignores a pose it has no picture for', () => {
+    const available = ['neutral', 'walk1', 'walk2', 'pose:mua-thuong'];
+    const at = (pose: string, t: number) => spriteAt({ action: 'enter', side: 'left', emotion: 'neutral', talking: true, t, duration: 6, available, pose });
+    expect(at('mua-thuong', 0.2).sprite).toMatch(/^walk/);
+    expect(at('mua-thuong', 3).sprite).toBe('pose:mua-thuong');
+    expect(at('bay', 3).posed).toBe(false);
+  });
+
+  it('gives a supporting character its own mouth, wave and point', () => {
+    const all = ['talk', 'wave1', 'wave2', 'point'];
+    expect(new Set([0.5, 0.7, 0.9, 1.1, 1.3, 1.5].map((t) => companionPoseAt('talk', t, all)))).toEqual(new Set(['talk', null]));
+    expect(companionPoseAt('talk', 2, all, 1)).toBeNull();
+    expect(new Set([0, 0.25].map((t) => companionPoseAt('wave', t, all)))).toEqual(new Set(['wave1', 'wave2']));
+    expect(companionPoseAt('point', 3, all)).toBe('point');
+    expect(companionPoseAt('point', 3, [])).toBeNull();
+  });
+});

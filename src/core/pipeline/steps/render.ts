@@ -42,6 +42,12 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         const rel = bible?.characterCast?.[id];
         if (!rel) throw new UserFacingError(`Cảnh "Nhân vật diễn" gọi "${id}" nhưng series chưa có ảnh này trong dàn nhân vật phụ.`);
         cast[id] = await deps.media.dataUri(deps.media.absolute(rel));
+        // The supporting character's poses (`<id>:talk` …), when the series has them.
+        for (const [key, poseRel] of Object.entries(bible?.characterCast ?? {})) {
+          if (!key.startsWith(`${id}:`)) continue;
+          const file = deps.media.absolute(poseRel);
+          if (await deps.media.exists(file)) cast[key] = await deps.media.dataUri(file);
+        }
       }
       if (!sprites.neutral) throw new UserFacingError('Cảnh "Nhân vật diễn" cần ảnh nhân vật Bình thường. Tải ảnh ở phần Nhân vật diễn của series rồi thử lại.');
     }

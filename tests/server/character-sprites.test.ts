@@ -142,6 +142,22 @@ describe('generateSprites', () => {
     expect(spriteCount({ existing: { neutral: 'x' }, expressions: ['neutral', 'happy'] })).toBe(1);
   });
 
+  it('draws the series own poses from their descriptions, after neutral', async () => {
+    const calls: { prompt: string; refs: string[] }[] = [];
+    const made = await generateSprites({ reference: 'ref.png', existing: {}, custom: [{ key: 'pose:mua-thuong', prompt: 'spinning a red-tasselled spear above the head' }] }, deps(calls));
+    expect(Object.keys(made)).toEqual(['neutral', 'pose:mua-thuong']);
+    expect(calls[1]!.prompt).toContain('spinning a red-tasselled spear');
+    expect(calls[1]!.prompt).toContain('what the pose says the character holds');
+  });
+
+  it('draws a supporting character pose from its own picture only, never a neutral or a hero pose', async () => {
+    const calls: { prompt: string; refs: string[] }[] = [];
+    const made = await generateSprites({ reference: 'ref.png', existing: {}, target: 'cast', expressions: ['talk', 'walk1', 'wave1'] }, deps(calls));
+    expect(Object.keys(made)).toEqual(['talk', 'wave1']);
+    for (const c of calls) expect(c.refs).toEqual([path.join(dir, 'ref.png')]);
+    expect(spriteCount({ existing: { talk: 'x' }, target: 'cast', expressions: ['talk', 'point'] })).toBe(1);
+  });
+
   it('fails clearly when the reference picture is gone, without calling the model', async () => {
     const calls: { prompt: string; refs: string[] }[] = [];
     await expect(generateSprites({ reference: 'missing.png', existing: {} }, deps(calls))).rejects.toThrow(/ảnh chuẩn/);

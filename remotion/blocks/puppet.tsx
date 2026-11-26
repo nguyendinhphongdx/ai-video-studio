@@ -1,7 +1,7 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { useBrand, useFont, useLayout } from '../primitives';
-import { ANCHOR_X, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
+import { ANCHOR_X, companionPoseAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
 
 export interface PuppetSceneProps {
@@ -12,8 +12,12 @@ export interface PuppetSceneProps {
   side: Side;
   /** Weather and light of the set: particles, tint, rays. */
   mood: Mood;
+  /** Id of one of the series' own poses (sprite `pose:<id>`) the hero holds while standing; '' for none. */
+  pose: string;
   /** Id of a supporting character from the series cast who stands opposite the hero; '' for none. */
   companion: string;
+  /** What the supporting character does; `talk` gives it the line and the hero listens. */
+  companionAction: CompanionAction;
   /** Id of a prop from the series cast that floats beside the hero; '' for none. */
   item: string;
   transition: 'auto' | import('../shots/entrance-meta').EntranceId;
@@ -25,7 +29,7 @@ const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
  * A character (expression and pose sprites from the series bible) acting on an AI-painted empty background:
  * it walks in (walk cycle), talks (mouth sprite and bounce), blinks, shows an emotion, gestures (wave, point, bow…) and walks out.
  */
-export function PuppetScene({ caption, emotion, action, side, mood, companion, item, image, sprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
+export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPose, companion, companionAction, item, image, sprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const { u, width, height } = useLayout();
@@ -36,17 +40,22 @@ export function PuppetScene({ caption, emotion, action, side, mood, companion, i
   const available = Object.keys(sprites ?? {});
   const talkFrom = action === 'enter' ? ENTER_SECONDS : 0.3;
   const talkTo = action === 'exit' ? duration - EXIT_SECONDS : duration - 0.4;
-  const talking = t > talkFrom && t < talkTo;
+  // When the supporting character has the line, the hero listens (no mouth, no talking bounce).
+  const companionTalks = companionAction === 'talk' && Boolean(companion);
+  const talking = !companionTalks && t > talkFrom && t < talkTo;
   const pose = poseAt(action, side, t, duration, hasFrames(action, available));
   const bounce = talkBounce(t, talking);
-  const shown = spriteAt({ action, side, emotion, talking, t, duration, available });
+  const shown = spriteAt({ action, side, emotion, talking, t, duration, available, pose: ownPose ?? '' });
   const sprite = sprites?.[shown.sprite] ?? sprites?.neutral;
   // A slow push-in with a sideways drift; the base zoom also crops the thin frame line some pictures carry at their edge.
   const bgZoom = interpolate(frame, [0, durationInFrames], [1.05, 1.13], { extrapolateRight: 'clamp' });
   const drift = interpolate(frame, [0, durationInFrames], [0, side === 'left' ? 22 : -22], { extrapolateRight: 'clamp' }) * u;
   const stageH = height * 0.66;
   const ground = height * 0.17;
-  const companionSrc = companion && cast?.[companion] ? src(cast[companion]) : null;
+  const companionPoses = companion ? Object.keys(cast ?? {}).filter((k) => k.startsWith(`${companion}:`)).map((k) => k.slice(companion.length + 1)) : [];
+  const companionPose = companion ? companionPoseAt(companionAction ?? 'idle', t, companionPoses, talkTo) : null;
+  const companionFile = companion ? (companionPose ? cast?.[`${companion}:${companionPose}`] : undefined) ?? cast?.[companion] : undefined;
+  const companionSrc = companionFile ? src(companionFile) : null;
   const itemSrc = item && cast?.[item] ? src(cast[item]) : null;
   const accent = brand.palette[1] ?? '#FFC53D';
 
@@ -54,7 +63,7 @@ export function PuppetScene({ caption, emotion, action, side, mood, companion, i
     <AbsoluteFill style={{ background: '#1b1b1b' }}>
       {image ? <Img src={src(image)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `translateX(${drift}px) scale(${bgZoom})` }} /> : null}
       <Atmosphere mood={mood ?? 'calm'} frame={frame} fps={fps} width={width} height={height} u={u} />
-      {companionSrc ? <Companion src={companionSrc} side={side} t={t} width={width} stageH={stageH} ground={ground} u={u} /> : null}
+      {companionSrc ? <Companion src={companionSrc} side={side} t={t} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} /> : null}
       <div
         style={{
           position: 'absolute',
@@ -88,16 +97,17 @@ export function PuppetScene({ caption, emotion, action, side, mood, companion, i
 }
 
 /** A supporting character on the side opposite the hero: it slides in, then breathes and sways. */
-function Companion({ src: file, side, t, width, stageH, ground, u }: { src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number }) {
+function Companion({ src: file, side, t, width, stageH, ground, u, talking }: { src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number; talking: boolean }) {
   const from = side === 'right' ? 'left' : 'right';
   const k = smoothstep((t - 0.2) / 0.9);
   const x = (from === 'left' ? -0.2 : 1.2) + (ANCHOR_X[from === 'left' ? 'left' : 'right'] - (from === 'left' ? -0.2 : 1.2)) * k;
-  const breathe = 1 + Math.sin(t * 2.4 + 1) * 0.014;
+  const bounce = talkBounce(t + 0.37, talking);
+  const breathe = (1 + Math.sin(t * 2.4 + 1) * 0.014) * bounce.squashY;
   const h = stageH * 0.86;
   return (
     <>
       <div style={{ position: 'absolute', left: x * width - h * 0.18, bottom: ground - 12 * u, width: h * 0.36, height: 24 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
-      <div style={{ position: 'absolute', left: x * width - h * 0.55, bottom: ground, width: h * 1.1, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
+      <div style={{ position: 'absolute', left: x * width - h * 0.55, bottom: ground + bounce.y * stageH, width: h * 1.1, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
         <Img src={file} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%' }} />
       </div>
     </>

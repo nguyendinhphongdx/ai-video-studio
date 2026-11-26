@@ -16,10 +16,13 @@ export interface SeriesBible {
   characterAssets: string[];
   /** Plain-text look of the recurring characters (names, outfit, colours); sent to the picture model with the reference images. */
   characters: string;
-  /** Whole-body sprites of the puppet character by expression (neutral, talk, blink, happy, angry, sad, surprised): media paths. */
+  /** Whole-body sprites of the puppet character by expression, standard pose and `pose:<id>` for the series' own poses: media paths. */
   characterSprites: Record<string, string>;
-  /** Other transparent sprites a puppet scene can bring on stage (supporting characters, props) by short id: media paths. */
+  /** Other transparent sprites a puppet scene can bring on stage (supporting characters, props) by short id, plus
+   * `<id>:<pose>` (talk, wave1, wave2, point) for a supporting character's poses: media paths. */
   characterCast: Record<string, string>;
+  /** The hero's own poses: id → description. Absent on series saved before custom poses existed. */
+  customPoses?: Record<string, string>;
 }
 
 export interface PublishTemplate {

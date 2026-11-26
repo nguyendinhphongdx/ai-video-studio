@@ -10,6 +10,21 @@ export type Pose = (typeof POSES)[number];
 export const SPRITES = [...EXPRESSIONS, ...POSES] as const;
 export type SpriteKey = Expression | Pose;
 
+/** Short ids of a series' own poses and supporting cast (lower case, digits, dashes). */
+export const POSE_ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
+/** A series may add its own poses for the hero; their sprites sit in characterSprites under `pose:<id>`. */
+export const MAX_CUSTOM_POSES = 12;
+export const customPoseKey = (id: string) => `pose:${id}`;
+/** Any key characterSprites may hold. */
+export const SPRITE_KEY = new RegExp(`^(${SPRITES.join('|')}|pose:[a-z0-9][a-z0-9-]{0,23})$`);
+
+/** The few poses a supporting character can have; their sprites sit in characterCast under `<id>:<pose>`. */
+export const CAST_POSES = ['talk', 'wave1', 'wave2', 'point'] as const;
+export type CastPose = (typeof CAST_POSES)[number];
+export const castPoseKey = (castId: string, pose: CastPose) => `${castId}:${pose}`;
+/** Any key characterCast may hold: a cast id, or a cast id and one of its poses. */
+export const CAST_KEY = new RegExp(`^[a-z0-9][a-z0-9-]{0,23}(:(${CAST_POSES.join('|')}))?$`);
+
 /** Background colour the model paints behind the character; the server keys it out afterwards. */
 export const CHROMA_KEY = { r: 0, g: 255, b: 0 } as const;
 export const CHROMA_HEX = '#00FF00';
@@ -44,15 +59,24 @@ const POSE_LOOK: Record<Pose, string> = {
 
 const isPose = (k: SpriteKey): k is Pose => (POSES as readonly string[]).includes(k);
 
+const inPose = (look: string) => `Show the full body, centred, the whole figure inside the frame with hands and feet visible, in this pose: ${look}.`;
+
 /** The prompt for one sprite. Reference pictures (the series' character, then the neutral sprite) are sent next to it. */
 export function expressionPrompt(sprite: SpriteKey): string {
-  const body = isPose(sprite)
-    ? `Show the full body, centred, the whole figure inside the frame with hands and feet visible, in this pose: ${POSE_LOOK[sprite]}.`
-    : `Show the full body, standing, facing the viewer, centred, with the feet fully visible, with ${LOOK[sprite]}.`;
+  return spritePrompt(isPose(sprite) ? inPose(POSE_LOOK[sprite]) : `Show the full body, standing, facing the viewer, centred, with the feet fully visible, with ${LOOK[sprite]}.`);
+}
+
+/** The prompt for one of the series' own poses, from the person's description of it. */
+export function customPosePrompt(description: string): string {
+  // A described pose may hold something (a spear, a fan): only that object is allowed besides the character.
+  return spritePrompt(inPose(description.trim().replace(/\.$/, '')), 'no props other than what the pose says the character holds');
+}
+
+function spritePrompt(body: string, props = 'no props'): string {
   return [
     'Redraw the exact same character shown in the reference picture(s): same face shape, colours, outfit, proportions and art style.',
     body,
-    `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, no props, no other characters, no text.`,
+    `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, ${props}, no other characters, no text.`,
     'Do not use green anywhere on the character.',
   ].join(' ');
 }

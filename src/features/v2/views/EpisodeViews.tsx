@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 import { hasFailed, isBusy, useEpisode, useEpisodeAction } from '@/features/episode/hooks/use-episode';
+import { useAssistantStore } from '@/stores/assistant-store';
 import { downloadUrl, episodeApi, type EpisodeView } from '@/features/episode/services/episode.api';
 
 import { currentStep, EPISODE_STEPS, episodeHref, stepIndex, type EpisodeStep } from '../model';
@@ -23,6 +24,7 @@ export function EpisodeShell({ projectId, episodeId, children }: { projectId: st
   const reached = v ? stepIndex(currentStep(v.episode.status)) : 0;
   // Storyboard opens together with the script: both describe the same scenes.
   const allowed = (i: number) => i <= Math.max(reached, 1);
+  const openDirector = useAssistantStore((s) => s.setOpen);
 
   return (
     <>
@@ -49,6 +51,9 @@ export function EpisodeShell({ projectId, episodeId, children }: { projectId: st
               );
             })}
           </nav>
+          <button className="btn sm dark" onClick={() => openDirector(true)}>
+            Đạo diễn
+          </button>
         </div>
         {v && <JobBanner view={v} />}
         {q.isLoading ? <Loading /> : q.error ? <div className="alert bad">Không tải được tập này.</div> : children}

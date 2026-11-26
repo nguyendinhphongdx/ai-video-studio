@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { Scene } from '@/core/domain/episode';
 import type { ToolField } from '@/core/tools/tool';
+import { useFollowChannel } from '@/features/app';
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { ScenePlayer } from '@/features/episode/components/preview';
 import { isBusy, useEpisode, useEpisodeAction, useSkills, useTools } from '@/features/episode/hooks/use-episode';
@@ -38,6 +39,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const q = useEpisode(episodeId);
   const tools = useTools();
   const project = useChannel(projectId);
+  useFollowChannel(projectId);
   const skills = useSkills(projectId);
   const blocks = useMemo(() => blockIndex(tools.data), [tools.data]);
   const v = q.data;

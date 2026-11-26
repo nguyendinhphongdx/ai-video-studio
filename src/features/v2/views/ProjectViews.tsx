@@ -204,23 +204,3 @@ export function ProjectStyleView({ projectId }: { projectId: string }) {
     </>
   );
 }
-
-/** Pages whose v2 screens come later: say what will live here and link to the working v1 screen. */
-export function ProjectPendingView({ projectId, title, body, legacyHref }: { projectId: string; title: string; body: string; legacyHref: string }) {
-  const project = useChannel(projectId);
-  return (
-    <>
-      <Topbar crumbs={[project.data?.name ?? 'Dự án', title]} />
-      <Page>
-        <Empty title={title}>
-          <p className="muted" style={{ maxWidth: 520 }}>
-            {body}
-          </p>
-          <Link className="btn" href={legacyHref}>
-            Mở ở bản cũ
-          </Link>
-        </Empty>
-      </Page>
-    </>
-  );
-}

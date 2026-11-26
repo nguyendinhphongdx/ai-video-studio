@@ -53,6 +53,7 @@ function baseView(e: Episode): EpisodeView {
     events: episodeRepository.events(e.id),
     issues: [],
     knowledge: { used: e.knowledgeVersion, current: null },
+    series: { used: e.seriesVersion, current: null },
     assets: {},
     slots: [],
     durationSec: null,
@@ -116,7 +117,7 @@ export const episodeService = {
       blocks: s.fill === 'ai' ? slotBlocks(s, appDeps.tools).map((b) => b.ref) : [],
       scenes: s.scenes,
     }));
-    return { ...baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])), cast: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterCast ?? {}).map(([k, v]) => [k, mediaUrl(v)])) };
+    return { ...baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, series: { used: e.seriesVersion, current: ctx.series?.series.currentVersion ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])), cast: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterCast ?? {}).map(([k, v]) => [k, mediaUrl(v)])) };
   },
 
   async create(input: CreateEpisodeInput): Promise<EpisodeView> {
@@ -156,6 +157,20 @@ export const episodeService = {
     if (jobRepository.active(id)?.state === 'running') throw conflict('Video đang được xử lý, chờ xong rồi xoá.');
     episodeRepository.remove(id);
     await removeEpisodeMedia(id);
+  },
+
+  /**
+   * Moves a written episode onto the series' current version (new characters, poses, bible and format), so its scenes
+   * use them from the next preview or render. The script itself is kept; nothing is regenerated.
+   */
+  async useLatestSeries(id: string): Promise<EpisodeView> {
+    const e = loadEpisode(id);
+    if (!e.seriesId) throw conflict('Tập này không thuộc series nào.');
+    if (e.status === 'published') throw conflict('Tập đã xuất bản, không đổi phiên bản series nữa.');
+    if (visibleJob(id)?.state === 'running' || visibleJob(id)?.state === 'queued') throw conflict('Tập đang chạy một việc, chờ xong rồi thử lại.');
+    const series = await appDeps.series.get(e.seriesId);
+    if (series && e.seriesVersion !== series.currentVersion) episodeRepository.update(id, { seriesVersion: series.currentVersion });
+    return episodeService.get(id);
   },
 
   async updateOptions(id: string, input: EpisodeOptionsInput): Promise<EpisodeView> {

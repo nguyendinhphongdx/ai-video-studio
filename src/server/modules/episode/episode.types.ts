@@ -96,6 +96,9 @@ export interface EpisodeView {
   knowledge: { used: number | null; current: number | null };
   /** Per scene id: picture, voice and whether it can be approved. */
   assets: Record<string, SceneAssetView>;
+  /** Series version the episode is pinned to vs the series' current one; they differ when the series (its characters,
+   * bible or format) changed after the episode was written. */
+  series: { used: number | null; current: number | null };
   /** Media URLs of the series' puppet sprites by expression (empty when none), for previews. */
   sprites: Record<string, string>;
   /** Media URLs of the series' supporting characters and props by id (for previews). */

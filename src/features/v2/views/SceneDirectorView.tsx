@@ -16,6 +16,7 @@ import { episodeApi, type EpisodeView } from '@/features/episode/services/episod
 import { usageApi } from '@/features/usage/services/usage.api';
 
 import { episodeHref, usd } from '../model';
+import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/direct/${projectId}/${episodeId}/${sceneId}`;
 export { sceneHref };
@@ -130,6 +131,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             </div>
           )}
           {v.job?.state === 'failed' && <div className="alert bad">{v.job.error ?? 'Việc vừa chạy bị lỗi.'}</div>}
+          {!dirty && <SeriesUpdateBanner view={v} />}
           <div style={{ width: '100%', maxWidth: 1000, alignSelf: 'center' }}>
             <ScenePlayer key={`${sceneId}-${assets?.imageUrl ?? ''}`} block={draft.block} props={previewProps} ordinal={index + 1} brand={brandOf(project.data ?? null)} durationSec={seconds} narrationSrc={dirty ? null : (assets?.voiceUrl ?? null)} />
           </div>

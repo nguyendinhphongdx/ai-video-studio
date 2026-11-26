@@ -11,6 +11,7 @@ import { downloadUrl, episodeApi, type EpisodeView } from '@/features/episode/se
 import { currentStep, EPISODE_STEPS, episodeHref, stepIndex, type EpisodeStep } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
 import { sceneHref } from './SceneDirectorView';
+import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const narrationOf = (v: EpisodeView) => v.episode.scenes.map((s) => s.narration).join(' ');
 const blockName = (ref: unknown) => (typeof ref === 'string' ? ref : String((ref as { id?: string })?.id ?? ''));
@@ -56,6 +57,7 @@ export function EpisodeShell({ projectId, episodeId, children }: { projectId: st
           </button>
         </div>
         {v && <JobBanner view={v} />}
+        {v && <SeriesUpdateBanner view={v} />}
         {q.isLoading ? <Loading /> : q.error ? <div className="alert bad">Không tải được tập này.</div> : children}
       </Page>
     </>

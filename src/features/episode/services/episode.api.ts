@@ -26,6 +26,7 @@ export const episodeApi = {
   approveVideo: (id: string) => api<EpisodeView>(ep(id, '/approve-video'), { method: 'POST' }),
   rejectVideo: (id: string, feedback: string) => api<EpisodeView>(ep(id, '/reject-video'), { body: { feedback } }),
   retry: (id: string) => api<EpisodeView>(ep(id, '/retry'), { method: 'POST' }),
+  useLatestSeries: (id: string) => api<EpisodeView>(ep(id, '/use-latest-series'), { method: 'POST' }),
   importScript: (id: string, text: string) => api<EpisodeView>(ep(id, '/import'), { body: { text } }),
   prompt: (id: string, feedback?: string) => api<{ prompt: string }>(ep(id, `/prompt${feedback ? `?feedback=${encodeURIComponent(feedback)}` : ''}`)),
   aiRuns: (id: string) => api<AiRun[]>(ep(id, '/ai-runs')),

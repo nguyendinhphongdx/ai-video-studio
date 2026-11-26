@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import Link from 'next/link';
 
 import { appApi, queryKeys } from '@/features/app';
@@ -8,6 +9,7 @@ import { usageApi, usageKeys } from '@/features/usage/services/usage.api';
 
 import { projectHref, usd } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
+import { AiConnections } from './AiConnections';
 
 /** Product-level library: a map of what each project owns. Editing happens in the project's own library. */
 export function LibraryAllView() {
@@ -68,10 +70,23 @@ export function SettingsView() {
   const usage = useQuery({ queryKey: usageKeys.summary('month'), queryFn: () => usageApi.summary('month') });
   const s = usage.data;
   const budget = s?.budgets[0];
+  const [tab, setTab] = useState<'ai' | 'cost'>('ai');
   return (
     <>
-      <Topbar crumbs={['Cài đặt', 'Kết nối AI và chi phí']} />
+      <Topbar crumbs={['Cài đặt', tab === 'ai' ? 'Kết nối AI' : 'Chi phí']} />
       <Page width={1100}>
+        <div className="tabs" role="tablist">
+          <a href="#ai" role="tab" aria-selected={tab === 'ai'} className={tab === 'ai' ? 'on' : undefined} onClick={(e) => (e.preventDefault(), setTab('ai'))}>
+            Kết nối AI
+          </a>
+          <a href="#cost" role="tab" aria-selected={tab === 'cost'} className={tab === 'cost' ? 'on' : undefined} onClick={(e) => (e.preventDefault(), setTab('cost'))}>
+            Chi phí
+          </a>
+        </div>
+        {tab === 'ai' ? (
+          <AiConnections />
+        ) : (
+          <>
         <div className="grid3">
           <div className="card flat">
             <span className="eyebrow">Tháng này</span>
@@ -126,15 +141,13 @@ export function SettingsView() {
             </table>
           )}
         </div>
-        <div className="alert">
-          <span>Kết nối mô hình AI, bảng giá và ngân sách chi tiết vẫn sửa ở bản cũ trong lúc dựng v2.</span>
-          <Link className="btn sm" href="/settings">
-            Kết nối AI
-          </Link>
+        <div className="row">
           <Link className="btn sm" href="/usage">
-            Chi phí chi tiết
+            Bảng giá và chi phí chi tiết
           </Link>
         </div>
+          </>
+        )}
       </Page>
     </>
   );

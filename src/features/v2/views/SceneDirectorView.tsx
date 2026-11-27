@@ -149,7 +149,8 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
               const a = v.assets[s.id];
               return (
                 <button key={s.id} className={`shot${s.id === sceneId ? ' on' : ''}`} onClick={() => go(s.id)} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left' }}>
-                  <div className={a?.imageUrl ? 'thumb' : `thumb ${'abcde'[i % 5]}`} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
+                  <div className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
+                    {!a?.imageUrl && <span className="hint">{a?.needsImage === false ? 'Không cần ảnh' : 'Chưa có ảnh'}</span>}
                     <span>{String(i + 1).padStart(2, '0')}</span>
                   </div>
                   <span className="cap">

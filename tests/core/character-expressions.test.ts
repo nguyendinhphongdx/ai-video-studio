@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHROMA_HEX, EXPRESSIONS, expressionPrompt, missingExpressions, POSES } from '@/core/character/expressions';
+import { castForScene, CHROMA_HEX, EXPRESSIONS, expressionPrompt, missingExpressions, POSES, spritesForScene } from '@/core/character/expressions';
 
 import { EXPRESSIONS as RIG_EXPRESSIONS, POSES as RIG_POSES } from '../../remotion/puppet/rig';
 
@@ -40,4 +40,12 @@ describe('expression prompts', () => {
     expect(missingExpressions({ talk: 'x.png' }, ['happy', 'neutral'])).toEqual(['neutral', 'happy']);
     expect(missingExpressions(Object.fromEntries(EXPRESSIONS.map((e) => [e, 'p.png'])))).toEqual([]);
   });
+
+  it('gives each scene only the sprites it can show', () => {
+    expect(spritesForScene({ action: 'cross', emotion: 'angry' }).sort()).toEqual(['angry', 'blink', 'cross', 'neutral', 'talk']);
+    expect(spritesForScene({ action: 'enter', emotion: 'happy' })).toEqual(expect.arrayContaining(['walk1', 'walk4', 'happy']));
+    expect(spritesForScene({ action: 'idle', emotion: 'neutral', pose: 'mua-thuong' })).toContain('pose:mua-thuong');
+    expect(castForScene({ companion: 'ngao-binh', item: '' }, { 'ngao-binh': 'a', 'ngao-binh:talk': 'b', 'ly-tinh': 'c' }).sort()).toEqual(['ngao-binh', 'ngao-binh:talk']);
+  });
 });
+

@@ -1,10 +1,19 @@
 import path from 'node:path';
 
+import { castForScene, spritesForScene } from '../../character/expressions';
 import { FORMATS } from '../../domain/catalog';
 import { UserFacingError } from '../../domain/errors';
 import { buildTimeline } from '../../timeline';
 import type { PipelineStep } from '../step';
 import type { ImagesOutput, ProductionContext, RenderOutput, VoiceOutput } from '../production';
+
+/**
+ * Bump when the scene drawing changes in a way old clips should not survive (the puppet rig, sprite sizing): the
+ * cached clips of every episode are then drawn again on its next production instead of being reused.
+ */
+export const RENDER_VERSION = 4;
+
+const pick = (all: Record<string, string>, keys: string[]) => Object.fromEntries(keys.flatMap((k) => (all[k] ? [[k, all[k]!]] : [])));
 
 /** One clip per scene per format, each drawn by the scene's own tool. */
 export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
@@ -12,7 +21,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
   label: 'Dựng cảnh',
   after: ['voice', 'images'],
   weight: 75,
-  inputs: ({ episode, channel, bible }) => ({ formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt, sprites: bible?.characterSprites ?? {}, cast: bible?.characterCast ?? {} }),
+  inputs: ({ episode, channel, bible }) => ({ version: RENDER_VERSION, formats: episode.formats, scenes: episode.scenes.map((s) => [s.id, s.block, s.props]), brand: channel.updatedAt, sprites: bible?.characterSprites ?? {}, cast: bible?.characterCast ?? {} }),
   reusable: async ({ deps }, out) => (await Promise.all(Object.values(out.clips).flat().map((f) => deps.media.exists(f)))).every(Boolean),
   async run({ deps, episode, brand, dir, bible }, prev, progress) {
     const voice = prev.voice as VoiceOutput;
@@ -30,7 +39,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
     const pictures = new Map<string, string>();
     for (const [id, file] of Object.entries(images.files)) pictures.set(id, await deps.media.dataUri(file));
 
-    // Whole-body sprites of the series' puppet character, inlined once for the scenes that act with it.
+    // Whole-body sprites of the series' puppet character and its cast, read once; each scene gets only the ones it shows.
     const sprites: Record<string, string> = {};
     const cast: Record<string, string> = {};
     if (scenes.some((s) => s.block === 'remotion/puppet')) {
@@ -64,7 +73,10 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         await deps.renderers.get(block.tool.id).render(
           {
             block: block.ref,
-            props: { ...scene.props, ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}), ...(scene.block === 'remotion/puppet' ? { sprites, cast } : {}) },
+            props: {
+              ...scene.props,
+              ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}),
+              ...(scene.block === 'remotion/puppet' ? { sprites: pick(sprites, spritesForScene(scene.props)), cast: pick(cast, castForScene(scene.props, cast)) } : {}) },
             ordinal: scenes.slice(0, si + 1).filter((x) => x.block === scene.block).length,
             brand,
             format,
@@ -79,6 +91,6 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         progress((step + 1) / total);
       }
     }
-    return { durations: timeline.scenes.map((t) => t.duration), clips };
+    return { durations: timeline.scenes.map((t) => t.duration), clips, renderedAt: new Date().toISOString() };
   },
 };

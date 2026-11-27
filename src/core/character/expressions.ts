@@ -98,3 +98,25 @@ export function missingExpressions(have: Record<string, string>, wanted: readonl
   const todo = wanted.filter((e) => !have[e] && e !== 'neutral');
   return !have.neutral && (todo.length || wanted.includes('neutral')) ? ['neutral', ...todo] : todo;
 }
+
+/**
+ * The hero sprites one puppet scene can show, from its props: the faces, the walk frames when it travels, and the
+ * frames of its gesture. Rendering inlines only these, so a character with many poses does not bloat every scene.
+ */
+export function spritesForScene(props: { action?: unknown; emotion?: unknown; pose?: unknown }): string[] {
+  const keys = new Set<string>(['neutral', 'talk', 'blink']);
+  if (typeof props.emotion === 'string') keys.add(props.emotion);
+  const action = typeof props.action === 'string' ? props.action : 'idle';
+  if (action === 'enter' || action === 'exit' || action === 'walk') for (const k of ['walk1', 'walk2', 'walk3', 'walk4']) keys.add(k);
+  if (action === 'wave') (keys.add('wave1'), keys.add('wave2'));
+  if (action === 'jump') (keys.add('crouch'), keys.add('leap'));
+  if (['point', 'think', 'cross', 'bow', 'sit', 'cheer'].includes(action)) keys.add(action);
+  if (typeof props.pose === 'string' && props.pose) keys.add(customPoseKey(props.pose));
+  return [...keys];
+}
+
+/** The supporting-cast pictures one puppet scene can show: its companion (and that companion's poses) and its item. */
+export function castForScene(props: { companion?: unknown; item?: unknown }, cast: Record<string, string>): string[] {
+  const ids = [props.companion, props.item].filter((v): v is string => typeof v === 'string' && v !== '');
+  return Object.keys(cast).filter((k) => ids.some((id) => k === id || k.startsWith(`${id}:`)));
+}

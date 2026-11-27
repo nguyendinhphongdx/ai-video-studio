@@ -179,7 +179,8 @@ export function StoryboardStep({ projectId, episodeId }: { projectId: string; ep
           const a = v.assets[s.id];
           return (
             <div key={s.id} className={`card flat${s.approved ? ' sel' : ''}`}>
-              <div className={a?.imageUrl ? 'thumb' : `thumb ${'abcde'[i % 5]}`} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
+              <div className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
+                {!a?.imageUrl && <span className="hint">{a?.needsImage === false ? 'Không cần ảnh' : 'Chưa có ảnh'}</span>}
                 <span>{String(i + 1).padStart(2, '0')}</span>
               </div>
               <p className="cap" style={{ minHeight: 36 }}>

@@ -116,9 +116,10 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; }
 .thumb.c, .art-lotus { background: radial-gradient(ellipse at 50% 70%, #FFE3EC 0 8%, transparent 9%), linear-gradient(180deg, #F3C7C2 0%, #E2928A 56%, #6E3B47 57%, #34202B 100%); }
 .thumb.d, .art-palace { background: radial-gradient(ellipse at 50% 115%, rgba(80,220,200,0.45), transparent 60%), linear-gradient(180deg, #0E3B4F 0%, #0B6A73 60%, #08303B 100%); }
 .thumb.e, .art-town { background: radial-gradient(circle at 22% 28%, #FFF0C9 0 6%, transparent 7%), linear-gradient(180deg, #E8C98F 0%, #C7894D 56%, #5A3A2E 57%, #2A1B15 100%); }
-.thumb.a::after, .thumb.c::after, .thumb.e::after, .thumb.b::after, .thumb.d::after { content: ""; position: absolute; z-index: 1; bottom: 8%; right: 16%; height: 58%; aspect-ratio: 0.6; background: var(--fig-a) no-repeat center / contain; }
-.thumb.d::after { background-image: var(--fig-b); }
-.thumb.b::after { right: auto; left: 22%; transform: rotate(-8deg); }
+/* A scene with no picture yet: an honest empty frame (no stand-in figure, which read as a real picture). */
+.thumb.empty { background: repeating-linear-gradient(135deg, #2A2925 0 10px, #24231F 10px 20px); border: 1px dashed #4A4842; }
+.thumb.empty::before { background: none; }
+.thumb .hint { position: absolute; top: 8px; left: 8px; right: 8px; font-size: 11px; color: #B9B6AE; text-shadow: none; }
 & {
   --fig-a: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 100'><path d='M6 58 Q30 38 58 66 Q40 56 6 64Z' fill='%23E2482B'/><circle cx='17' cy='11' r='7' fill='%23161412'/><circle cx='43' cy='11' r='7' fill='%23161412'/><circle cx='30' cy='30' r='18' fill='%23F4D3B6'/><path d='M12 28 Q30 4 48 28 Q40 18 30 20 Q20 18 12 28Z' fill='%23161412'/><circle cx='23' cy='32' r='2.2' fill='%23161412'/><circle cx='37' cy='32' r='2.2' fill='%23161412'/><path d='M16 50 H44 L48 80 H12Z' fill='%23C2310F'/><path d='M16 50 H44 L45 56 H15Z' fill='%23E8B33A'/><rect x='18' y='80' width='8' height='16' rx='3' fill='%23F4D3B6'/><rect x='34' y='80' width='8' height='16' rx='3' fill='%23F4D3B6'/></svg>");
   --fig-b: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 100'><path d='M18 15 L13 0 L23 11Z M42 15 L47 0 L37 11Z' fill='%23E8D9A8'/><circle cx='30' cy='30' r='18' fill='%23EBD9CC'/><path d='M12 30 Q30 2 48 30 Q44 16 30 16 Q16 16 12 30Z' fill='%232E5C8A'/><circle cx='23' cy='32' r='2.2' fill='%23161412'/><circle cx='37' cy='32' r='2.2' fill='%23161412'/><path d='M14 50 H46 L50 84 H10Z' fill='%23DDE8F2'/><path d='M14 50 H46 L44 60 H16Z' fill='%232E5C8A'/><rect x='18' y='84' width='8' height='12' rx='3' fill='%232E5C8A'/><rect x='34' y='84' width='8' height='12' rx='3' fill='%232E5C8A'/></svg>");

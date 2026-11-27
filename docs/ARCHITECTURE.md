@@ -4,14 +4,14 @@
 
 | Concept | What it is | Lives in |
 | --- | --- | --- |
-| Channel | Brand kit: audience, tone, voice, palette, logo, avatar, music, image style, and its own AI-designed intro and outro (`SceneDesign` JSON, optional AI background art) | SQLite `channels` |
+| Channel | Brand kit: audience, tone, voice, palette, logo, avatar, music, image style, and its own AI-designed intro and outro (`SceneDesign` JSON, optional AI background art) | `channels` |
 | Tool | A rendering engine a skill can name: `@remotion`, `@hyperframes` | `src/tools/<tool>/tool.ts` |
 | Block | A scene type of a tool with a props schema: `@remotion/cards` | `src/tools/<tool>/blocks/*.ts` |
-| Skill | Playbook for one kind of video; references tools/blocks. Belongs to a channel (SQLite `channel_skills`), installed from the market (`market/skills/<id>/SKILL.md`) or written by a person or the AI | SQLite `channel_skills` |
-| Series | The agent for a show: bible + format + publish template, versioned | SQLite `series`, `series_versions` |
-| Episode | One video, in a series (numbered) or one-off | SQLite `episodes`, `scenes` |
-| Knowledge | The channel's own facts, rules and sources; versioned, read by every AI call of the channel | SQLite `channel_knowledge_versions` |
-| Memory | What each approved episode covered, read by later episodes | SQLite `episode_memory`, `series_memory` |
+| Skill | Playbook for one kind of video; references tools/blocks. Belongs to a channel (`channel_skills`), installed from the market (`market/skills/<id>/SKILL.md`) or written by a person or the AI | `channel_skills` |
+| Series | The agent for a show: bible + format + publish template, versioned | `series`, `series_versions` |
+| Episode | One video, in a series (numbered) or one-off | `episodes`, `scenes` |
+| Knowledge | The channel's own facts, rules and sources; versioned, read by every AI call of the channel | `channel_knowledge_versions` |
+| Memory | What each approved episode covered, read by later episodes | `episode_memory`, `series_memory` |
 
 A one-off video uses a format derived from its skill (one AI slot), so every video goes through the same path.
 
@@ -50,7 +50,7 @@ Registries are validated at startup (`core/registry.ts`): duplicate ids, tools w
 - **Worker**: claims jobs from `jobs` one at a time (`write_script`, `revise_script`, `produce`, `summarize`) and delivers `outbox` events to subscribers. Jobs left running by a crashed worker are failed on start, with a retry button in the UI.
 - **Scenes first, production last.** In the scenes step the person works scene by scene: edit, generate the picture (blocks that declare an `image` slot, such as `@remotion/vox` and `@remotion/picture`) and the voice, listen, and approve. Those are `scene_assets` worker jobs, the only place paid image/voice providers are called, and only on request (or automatically after a script when the video's `autoImages`/`autoVoice` are on). A scene stores its files with the hash of the prompt/text they were made for, so a later edit marks them stale and withdraws the approval; a rewritten script keeps finished work for scenes that did not change (`carryOver`). The script can only be approved for production when every scene is approved.
 - **Production** is a step graph (images ∥ voice → render → assemble → thumbnail → quality). The `images` and `voice` steps only collect the approved files of each scene (they fail with the scene number if one is missing or stale); rendering and assembling join them. Step outputs are cached in `step_runs` by input hash, so a retry resumes from the failed step.
-- **Storage**: SQLite (`node:sqlite`, WAL) in `data/app.db`; generated media in `data/media`; settings (API keys) in `data/settings.json`. All gitignored.
+- **Storage**: Postgres through Drizzle (`src/server/schema.ts`, migrations in `drizzle/`; `DATABASE_URL`); generated media in `data/media`; the shared AI keys in `data/settings.json` (gitignored).
 
 ## Channel-owned intro and outro
 

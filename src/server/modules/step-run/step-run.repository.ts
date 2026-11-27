@@ -2,12 +2,12 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { StepRunStore } from '@/core/ports';
 import { json, now } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { stepRuns } from '@/server/schema';
 
 export const stepRunStore: StepRunStore = {
   async get(episodeId, step) {
-    const r = await orm().select({ inputsHash: stepRuns.inputsHash, outputs: stepRuns.outputs }).from(stepRuns).where(and(eq(stepRuns.episodeId, episodeId), eq(stepRuns.step, step), scoped(stepRuns))).get();
+    const r = await orm().select({ inputsHash: stepRuns.inputsHash, outputs: stepRuns.outputs }).from(stepRuns).where(and(eq(stepRuns.episodeId, episodeId), eq(stepRuns.step, step), scoped(stepRuns))).then(one);
     return r ? { inputsHash: r.inputsHash, outputs: json(r.outputs, null) } : null;
   },
   async save(episodeId, step, inputsHash, outputs) {

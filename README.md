@@ -27,7 +27,7 @@ npm test
 npm run studio     # Remotion Studio để xem các khối dựng
 ```
 
-Dữ liệu chạy (SQLite, file video, API key) nằm trong `data/`, không đưa lên git.
+Database là Postgres: khi dev chạy `npm run db:dev` (Docker) trước `npm run dev`. File video và API key chung nằm trong `data/`, không đưa lên git. Cài đặt cũ dùng SQLite (`data/app.db`): chạy `npm run db:import-sqlite` một lần để chép sang Postgres.
 
 ## Bảo mật
 

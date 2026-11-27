@@ -1,7 +1,7 @@
 // Users, workspaces, memberships and sessions. Tokens are stored as SHA-256 hashes, never in the clear.
 import { and, asc, count, eq, lte, sql } from 'drizzle-orm';
 
-import { orm } from '@/server/orm';
+import { one, orm } from '@/server/orm';
 import { channels, memberships, sessions, users, workspaces } from '@/server/schema';
 
 import type { Membership, Role, User, Workspace } from './auth.types';
@@ -18,16 +18,16 @@ const membership = (workspaceId: string, userId: string) => and(eq(memberships.w
 
 export const authRepository = {
   async userCount(): Promise<number> {
-    return (await orm().select({ n: count() }).from(users).get())?.n ?? 0;
+    return (await orm().select({ n: count() }).from(users).then(one))?.n ?? 0;
   },
 
   async userByEmail(email: string) {
-    const r = await orm().select().from(users).where(eq(users.email, email)).get();
+    const r = await orm().select().from(users).where(eq(users.email, email)).then(one);
     return r ? toUser(r) : null;
   },
 
   async userById(id: string) {
-    const r = await orm().select().from(users).where(eq(users.id, id)).get();
+    const r = await orm().select().from(users).where(eq(users.id, id)).then(one);
     return r ? toUser(r) : null;
   },
 
@@ -55,18 +55,18 @@ export const authRepository = {
   },
 
   async workspaceById(id: string): Promise<Workspace | null> {
-    const r = await orm().select().from(workspaces).where(eq(workspaces.id, id)).get();
+    const r = await orm().select().from(workspaces).where(eq(workspaces.id, id)).then(one);
     return r ? toWorkspace(r) : null;
   },
 
   async roleIn(workspaceId: string, userId: string): Promise<Role | null> {
-    const r = await orm().select({ role: memberships.role }).from(memberships).where(membership(workspaceId, userId)).get();
+    const r = await orm().select({ role: memberships.role }).from(memberships).where(membership(workspaceId, userId)).then(one);
     return (r?.role as Role | undefined) ?? null;
   },
 
   /** The workspace's first owner: who system work acts as when the person who started it is gone. */
   async ownerOf(workspaceId: string): Promise<string | null> {
-    const r = await orm().select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.role, 'owner'))).orderBy(asc(memberships.createdAt)).limit(1).get();
+    const r = await orm().select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.role, 'owner'))).orderBy(asc(memberships.createdAt)).limit(1).then(one);
     return r?.userId ?? null;
   },
 
@@ -75,7 +75,7 @@ export const authRepository = {
    * row is ever left outside a workspace. A no-op once every row has one.
    */
   async adoptOrphans(workspaceId: string, userId: string) {
-    for (const t of DATA_TABLES) await orm().run(sql`UPDATE ${sql.identifier(t)} SET workspace_id = ${workspaceId}, user_id = COALESCE(user_id, ${userId}) WHERE workspace_id IS NULL`);
+    for (const t of DATA_TABLES) await orm().execute(sql`UPDATE ${sql.identifier(t)} SET workspace_id = ${workspaceId}, user_id = COALESCE(user_id, ${userId}) WHERE workspace_id IS NULL`);
   },
 
   /** Every workspace with its first owner and counts (the system admin's overview). */
@@ -101,7 +101,7 @@ export const authRepository = {
   },
 
   async session(tokenHash: string) {
-    return (await orm().select({ userId: sessions.userId, workspaceId: sessions.workspaceId, expiresAt: sessions.expiresAt }).from(sessions).where(eq(sessions.tokenHash, tokenHash)).get()) ?? null;
+    return (await orm().select({ userId: sessions.userId, workspaceId: sessions.workspaceId, expiresAt: sessions.expiresAt }).from(sessions).where(eq(sessions.tokenHash, tokenHash)).then(one)) ?? null;
   },
 
   async setSessionWorkspace(tokenHash: string, workspaceId: string) {

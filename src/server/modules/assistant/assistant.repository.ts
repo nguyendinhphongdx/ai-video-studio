@@ -4,7 +4,7 @@ import type { AssistantMessage, AssistantStore, AssistantThreadInfo } from '@/co
 import { newId } from '@/core/domain/ids';
 import { notFound } from '@/server/http/api-error';
 import { json, now } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { assistantMessages as messages, assistantThreads as threads } from '@/server/schema';
 
 export interface AssistantThread extends AssistantThreadInfo {
@@ -37,7 +37,7 @@ export const assistantRepository = {
     return (await orm().select().from(threads).where(and(eq(threads.channelId, channelId), scoped(threads))).orderBy(desc(threads.updatedAt))).map(toThread);
   },
   async find(id: string): Promise<AssistantThread | null> {
-    const r = await orm().select().from(threads).where(thisThread(id)).get();
+    const r = await orm().select().from(threads).where(thisThread(id)).then(one);
     return r ? toThread(r) : null;
   },
   async insertThread(channelId: string, mode: AssistantThread['mode']): Promise<AssistantThread> {

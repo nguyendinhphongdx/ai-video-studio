@@ -5,7 +5,7 @@ import { newId } from '@/core/domain/ids';
 import type { EpisodePatch } from '@/core/ports';
 import { ctx } from '@/server/context';
 import { json, now, transaction } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { episodeEvents, episodes, renders, scenes } from '@/server/schema';
 
 const toScene = (r: typeof scenes.$inferSelect): Scene => ({
@@ -79,7 +79,7 @@ export const episodeRepository = {
     return rows.map((r) => toEpisode(r, byEpisode.get(r.id) ?? []));
   },
   async find(id: string): Promise<Episode | null> {
-    const r = await orm().select().from(episodes).where(thisEpisode(id)).get();
+    const r = await orm().select().from(episodes).where(thisEpisode(id)).then(one);
     return r ? toEpisode(r, (await scenesOf([id])).get(id) ?? []) : null;
   },
   async insert(e: Omit<Episode, 'scenes' | 'publish' | 'title' | 'knowledgeVersion' | 'autoImages' | 'autoVoice'>) {
@@ -147,7 +147,7 @@ export const episodeRepository = {
     await orm().delete(episodes).where(thisEpisode(id));
   },
   async nextNumber(seriesId: string): Promise<number> {
-    const r = await orm().select({ n: max(episodes.number) }).from(episodes).where(and(eq(episodes.seriesId, seriesId), scoped(episodes))).get();
+    const r = await orm().select({ n: max(episodes.number) }).from(episodes).where(and(eq(episodes.seriesId, seriesId), scoped(episodes))).then(one);
     return (r?.n ?? 0) + 1;
   },
   /** Episode counts per status, by series (for series cards). */

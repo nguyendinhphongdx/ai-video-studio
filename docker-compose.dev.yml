@@ -1,0 +1,17 @@
+# Development database: docker compose -f docker-compose.dev.yml up -d
+# The app's default DATABASE_URL (src/server/db.ts) points here: postgres://avs:avs@127.0.0.1:5433/avs
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avs
+      POSTGRES_PASSWORD: avs
+      POSTGRES_DB: avs
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+
+volumes:
+  pgdata-dev:

@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, like } from 'drizzle-orm';
 import type { Job, JobKind } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
 import { json, now, transaction } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { jobs } from '@/server/schema';
 
 type Row = typeof jobs.$inferSelect;
@@ -34,15 +34,15 @@ export const jobRepository = {
     return (await jobRepository.find(id))!;
   },
   async find(id: string): Promise<Job | null> {
-    const r = await orm().select().from(jobs).where(thisJob(id)).get();
+    const r = await orm().select().from(jobs).where(thisJob(id)).then(one);
     return r ? toJob(r) : null;
   },
   async active(episodeId: string): Promise<Job | null> {
-    const r = await orm().select().from(jobs).where(and(eq(jobs.episodeId, episodeId), scoped(jobs), inArray(jobs.state, ACTIVE))).orderBy(desc(jobs.createdAt)).limit(1).get();
+    const r = await orm().select().from(jobs).where(and(eq(jobs.episodeId, episodeId), scoped(jobs), inArray(jobs.state, ACTIVE))).orderBy(desc(jobs.createdAt)).limit(1).then(one);
     return r ? toJob(r) : null;
   },
   async latest(episodeId: string): Promise<Job | null> {
-    const r = await orm().select().from(jobs).where(and(eq(jobs.episodeId, episodeId), scoped(jobs))).orderBy(desc(jobs.createdAt)).limit(1).get();
+    const r = await orm().select().from(jobs).where(and(eq(jobs.episodeId, episodeId), scoped(jobs))).orderBy(desc(jobs.createdAt)).limit(1).then(one);
     return r ? toJob(r) : null;
   },
   /** The running or queued assistant turn of a conversation, if any. */
@@ -53,7 +53,7 @@ export const jobRepository = {
       .where(and(eq(jobs.kind, 'assistant_turn'), scoped(jobs), inArray(jobs.state, ACTIVE), like(jobs.payload, `%"threadId":"${threadId}"%`)))
       .orderBy(desc(jobs.createdAt))
       .limit(1)
-      .get();
+      .then(one);
     return r ? toJob(r) : null;
   },
   async listActive(): Promise<Job[]> {
@@ -80,7 +80,8 @@ export const jobQueue = {
   /** Atomically take the oldest queued job, with the workspace and person it runs for. */
   async claimNext(): Promise<{ job: Job; workspaceId: string | null; userId: string | null } | null> {
     return await transaction(async () => {
-      const r = await orm().select().from(jobs).where(eq(jobs.state, 'queued')).orderBy(asc(jobs.createdAt)).limit(1).get();
+      // SKIP LOCKED: two workers never take the same job, and neither waits for the other.
+      const r = await orm().select().from(jobs).where(eq(jobs.state, 'queued')).orderBy(asc(jobs.createdAt)).limit(1).for('update', { skipLocked: true }).then(one);
       if (!r) return null;
       const startedAt = now();
       await orm().update(jobs).set({ state: 'running', startedAt }).where(eq(jobs.id, r.id));

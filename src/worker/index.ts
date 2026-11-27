@@ -6,6 +6,7 @@ import { produce } from '@/core/workflows/produce';
 import { generateSceneAssets, type SceneAssetsRequest } from '@/core/workflows/assets';
 import { reviseScript, writeScript } from '@/core/workflows/script';
 import { createCoreDeps } from '@/server/core-deps';
+import { dbReady } from '@/server/db';
 import { createLogger } from '@/server/logger';
 import { characterSpriteService } from '@/server/modules/series/character-sprites.service';
 import { channelService } from '@/server/modules/channel/channel.service';
@@ -123,6 +124,8 @@ async function deliverEvents(): Promise<boolean> {
 }
 
 async function main() {
+  // Connect and apply any pending migrations (web and worker take turns through an advisory lock).
+  await dbReady();
   // Say "I am here" on a timer of its own: a long render must not look like a dead worker.
   await prefsService.workerBeat();
   setInterval(async () => {

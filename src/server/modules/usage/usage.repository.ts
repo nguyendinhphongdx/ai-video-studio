@@ -2,11 +2,11 @@ import { newId } from '@/core/domain/ids';
 import type { PriceRow, UsageKind } from '@/core/usage/cost';
 import { and, asc, desc, eq, gte, isNull, lt, sql, type SQL } from 'drizzle-orm';
 
-import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import { maybeCtx } from '@/server/context';
 import { transaction } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { budgets, priceBook, usageEvents as ev, workspacePrefs } from '@/server/schema';
 
 export interface UsageEvent {
@@ -74,7 +74,7 @@ export interface Group {
 }
 
 /** Sums that SQLite returns as numbers (COALESCE keeps an empty range at 0). */
-const total = (col: SQL | AnySQLiteColumn) => sql<number>`COALESCE(SUM(${col}), 0)`.mapWith(Number);
+const total = (col: SQL | AnyPgColumn) => sql<number>`COALESCE(SUM(${col}), 0)`.mapWith(Number);
 const SUMS = { calls: sql<number>`COUNT(*)`.mapWith(Number), usd: total(ev.costUsd), i: total(ev.inputTokens), o: total(ev.outputTokens), c: total(ev.cachedTokens), units: total(ev.units) };
 const toGroup = (r: { calls: number; usd: number; i: number; o: number; units: number }, key: string | null, kind: UsageKind | null = null, provider: string | null = null): Group => ({ key, kind, provider, calls: r.calls, usd: r.usd, inputTokens: r.i, outputTokens: r.o, units: r.units });
 /** This workspace's events since `from`, optionally of one channel. */
@@ -101,17 +101,18 @@ export const usageRepository = {
         ...SUMS,
         images: total(sql`CASE WHEN ${ev.kind} = 'image' THEN ${ev.units} END`),
         secs: total(sql`CASE WHEN ${ev.kind} = 'tts' THEN ${ev.units} END`),
-        unpriced: total(sql`${ev.costUsd} IS NULL`),
+        unpriced: total(sql`CASE WHEN ${ev.costUsd} IS NULL THEN 1 ELSE 0 END`),
         est: total(sql`${ev.estimated}`),
       })
       .from(ev)
       .where(since(from, channelId))
-      .get())!;
+      .then(one))!;
     return { calls: r.calls, usd: r.usd, inputTokens: r.i, outputTokens: r.o, cachedTokens: r.c, images: r.images, ttsSeconds: r.secs, unpriced: r.unpriced, estimated: r.est };
   },
 
   async daily(from: string): Promise<{ day: string; kind: UsageKind; usd: number }[]> {
-    const day = sql<string>`date(${ev.at}, 'localtime')`;
+    // The day in the server's time zone (the connection's TimeZone, set from the process in db.ts).
+    const day = sql<string>`to_char(${ev.at}::timestamptz, 'YYYY-MM-DD')`;
     const rows = await orm().select({ day, kind: ev.kind, usd: total(ev.costUsd) }).from(ev).where(since(from)).groupBy(day, ev.kind).orderBy(day);
     return rows.map((r) => ({ day: r.day, kind: r.kind as UsageKind, usd: r.usd }));
   },
@@ -140,7 +141,7 @@ export const usageRepository = {
   },
 
   async spent(from: string, channelId: string | null): Promise<number> {
-    return (await orm().select({ usd: total(ev.costUsd) }).from(ev).where(since(from, channelId)).get())?.usd ?? 0;
+    return (await orm().select({ usd: total(ev.costUsd) }).from(ev).where(since(from, channelId)).then(one))?.usd ?? 0;
   },
 
   /** The system price book (workspace_id NULL), which the admin edits. */
@@ -162,7 +163,7 @@ export const usageRepository = {
     const id = b.id ?? newId();
     const fields = { scope: b.scope, channelId: b.channelId, period: b.period, limitUsd: b.limitUsd, mode: b.mode, alertPct: b.alertPct };
     const thisBudget = and(eq(budgets.id, id), scoped(budgets));
-    if (await orm().select({ id: budgets.id }).from(budgets).where(thisBudget).get()) await orm().update(budgets).set(fields).where(thisBudget);
+    if (await orm().select({ id: budgets.id }).from(budgets).where(thisBudget).then(one)) await orm().update(budgets).set(fields).where(thisBudget);
     else await orm().insert(budgets).values({ id, ...fields, createdAt: at, ...owner() });
     return id;
   },
@@ -171,7 +172,7 @@ export const usageRepository = {
   },
 
   async pref(key: string): Promise<string | null> {
-    return (await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(USAGE_PREF(key)).get())?.value ?? null;
+    return (await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(USAGE_PREF(key)).then(one))?.value ?? null;
   },
   async setPref(key: string, value: string) {
     const by = owner();

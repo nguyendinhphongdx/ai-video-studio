@@ -1,6 +1,7 @@
 // Two workspaces on one throw-away database: nothing made in one is visible, changeable or downloadable from the other.
 import fs from 'node:fs';
 
+import { sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => {
@@ -60,7 +61,7 @@ beforeAll(async () => {
 describe('workspace isolation', () => {
   it('stamps every row with the workspace and the person who made it', async () => {
     for (const t of ['channels', 'episodes', 'jobs', 'usage_events']) {
-      const rows = m.db.db().prepare(`SELECT workspace_id, user_id FROM ${t}`).all() as { workspace_id: string; user_id: string }[];
+      const rows = m.db.rowsOf<{ workspace_id: string; user_id: string }>(await m.db.orm().execute(sql`SELECT workspace_id, user_id FROM ${sql.identifier(t)}`));
       expect(rows.length, t).toBeGreaterThan(0);
       for (const r of rows) expect([r.workspace_id, r.user_id], t).toEqual([A.workspace.id, A.user.id]);
     }

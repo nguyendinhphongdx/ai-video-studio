@@ -1,11 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { appPrefs, workspacePrefs } from '@/server/schema';
 
 /** System-wide values (the worker heartbeat), the same for every workspace. */
 const getSystem = async (key: string): Promise<string | null> => {
-  const r = await orm().select({ value: appPrefs.value }).from(appPrefs).where(eq(appPrefs.key, key)).get();
+  const r = await orm().select({ value: appPrefs.value }).from(appPrefs).where(eq(appPrefs.key, key)).then(one);
   return r?.value ?? null;
 };
 const setSystem = async (key: string, value: string) => {
@@ -14,7 +14,7 @@ const setSystem = async (key: string, value: string) => {
 
 /** The current workspace's own switches. */
 const get = async (key: string): Promise<string | null> => {
-  const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, key))).get();
+  const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, key))).then(one);
   return r?.value ?? null;
 };
 const set = async (key: string, value: string) => {

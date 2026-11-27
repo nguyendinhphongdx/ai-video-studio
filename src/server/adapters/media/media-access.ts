@@ -2,7 +2,7 @@
 import { and, like, sql } from 'drizzle-orm';
 
 import { ctx } from '@/server/context';
-import { orm, scoped } from '@/server/orm';
+import { one, orm, scoped } from '@/server/orm';
 import { seriesVersions } from '@/server/schema';
 import { channelRepository } from '@/server/modules/channel/channel.repository';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
@@ -24,7 +24,7 @@ export async function canReadMedia(rel: string): Promise<boolean> {
     if (rest) return owner === ctx().workspaceId;
     // LIKE wildcards never appear in a generated file name; refuse them so a crafted path cannot match broadly.
     if (/[%_\\]/.test(rel)) return false;
-    const used = await orm().select({ one: sql`1` }).from(seriesVersions).where(and(scoped(seriesVersions), like(seriesVersions.bible, `%${rel}%`))).limit(1).get();
+    const used = await orm().select({ one: sql`1` }).from(seriesVersions).where(and(scoped(seriesVersions), like(seriesVersions.bible, `%${rel}%`))).limit(1).then(one);
     return used !== undefined;
   }
   return false;

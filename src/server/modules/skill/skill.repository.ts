@@ -7,7 +7,7 @@ import { SKILL_ID_RE } from '@/core/skills/skill';
 import { MARKET_SKILLS_DIR } from '@/server/config';
 import { and, asc, count, countDistinct, eq, isNotNull } from 'drizzle-orm';
 
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { channels, channelSkills, episodes, series, seriesVersions } from '@/server/schema';
 
 export const marketRepository = {
@@ -48,7 +48,7 @@ export const channelSkillRepository = {
     return (await orm().select().from(channelSkills).where(and(eq(channelSkills.channelId, channelId), scoped(channelSkills))).orderBy(asc(channelSkills.createdAt), asc(channelSkills.skillId))).map(toRow);
   },
   async find(channelId: string, skillId: string): Promise<ChannelSkillRow | null> {
-    const r = await orm().select().from(channelSkills).where(thisSkill(channelId, skillId)).get();
+    const r = await orm().select().from(channelSkills).where(thisSkill(channelId, skillId)).then(one);
     return r ? toRow(r) : null;
   },
   async insert(row: Omit<ChannelSkillRow, 'updatedAt'>) {
@@ -73,13 +73,13 @@ export const channelSkillRepository = {
   },
   /** How many videos and series versions use the skill. */
   async usage(channelId: string, skillId: string): Promise<{ episodes: number; series: number }> {
-    const e = await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, channelId), eq(episodes.skillId, skillId), scoped(episodes))).get();
+    const e = await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, channelId), eq(episodes.skillId, skillId), scoped(episodes))).then(one);
     const s = await orm()
       .select({ n: countDistinct(seriesVersions.seriesId) })
       .from(seriesVersions)
       .innerJoin(series, eq(series.id, seriesVersions.seriesId))
       .where(and(channelSeriesVersions(channelId), eq(seriesVersions.skillId, skillId)))
-      .get();
+      .then(one);
     return { episodes: e?.n ?? 0, series: s?.n ?? 0 };
   },
 };

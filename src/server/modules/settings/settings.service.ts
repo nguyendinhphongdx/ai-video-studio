@@ -9,7 +9,7 @@ import path from 'node:path';
 import { and, eq } from 'drizzle-orm';
 
 import { ctx, requireAdmin, requireOwner } from '@/server/context';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { workspacePrefs } from '@/server/schema';
 import { ApiError } from '@/server/http/api-error';
 import { SETTINGS_FILE } from '@/server/config';
@@ -64,7 +64,7 @@ const AI_KEY = 'ai_settings';
 const workspaceStore: Store = {
   env: false,
   async read() {
-    const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, AI_KEY))).get();
+    const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, AI_KEY))).then(one);
     try {
       return r ? (JSON.parse(r.value) as All) : {};
     } catch {

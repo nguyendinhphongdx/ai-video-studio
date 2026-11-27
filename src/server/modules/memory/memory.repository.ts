@@ -3,7 +3,7 @@ import { and, desc, eq, lt, sql } from 'drizzle-orm';
 import type { EpisodeMemory } from '@/core/domain';
 import type { MemoryStore } from '@/core/ports';
 import { json, now } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { episodeMemory, seriesMemory } from '@/server/schema';
 
 const toMemory = (r: typeof episodeMemory.$inferSelect): EpisodeMemory => ({
@@ -41,7 +41,7 @@ export const memoryStore: MemoryStore = {
     return (await orm().select().from(episodeMemory).where(where).orderBy(desc(episodeMemory.number)).limit(limit)).map(toMemory);
   },
   async season(seriesId) {
-    const r = await orm().select({ s: seriesMemory.seasonSummary }).from(seriesMemory).where(and(eq(seriesMemory.seriesId, seriesId), scoped(seriesMemory))).get();
+    const r = await orm().select({ s: seriesMemory.seasonSummary }).from(seriesMemory).where(and(eq(seriesMemory.seriesId, seriesId), scoped(seriesMemory))).then(one);
     return r?.s ?? null;
   },
   async setSeason(seriesId, summary) {

@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 
 import { now } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { channelKnowledgeVersions as versions } from '@/server/schema';
 
 export interface KnowledgeVersion {
@@ -18,11 +18,11 @@ const ofChannel = (channelId: string) => and(eq(versions.channelId, channelId), 
 /** Knowledge versions are immutable; the latest one is the channel's current knowledge. */
 export const knowledgeRepository = {
   async latest(channelId: string): Promise<KnowledgeVersion | null> {
-    const r = await orm().select().from(versions).where(ofChannel(channelId)).orderBy(desc(versions.version)).limit(1).get();
+    const r = await orm().select().from(versions).where(ofChannel(channelId)).orderBy(desc(versions.version)).limit(1).then(one);
     return r ? toVersion(r) : null;
   },
   async find(channelId: string, version: number): Promise<KnowledgeVersion | null> {
-    const r = await orm().select().from(versions).where(and(ofChannel(channelId), eq(versions.version, version))).get();
+    const r = await orm().select().from(versions).where(and(ofChannel(channelId), eq(versions.version, version))).then(one);
     return r ? toVersion(r) : null;
   },
   async list(channelId: string): Promise<KnowledgeVersion[]> {

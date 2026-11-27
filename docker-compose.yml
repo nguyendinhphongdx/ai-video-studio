@@ -1,7 +1,26 @@
 # Production: docker compose up -d --build   (see docs/DEPLOY.md)
-# caddy (HTTPS, ports 80/443) -> web (Next.js) ; worker (jobs, renders). Web and worker share ./data
-# (SQLite, media, shared AI keys), so the three run on one machine.
+# caddy (HTTPS, ports 80/443) -> web (Next.js) ; worker (jobs, renders) ; postgres (the database).
+# Web and worker share ./data (media, shared AI keys), so they run on one machine. To use a managed Postgres instead,
+# set DATABASE_URL in .env and remove the postgres service.
+x-app-env: &app-env
+  DATABASE_URL: ${DATABASE_URL:-postgres://avs:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/avs}
+
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: avs
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avs -d avs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
@@ -31,6 +50,10 @@ services:
     env_file:
       - path: .env
         required: false
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -47,11 +70,13 @@ services:
     env_file:
       - path: .env
         required: false
+    environment: *app-env
     # Remotion renders with Chrome, which needs more shared memory than Docker's 64 MB default.
     shm_size: "1gb"
     depends_on:
       - web
 
 volumes:
+  pgdata:
   caddy_data:
   caddy_config:

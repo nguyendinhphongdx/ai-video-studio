@@ -5,7 +5,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { ApiError } from '@/server/http/api-error';
-import { db } from '@/server/db';
 import type { Role, User, Workspace } from '@/server/modules/auth/auth.types';
 
 /** What a paid call (LLM, picture, voice) is booked against in the cost ledger. */
@@ -44,24 +43,12 @@ export const runWithContext = <T>(c: RequestContext, fn: () => T): T => store.ru
 
 /**
  * Tests only (VITEST is set): service tests call code directly, outside any request, so they get one test account and
- * workspace in their throw-away database, made on first use. Never active in the app or the worker.
+ * workspace in their throw-away database, made by tests/setup.ts before the file's tests run. Never active in the app or
+ * the worker.
  */
 function testContext(): RequestContext | undefined {
   if (!process.env.VITEST) return undefined;
-  const t = globalThis as { __avsTestCtx?: RequestContext };
-  if (t.__avsTestCtx) return t.__avsTestCtx;
-  const at = new Date().toISOString();
-  const user: User = { id: 'test-user', email: 'test@local', name: 'Test', isAdmin: true, createdAt: at };
-  const workspace: Workspace = { id: 'test-ws', name: 'Test', usesSharedKeys: true, userId: user.id, createdAt: at };
-  // Straight SQL, not the (async) auth repository: ctx() stays synchronous.
-  const d = db();
-  if (!d.prepare('SELECT 1 FROM users WHERE id = ?').get(user.id)) {
-    d.prepare('INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?, 1, ?)').run(user.id, user.email, user.name, 'scrypt$00$00', at);
-    d.prepare('INSERT INTO workspaces (id, name, uses_shared_keys, user_id, created_at) VALUES (?, ?, 1, ?, ?)').run(workspace.id, workspace.name, user.id, at);
-    d.prepare("INSERT INTO memberships (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)").run(workspace.id, user.id, at);
-  }
-  t.__avsTestCtx = makeContext(user, workspace, 'owner');
-  return t.__avsTestCtx;
+  return (globalThis as { __avsTestCtx?: RequestContext }).__avsTestCtx;
 }
 
 /** The current context; throws when code that needs one runs outside a request or a job (a bug, not a user error). */

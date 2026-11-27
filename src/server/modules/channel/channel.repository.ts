@@ -2,7 +2,7 @@ import { and, asc, count, eq } from 'drizzle-orm';
 
 import type { Channel } from '@/core/domain';
 import { json } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { channels, episodes } from '@/server/schema';
 
 type Row = typeof channels.$inferSelect;
@@ -63,11 +63,11 @@ export const channelRepository = {
     return (await orm().select().from(channels).where(scoped(channels)).orderBy(asc(channels.createdAt))).map(toChannel);
   },
   async find(id: string): Promise<Channel | null> {
-    const r = await orm().select().from(channels).where(and(eq(channels.id, id), scoped(channels))).get();
+    const r = await orm().select().from(channels).where(and(eq(channels.id, id), scoped(channels))).then(one);
     return r ? toChannel(r) : null;
   },
   async count(): Promise<number> {
-    return (await orm().select({ n: count() }).from(channels).where(scoped(channels)).get())?.n ?? 0;
+    return (await orm().select({ n: count() }).from(channels).where(scoped(channels)).then(one))?.n ?? 0;
   },
   async insert(c: Channel) {
     await orm().insert(channels).values({ id: c.id, ...fields(c), createdAt: c.createdAt, ...owner() });
@@ -79,6 +79,6 @@ export const channelRepository = {
     await orm().delete(channels).where(and(eq(channels.id, id), scoped(channels)));
   },
   async projectCount(id: string): Promise<number> {
-    return (await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, id), scoped(episodes))).get())?.n ?? 0;
+    return (await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, id), scoped(episodes))).then(one))?.n ?? 0;
   },
 };

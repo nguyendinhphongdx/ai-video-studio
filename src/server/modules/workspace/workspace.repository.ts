@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 
 import { ctx } from '@/server/context';
 import { transaction } from '@/server/db';
-import { orm } from '@/server/orm';
+import { one, orm } from '@/server/orm';
 import { invites, memberships, users, workspaces } from '@/server/schema';
 
 import type { Role } from '../auth/auth.types';
@@ -40,11 +40,11 @@ export const workspaceRepository = {
   },
 
   async ownerCount(): Promise<number> {
-    return (await orm().select({ n: count() }).from(memberships).where(and(here(), eq(memberships.role, 'owner'))).get())?.n ?? 0;
+    return (await orm().select({ n: count() }).from(memberships).where(and(here(), eq(memberships.role, 'owner'))).then(one))?.n ?? 0;
   },
 
   async memberRole(userId: string): Promise<Role | null> {
-    const r = await orm().select({ role: memberships.role }).from(memberships).where(member(userId)).get();
+    const r = await orm().select({ role: memberships.role }).from(memberships).where(member(userId)).then(one);
     return (r?.role as Role | undefined) ?? null;
   },
 
@@ -90,7 +90,7 @@ export const workspaceRepository = {
       .innerJoin(workspaces, eq(workspaces.id, invites.workspaceId))
       .leftJoin(users, eq(users.id, invites.userId))
       .where(eq(invites.tokenHash, tokenHash))
-      .get();
+      .then(one);
     return r ? { ...r, role: r.role as Role } : null;
   },
 

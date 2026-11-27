@@ -2,7 +2,7 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 
 import type { Series, SeriesVersion } from '@/core/domain';
 import { json } from '@/server/db';
-import { orm, owner, scoped } from '@/server/orm';
+import { one, orm, owner, scoped } from '@/server/orm';
 import { series, seriesVersions } from '@/server/schema';
 
 const toSeries = (r: typeof series.$inferSelect): Series => ({
@@ -30,11 +30,11 @@ export const seriesRepository = {
     return (await orm().select().from(series).where(and(eq(series.channelId, channelId), scoped(series))).orderBy(asc(series.createdAt))).map(toSeries);
   },
   async find(id: string): Promise<Series | null> {
-    const r = await orm().select().from(series).where(and(eq(series.id, id), scoped(series))).get();
+    const r = await orm().select().from(series).where(and(eq(series.id, id), scoped(series))).then(one);
     return r ? toSeries(r) : null;
   },
   async version(seriesId: string, version: number): Promise<SeriesVersion | null> {
-    const r = await orm().select().from(seriesVersions).where(and(eq(seriesVersions.seriesId, seriesId), eq(seriesVersions.version, version), scoped(seriesVersions))).get();
+    const r = await orm().select().from(seriesVersions).where(and(eq(seriesVersions.seriesId, seriesId), eq(seriesVersions.version, version), scoped(seriesVersions))).then(one);
     return r ? toVersion(r) : null;
   },
   async versions(seriesId: string): Promise<SeriesVersion[]> {

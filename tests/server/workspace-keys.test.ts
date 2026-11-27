@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => {
+  // This file tests the first sign-up, so no ready-made test account (tests/setup.ts).
+  process.env.AVS_TEST_NO_ACCOUNT = '1';
   process.env.AVS_DATA_DIR = `${process.env.TMPDIR ?? '/tmp'}/avs-keys-test-${process.pid}`;
   for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AVS_MODEL']) delete process.env[k];
 });

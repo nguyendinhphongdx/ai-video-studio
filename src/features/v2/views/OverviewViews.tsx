@@ -10,6 +10,7 @@ import { projectHref } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
 import { AiConnections } from './AiConnections';
 import { CostTab, PricesTab } from './CostViews';
+import { WorkspaceTab } from './WorkspaceTab';
 
 /** Product-level library: a map of what each project owns. Editing happens in the project's own library. */
 export function LibraryAllView() {
@@ -66,13 +67,14 @@ export function LibraryAllView() {
 }
 
 const SETTINGS_TABS = [
+  { key: 'workspace', label: 'Workspace' },
   { key: 'ai', label: 'Kết nối AI' },
   { key: 'cost', label: 'Chi phí' },
   { key: 'prices', label: 'Bảng giá' },
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number]['key'];
 
-/** Product-level settings: AI connections, spending across every project, and the price book. */
+/** Workspace settings: people, AI connections, spending across every project, and the price book. */
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('ai');
   return (
@@ -86,7 +88,7 @@ export function SettingsView() {
             </a>
           ))}
         </div>
-        {tab === 'ai' ? <AiConnections /> : tab === 'cost' ? <CostTab /> : <PricesTab />}
+        {tab === 'workspace' ? <WorkspaceTab /> : tab === 'ai' ? <AiConnections /> : tab === 'cost' ? <CostTab /> : <PricesTab />}
       </Page>
     </>
   );

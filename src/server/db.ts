@@ -433,6 +433,22 @@ const MIGRATIONS = [
     SELECT (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), key, value, (SELECT id FROM users ORDER BY created_at LIMIT 1) FROM app_prefs
     WHERE key <> 'worker_seen_at' AND EXISTS (SELECT 1 FROM workspaces);
   `,
+  // Invite links into a workspace. The link carries a random token; only its SHA-256 is stored.
+  `
+  CREATE TABLE invites (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    email TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    used_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX invites_ws ON invites(workspace_id);
+  `,
 ];
 
 function open(): DatabaseSync {

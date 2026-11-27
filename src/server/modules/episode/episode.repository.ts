@@ -12,10 +12,10 @@ const toScene = (r: typeof scenes.$inferSelect): Scene => ({
   id: r.id,
   slotId: r.slotId,
   block: r.block,
-  locked: Boolean(r.locked),
+  locked: r.locked,
   narration: r.narration,
   props: json(r.props, {}),
-  approved: Boolean(r.approved),
+  approved: r.approved,
   assets: { imagePath: r.imagePath, imageHash: r.imageHash, voicePath: r.voicePath, voiceSeconds: r.voiceSeconds, voiceHash: r.voiceHash },
 });
 
@@ -33,9 +33,9 @@ const toEpisode = (r: typeof episodes.$inferSelect, sceneList: Scene[]): Episode
   status: r.status as Episode['status'],
   formats: json<Format[]>(r.formats, ['landscape']),
   voice: r.voice as Episode['voice'],
-  music: Boolean(r.music),
-  autoImages: Boolean(r.autoImages),
-  autoVoice: Boolean(r.autoVoice),
+  music: r.music,
+  autoImages: r.autoImages,
+  autoVoice: r.autoVoice,
   sceneCount: r.sceneCount,
   title: r.title,
   scenes: sceneList,
@@ -65,7 +65,6 @@ async function scenesOf(episodeIds: string[]): Promise<Map<string, Scene[]>> {
 
 export type EpisodeUpdate = EpisodePatch & Partial<Pick<Episode, 'formats' | 'voice' | 'music' | 'topic' | 'goal' | 'notes' | 'skillId' | 'autoImages' | 'autoVoice'>>;
 
-const bit = (b: boolean) => (b ? 1 : 0);
 const thisEpisode = (id: string) => and(eq(episodes.id, id), scoped(episodes));
 
 export const episodeRepository = {
@@ -87,7 +86,7 @@ export const episodeRepository = {
       .insert(episodes)
       .values({
         id: e.id, channelId: e.channelId, seriesId: e.seriesId, seriesVersion: e.seriesVersion, number: e.number, topic: e.topic, goal: e.goal, notes: e.notes, skillId: e.skillId, status: e.status,
-        formats: JSON.stringify(e.formats), voice: e.voice, music: bit(e.music), sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
+        formats: JSON.stringify(e.formats), voice: e.voice, music: e.music, sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
       });
   },
   async update(id: string, patch: EpisodeUpdate) {
@@ -100,13 +99,13 @@ export const episodeRepository = {
       if (patch.knowledgeVersion !== undefined) set.knowledgeVersion = patch.knowledgeVersion;
       if (patch.formats !== undefined) set.formats = JSON.stringify(patch.formats);
       if (patch.voice !== undefined) set.voice = patch.voice;
-      if (patch.music !== undefined) set.music = bit(patch.music);
+      if (patch.music !== undefined) set.music = patch.music;
       if (patch.topic !== undefined) set.topic = patch.topic;
       if (patch.goal !== undefined) set.goal = patch.goal;
       if (patch.notes !== undefined) set.notes = patch.notes;
       if (patch.skillId !== undefined) set.skillId = patch.skillId;
-      if (patch.autoImages !== undefined) set.autoImages = bit(patch.autoImages);
-      if (patch.autoVoice !== undefined) set.autoVoice = bit(patch.autoVoice);
+      if (patch.autoImages !== undefined) set.autoImages = patch.autoImages;
+      if (patch.autoVoice !== undefined) set.autoVoice = patch.autoVoice;
       const changed = await orm().update(episodes).set(set).where(thisEpisode(id)).returning({ id: episodes.id });
       if (patch.scenes && changed.length) {
         // Scenes are rewritten as a whole; a scene that already existed keeps the person who made it.
@@ -118,7 +117,7 @@ export const episodeRepository = {
             .insert(scenes)
             .values(
               patch.scenes.map((s, i) => ({
-                id: s.id, episodeId: id, position: i, slotId: s.slotId, block: s.block, locked: bit(s.locked), narration: s.narration, props: JSON.stringify(s.props), approved: bit(s.approved),
+                id: s.id, episodeId: id, position: i, slotId: s.slotId, block: s.block, locked: s.locked, narration: s.narration, props: JSON.stringify(s.props), approved: s.approved,
                 imagePath: s.assets.imagePath, imageHash: s.assets.imageHash, voicePath: s.assets.voicePath, voiceSeconds: s.assets.voiceSeconds, voiceHash: s.assets.voiceHash,
                 workspaceId: ctx().workspaceId, userId: makers.has(s.id) ? (makers.get(s.id) ?? null) : ctx().userId,
               })),
@@ -135,7 +134,7 @@ export const episodeRepository = {
     if (patch.voicePath !== undefined) set.voicePath = patch.voicePath;
     if (patch.voiceSeconds !== undefined) set.voiceSeconds = patch.voiceSeconds;
     if (patch.voiceHash !== undefined) set.voiceHash = patch.voiceHash;
-    if (patch.approved !== undefined) set.approved = bit(patch.approved);
+    if (patch.approved !== undefined) set.approved = patch.approved;
     if (!Object.keys(set).length) return;
     await orm().update(scenes).set(set).where(and(eq(scenes.id, sceneId), eq(scenes.episodeId, episodeId), scoped(scenes)));
     await episodeRepository.touch(episodeId);

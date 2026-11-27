@@ -33,9 +33,11 @@ async function main() {
     await pg.begin(async (tx) => {
       for (const t of ORDER) {
         if (!liteTables.has(t)) continue;
-        const cols = new Set((await tx<{ column_name: string }[]>`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${t}`).map((c) => c.column_name));
-        const rows = (lite.prepare(`SELECT * FROM "${t}"`).all() as Record<string, unknown>[]).map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => cols.has(k))));
-        for (let i = 0; i < rows.length; i += BATCH) await tx`INSERT INTO ${tx(t)} ${tx(rows.slice(i, i + BATCH) as Record<string, postgres.ParameterOrJSON<never>>[])}`;
+        const types = new Map((await tx<{ column_name: string; data_type: string }[]>`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${t}`).map((c) => [c.column_name, c.data_type]));
+        // SQLite kept JSON as text and flags as 0/1: hand Postgres values of its own types.
+        const value = (col: string, v: unknown) => (v === null ? null : types.get(col) === 'jsonb' ? JSON.parse(String(v)) : types.get(col) === 'boolean' ? Number(v) !== 0 : v);
+        const rows = (lite.prepare(`SELECT * FROM "${t}"`).all() as Record<string, unknown>[]).map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => types.has(k)).map(([k, v]) => [k, value(k, v)])));
+        for (let i = 0; i < rows.length; i += BATCH) await tx`INSERT INTO ${tx(t)} ${tx(rows.slice(i, i + BATCH).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, types.get(k) === 'jsonb' && v !== null ? tx.json(v as postgres.JSONValue) : v]))) as Record<string, postgres.ParameterOrJSON<never>>[])}`;
         console.log(`${t.padEnd(28)} ${rows.length}`);
       }
       for (const t of SERIALS) await tx.unsafe(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM "${t}"), 0) + 1, false)`);

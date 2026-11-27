@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Job, JobKind } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
@@ -50,7 +50,7 @@ export const jobRepository = {
     const r = await orm()
       .select()
       .from(jobs)
-      .where(and(eq(jobs.kind, 'assistant_turn'), scoped(jobs), inArray(jobs.state, ACTIVE), like(jobs.payload, `%"threadId":"${threadId}"%`)))
+      .where(and(eq(jobs.kind, 'assistant_turn'), scoped(jobs), inArray(jobs.state, ACTIVE), eq(sql`${jobs.payload}->>'threadId'`, threadId)))
       .orderBy(desc(jobs.createdAt))
       .limit(1)
       .then(one);

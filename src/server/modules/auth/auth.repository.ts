@@ -12,8 +12,8 @@ export const DATA_TABLES = [
   'step_runs', 'ai_runs', 'outbox', 'channel_skills', 'channel_knowledge_versions', 'assistant_threads', 'assistant_messages', 'usage_events', 'budgets',
 ] as const;
 
-const toUser = (r: typeof users.$inferSelect): User & { passwordHash: string } => ({ id: r.id, email: r.email, name: r.name, isAdmin: r.isAdmin === 1, createdAt: r.createdAt, passwordHash: r.passwordHash });
-const toWorkspace = (r: typeof workspaces.$inferSelect): Workspace => ({ id: r.id, name: r.name, usesSharedKeys: r.usesSharedKeys === 1, userId: r.userId, createdAt: r.createdAt });
+const toUser = (r: typeof users.$inferSelect): User & { passwordHash: string } => ({ id: r.id, email: r.email, name: r.name, isAdmin: r.isAdmin, createdAt: r.createdAt, passwordHash: r.passwordHash });
+const toWorkspace = (r: typeof workspaces.$inferSelect): Workspace => ({ id: r.id, name: r.name, usesSharedKeys: r.usesSharedKeys, userId: r.userId, createdAt: r.createdAt });
 const membership = (workspaceId: string, userId: string) => and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId));
 
 export const authRepository = {
@@ -32,11 +32,11 @@ export const authRepository = {
   },
 
   async insertUser(u: User & { passwordHash: string }) {
-    await orm().insert(users).values({ id: u.id, email: u.email, name: u.name, passwordHash: u.passwordHash, isAdmin: u.isAdmin ? 1 : 0, createdAt: u.createdAt });
+    await orm().insert(users).values({ id: u.id, email: u.email, name: u.name, passwordHash: u.passwordHash, isAdmin: u.isAdmin, createdAt: u.createdAt });
   },
 
   async insertWorkspace(w: Workspace) {
-    await orm().insert(workspaces).values({ id: w.id, name: w.name, usesSharedKeys: w.usesSharedKeys ? 1 : 0, userId: w.userId, createdAt: w.createdAt });
+    await orm().insert(workspaces).values({ id: w.id, name: w.name, usesSharedKeys: w.usesSharedKeys, userId: w.userId, createdAt: w.createdAt });
   },
 
   async insertMembership(m: Membership) {
@@ -93,7 +93,7 @@ export const authRepository = {
   },
 
   async setSharedKeys(workspaceId: string, allowed: boolean): Promise<boolean> {
-    return (await orm().update(workspaces).set({ usesSharedKeys: allowed ? 1 : 0 }).where(eq(workspaces.id, workspaceId)).returning({ id: workspaces.id })).length > 0;
+    return (await orm().update(workspaces).set({ usesSharedKeys: allowed }).where(eq(workspaces.id, workspaceId)).returning({ id: workspaces.id })).length > 0;
   },
 
   async insertSession(s: { tokenHash: string; userId: string; workspaceId: string | null; createdAt: string; expiresAt: string }) {

@@ -15,8 +15,8 @@ beforeAll(async () => {
   const at = new Date().toISOString();
   const user = { id: 'test-user', email: 'test@local', name: 'Test', isAdmin: true, createdAt: at };
   const workspace = { id: 'test-ws', name: 'Test', usesSharedKeys: true, userId: user.id, createdAt: at };
-  await orm().insert(users).values({ ...user, isAdmin: 1, passwordHash: 'scrypt$00$00' });
-  await orm().insert(workspaces).values({ ...workspace, usesSharedKeys: 1 });
+  await orm().insert(users).values({ ...user, passwordHash: 'scrypt$00$00' });
+  await orm().insert(workspaces).values(workspace);
   await orm().insert(memberships).values({ workspaceId: workspace.id, userId: user.id, role: 'owner', createdAt: at });
   (globalThis as { __avsTestCtx?: unknown }).__avsTestCtx = makeContext(user, workspace, 'owner');
 });

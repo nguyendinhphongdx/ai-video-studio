@@ -1,6 +1,6 @@
 # Plan: Drizzle ORM, then Postgres
 
-Status: steps 1–5 done (Postgres; media in object storage); step 6 and the column-type follow-up in step 4 not started.
+Status: done. Postgres with real column types, media in object storage, the old SQLite import and the docs.
 
 ## Why
 
@@ -93,9 +93,7 @@ The step most likely to break things, so it goes first and alone.
   points web and worker elsewhere for a managed Postgres. Backups are `scripts/backup.sh` (pg_dump).
 - Existing installs: `npm run db:import-sqlite` copies `data/app.db` into an empty Postgres in one transaction
   (pulled forward from step 6).
-- **Follow-up, not done:** the columns keep their SQLite-era types: ISO text timestamps, JSON in TEXT, 0/1 integers
-  for flags. Moving them to `timestamptz`, `jsonb` and `boolean` is a separate migration; string comparisons of
-  timestamps (sessions, invites, usage ranges) must become date comparisons at the same time.
+- Column types: done in step 6.
 
 ### 5. Media to object storage (R2/S3) — done
 
@@ -114,13 +112,15 @@ The step most likely to break things, so it goes first and alone.
   127.0.0.1:9090 for trying it locally.
 - Not covered: the TTS preview cache and synthesized sound effects stay local (they are rebuilt when missing).
 
-### 6. Moving existing data (the SQLite import is done in step 4)
+### 6. Moving existing data, column types — done
 
-- `scripts/migrate-sqlite-to-pg.mjs` copies every table from `app.db` into Postgres in foreign-key order, then
-  checks row counts.
-- `scripts/upload-media.mjs` copies `data/media` to the bucket.
-- Update `docs/DEPLOY.md`, `docker-compose.yml` (adds a `postgres` service for self-hosting) and `scripts/backup.mjs`
-  (`pg_dump`).
+- `npm run db:import-sqlite` (step 4) and `npm run media:upload` (step 5) move an existing install; `docs/DEPLOY.md`
+  covers both, the R2/S3 settings, and backups with pg_dump (`scripts/backup.sh`).
+- Migration `drizzle/0001_column_types.sql`: 34 time columns to `timestamptz`, 23 JSON columns to `jsonb`, 8 flags to
+  `boolean` (the USING casts are written by hand; drizzle-kit leaves them out).
+- The code still reads and writes times as ISO strings and JSON as text, through two column types in `schema.ts`
+  (`isoTime`, `jsonText`), so repositories and the API stay the same. Flags are real booleans in the code too.
+- A query that searched JSON text with LIKE now reads the field (`payload->>'threadId'`).
 
 ## Total
 

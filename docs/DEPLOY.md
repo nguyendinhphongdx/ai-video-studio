@@ -1,5 +1,17 @@
 # Deploy AI Video Studio
 
+## The quick way: this machine + Cloudflare Tunnel
+
+`docker-compose.tunnel.yml` runs everything (postgres, web, worker, cloudflared) on one machine, with no open ports:
+
+1. Cloudflare › Networking › Tunnels › Create Tunnel. Put its token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN=`.
+2. In the tunnel's Routes, add a Published application: your hostname → `http://web:3300`.
+3. `npm run stack` (= `docker compose -f docker-compose.tunnel.yml up -d --build`).
+
+The database stays on this machine (volume `ai-video-studio_pgdata-dev`, also on 127.0.0.1:5433 for `npm run dev`).
+The rest of this guide is the other setup: a server with its own HTTPS (Caddy).
+
+
 One server runs four containers: **Caddy** (HTTPS on ports 80/443, certificate from Let's Encrypt), **web** (Next.js),
 **worker** (AI jobs and video renders) and **postgres** (the database, in the `pgdata` Docker volume). Web and worker
 share `./data`: every picture, voice and video, and the system's shared AI keys. Back up both (see below).

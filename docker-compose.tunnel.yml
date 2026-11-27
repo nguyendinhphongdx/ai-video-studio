@@ -1,0 +1,72 @@
+# The whole app on one machine (even a laptop behind a home router), published through a Cloudflare Tunnel: no open
+# ports, no certificates to manage; Cloudflare serves HTTPS on your domain and forwards to the web container.
+#
+#   docker compose -f docker-compose.tunnel.yml up -d --build      (npm run stack)
+#
+# Needs CLOUDFLARE_TUNNEL_TOKEN in .env (Cloudflare › Networking › Tunnels › your tunnel). In the tunnel's route
+# (Published application), point your hostname at  http://web:3300
+# The database is published on 127.0.0.1:5433 too, so `npm run dev` on this machine works on the same data.
+# Optional: S3_* in .env keeps media in R2 (docs/DEPLOY.md); without them media stays in ./data/media.
+name: ai-video-studio
+
+x-app: &app
+  build: .
+  restart: unless-stopped
+  volumes:
+    - ./data:/data
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgres://avs:avs@postgres:5432/avs
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: avs
+      POSTGRES_PASSWORD: avs
+      POSTGRES_DB: avs
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avs -d avs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *app
+    command: ["npx", "tsx", "src/worker/index.ts"]
+    # Remotion renders with Chrome, which needs more shared memory than Docker's 64 MB default.
+    shm_size: "1gb"
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.11.1
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    # The database volume the earlier development setup created, so its data carries over.
+    name: ai-video-studio_pgdata-dev

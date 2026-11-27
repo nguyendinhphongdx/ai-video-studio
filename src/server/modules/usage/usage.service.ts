@@ -12,7 +12,7 @@ import { settingsService } from '@/server/modules/settings/settings.service';
 
 import { DEFAULT_PRICES } from './pricing';
 import { usageRepository, type Budget, type Group } from './usage.repository';
-import { maybeCtx } from '@/server/context';
+import { maybeCtx, requireAdmin, requireOwner } from '@/server/context';
 import type { BudgetInputType } from './usage.types';
 
 const logger = createLogger('usage');
@@ -134,27 +134,32 @@ export const usageService = {
 
   prices,
   savePrices(rows: Omit<PriceRow, 'id'>[]) {
+    requireAdmin();
     usageRepository.replacePrices(rows);
     return usageRepository.prices();
   },
   resetPrices() {
+    requireAdmin();
     usageRepository.replacePrices(DEFAULT_PRICES);
     return usageRepository.prices();
   },
 
   budgets: () => usageRepository.budgets().map((b) => statusOf(b)),
   saveBudget(input: BudgetInputType) {
+    requireOwner();
     if (input.scope === 'channel' && !(input.channelId && channelRepository.find(input.channelId))) throw new UserFacingError('Chọn kênh cho ngân sách theo kênh.');
     usageRepository.upsertBudget({ ...input, channelId: input.scope === 'channel' ? input.channelId : null }, now());
     return usageService.budgets();
   },
   removeBudget(id: string) {
+    requireOwner();
     usageRepository.removeBudget(id);
     return usageService.budgets();
   },
 
   prefs: () => ({ fxUsdVnd: fx() }),
   savePrefs(fxUsdVnd: number) {
+    requireOwner();
     usageRepository.setPref(FX_KEY, String(fxUsdVnd));
     return usageService.prefs();
   },

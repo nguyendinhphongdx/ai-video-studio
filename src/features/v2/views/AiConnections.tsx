@@ -5,11 +5,23 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { queryKeys, useAppConfig } from '@/features/app';
+import { useMe } from '@/features/auth/AccountBox';
 import { settingsApi } from '@/features/settings/services/settings.service';
-import { errorMessage } from '@/lib/api/client';
-import { EFFORTS, IMAGE_PROVIDERS, IMAGE_PROVIDER_IDS, PROVIDERS, PROVIDER_IDS, type Effort, type ImageProviderId, type ProviderId } from '@/server/modules/settings/settings.types';
+import { api, errorMessage } from '@/lib/api/client';
+import { EFFORTS, IMAGE_PROVIDERS, IMAGE_PROVIDER_IDS, PROVIDERS, PROVIDER_IDS, type Effort, type ImageProviderId, type ImageSettingsInput, type LlmSettingsInput, type ProviderId, type PublicImageSettings, type PublicLlmSettings } from '@/server/modules/settings/settings.types';
 
 type Result = { ok: true; model: string } | { ok: false; error: string } | null;
+
+/** Which connection a card edits: the current workspace's own, or the system's shared one (admin). */
+type Level = 'workspace' | 'shared';
+const sharedApi = {
+  llm: () => api<PublicLlmSettings>('/settings/shared/llm'),
+  saveLlm: (input: LlmSettingsInput) => api<PublicLlmSettings>('/settings/shared/llm', { method: 'PUT', body: input }),
+  image: () => api<PublicImageSettings>('/settings/shared/image'),
+  saveImage: (input: ImageSettingsInput) => api<PublicImageSettings>('/settings/shared/image', { method: 'PUT', body: input }),
+};
+const apiFor = (level: Level) => (level === 'shared' ? { ...settingsApi, ...sharedApi } : settingsApi);
+const keyFor = (level: Level, what: 'llm' | 'image') => (level === 'shared' ? ['settings', 'shared', what] : what === 'llm' ? queryKeys.llmSettings : ['settings', 'image']);
 
 function StatusChip({ ready, source }: { ready: boolean; source: string | null }) {
   const from = source === 'env' ? ' · từ biến môi trường' : source === 'llm' ? ' · dùng chung key viết kịch bản' : '';
@@ -32,9 +44,10 @@ function TestResult({ r }: { r: Result }) {
 }
 
 /** Writing (LLM): provider, model, key, server address and effort; test before saving. */
-function LlmCard() {
+function LlmCard({ level = 'workspace' }: { level?: Level }) {
   const qc = useQueryClient();
-  const saved = useQuery({ queryKey: queryKeys.llmSettings, queryFn: settingsApi.llm }).data;
+  const sapi = apiFor(level);
+  const saved = useQuery({ queryKey: keyFor(level, 'llm'), queryFn: sapi.llm }).data;
   const [form, setForm] = useState<{ provider: ProviderId; model: string; apiKey: string; baseUrl: string; effort: Effort } | null>(null);
   const [result, setResult] = useState<Result>(null);
   useEffect(() => {
@@ -44,9 +57,9 @@ function LlmCard() {
   const input = () => form && { provider: form.provider, model: form.model, baseUrl: form.baseUrl, effort: form.effort, ...(form.apiKey ? { apiKey: form.apiKey } : {}) };
   const test = useMutation({ mutationFn: () => settingsApi.testLlm(input()!), onSuccess: setResult, onError: (e) => setResult({ ok: false, error: errorMessage(e) }) });
   const save = useMutation({
-    mutationFn: (extra: { clearKey?: boolean } = {}) => settingsApi.saveLlm({ ...input()!, ...extra }),
+    mutationFn: (extra: { clearKey?: boolean } = {}) => sapi.saveLlm({ ...input()!, ...extra }),
     onSuccess: (d) => {
-      qc.setQueryData(queryKeys.llmSettings, d);
+      qc.setQueryData(keyFor(level, 'llm'), d);
       void qc.invalidateQueries({ queryKey: queryKeys.config });
       toast.success('Đã lưu kết nối viết kịch bản');
     },
@@ -126,9 +139,11 @@ function LlmCard() {
       </div>
       <TestResult r={result} />
       <div className="row">
-        <button className="btn" disabled={test.isPending} onClick={() => test.mutate()}>
-          {test.isPending ? 'Đang thử…' : 'Thử kết nối'}
-        </button>
+        {level === 'workspace' && (
+          <button className="btn" disabled={test.isPending} onClick={() => test.mutate()}>
+            {test.isPending ? 'Đang thử…' : 'Thử kết nối'}
+          </button>
+        )}
         <button className="btn pri" disabled={save.isPending} onClick={() => save.mutate({})}>
           Lưu
         </button>
@@ -143,9 +158,10 @@ function LlmCard() {
 }
 
 /** Pictures: provider, model and key (may reuse the writing key of the same provider). */
-function ImageCard() {
+function ImageCard({ level = 'workspace' }: { level?: Level }) {
   const qc = useQueryClient();
-  const saved = useQuery({ queryKey: ['settings', 'image'], queryFn: settingsApi.image }).data;
+  const sapi = apiFor(level);
+  const saved = useQuery({ queryKey: keyFor(level, 'image'), queryFn: sapi.image }).data;
   const [form, setForm] = useState<{ provider: ImageProviderId; model: string; apiKey: string } | null>(null);
   const [result, setResult] = useState<Result>(null);
   useEffect(() => {
@@ -158,9 +174,9 @@ function ImageCard() {
     onError: (e) => setResult({ ok: false, error: errorMessage(e) }),
   });
   const save = useMutation({
-    mutationFn: (extra: { clearKey?: boolean } = {}) => settingsApi.saveImage({ ...input()!, ...extra }),
+    mutationFn: (extra: { clearKey?: boolean } = {}) => sapi.saveImage({ ...input()!, ...extra }),
     onSuccess: (d) => {
-      qc.setQueryData(['settings', 'image'], d);
+      qc.setQueryData(keyFor(level, 'image'), d);
       void qc.invalidateQueries({ queryKey: queryKeys.config });
       toast.success('Đã lưu kết nối vẽ ảnh');
     },
@@ -212,9 +228,11 @@ function ImageCard() {
       </div>
       <TestResult r={result} />
       <div className="row">
-        <button className="btn" disabled={test.isPending} onClick={() => test.mutate()} title="Vẽ thử một ảnh nhỏ, có tốn một ít phí">
-          {test.isPending ? 'Đang vẽ thử…' : 'Vẽ thử một ảnh'}
-        </button>
+        {level === 'workspace' && (
+          <button className="btn" disabled={test.isPending} onClick={() => test.mutate()} title="Vẽ thử một ảnh nhỏ, có tốn một ít phí">
+            {test.isPending ? 'Đang vẽ thử…' : 'Vẽ thử một ảnh'}
+          </button>
+        )}
         <button className="btn pri" disabled={save.isPending} onClick={() => save.mutate({})}>
           Lưu
         </button>
@@ -293,15 +311,89 @@ function VoiceCard() {
   );
 }
 
+/** Settings › Kết nối AI: the current workspace's own connections, and whether it falls back to the shared keys. */
 export function AiConnections() {
+  const me = useMe().data;
+  const llm = useQuery({ queryKey: keyFor('workspace', 'llm'), queryFn: settingsApi.llm }).data;
+  const owner = me?.role === 'owner';
   return (
     <>
       <div className="alert">
-        <span>Mỗi việc dùng một mô hình. API key chỉ lưu trên máy này và không bao giờ hiện lại đầy đủ.</span>
+        <span>Kết nối AI của workspace “{me?.workspace.name ?? '…'}”. Mỗi việc dùng một mô hình. API key không bao giờ hiện lại đầy đủ.</span>
       </div>
+      {llm?.usingShared && (
+        <div className="alert ok">
+          <span>Workspace đang dùng khoá AI chung của hệ thống (do quản trị cho phép). Nhập khoá riêng bên dưới nếu muốn workspace tự trả phí.</span>
+        </div>
+      )}
+      {llm && !llm.ready && !llm.sharedAllowed && (
+        <div className="alert warn">
+          <span>Workspace chưa có kết nối AI. Chủ workspace nhập API key của mình bên dưới để viết kịch bản, vẽ ảnh và lồng tiếng.</span>
+        </div>
+      )}
+      {me && !owner && (
+        <div className="alert">
+          <span>Chỉ chủ workspace mới đổi được kết nối AI.</span>
+        </div>
+      )}
       <LlmCard />
       <ImageCard />
       <VoiceCard />
     </>
   );
 }
+
+/** Settings › Hệ thống (system admin): the shared keys, and which workspaces may use them. */
+export function SystemTab() {
+  const qc = useQueryClient();
+  const list = useQuery({ queryKey: ['admin', 'workspaces'], queryFn: () => api<AdminWorkspace[]>('/admin/workspaces') });
+  const toggle = useMutation({
+    mutationFn: (v: { id: string; on: boolean }) => api<AdminWorkspace[]>(`/admin/workspaces/${v.id}`, { method: 'PATCH', body: { usesSharedKeys: v.on } }),
+    onSuccess: (d) => (qc.setQueryData(['admin', 'workspaces'], d), void qc.invalidateQueries({ queryKey: queryKeys.llmSettings })),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  return (
+    <>
+      <div className="alert">
+        <span>Khoá AI chung của hệ thống: dùng cho mọi workspace được bật bên dưới mà chưa có khoá riêng. Phí của các workspace đó tính vào khoá này.</span>
+      </div>
+      <LlmCard level="shared" />
+      <ImageCard level="shared" />
+      <div className="card">
+        <h2>Workspace được dùng khoá chung</h2>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Workspace</th>
+              <th>Chủ</th>
+              <th>Người · Dự án</th>
+              <th>Dùng khoá chung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(list.data ?? []).map((w) => (
+              <tr key={w.id}>
+                <td>
+                  <b>{w.name}</b>
+                  <div className="cap">Tạo {new Date(w.createdAt).toLocaleDateString('vi-VN')}</div>
+                </td>
+                <td className="cap">{w.ownerEmail}</td>
+                <td className="cap">
+                  {w.members} · {w.projects}
+                </td>
+                <td>
+                  <label className="row" style={{ gap: 6 }}>
+                    <input type="checkbox" checked={w.usesSharedKeys} disabled={toggle.isPending} onChange={(e) => toggle.mutate({ id: w.id, on: e.target.checked })} />
+                    <span className="cap">{w.usesSharedKeys ? 'Được dùng' : 'Không'}</span>
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+type AdminWorkspace = { id: string; name: string; usesSharedKeys: boolean; createdAt: string; ownerEmail: string; members: number; projects: number };

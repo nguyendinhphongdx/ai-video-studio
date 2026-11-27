@@ -4,6 +4,7 @@
 // workspace or the session through function parameters.
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import { ApiError } from '@/server/http/api-error';
 import { authRepository } from '@/server/modules/auth/auth.repository';
 import type { Role, User, Workspace } from '@/server/modules/auth/auth.types';
 
@@ -70,6 +71,16 @@ export function ctx(): RequestContext {
 
 /** The context when there is one (code that also runs at start-up, outside any request). */
 export const maybeCtx = (): RequestContext | undefined => store.getStore() ?? testContext();
+
+/** Only an owner of the current workspace: its people, AI connections and budgets. */
+export function requireOwner(): void {
+  if (ctx().role !== 'owner') throw new ApiError(403, 'forbidden', 'Chỉ chủ workspace mới làm được việc này.');
+}
+
+/** Only the system admin: the shared AI keys, the price book, which workspaces may use the shared keys. */
+export function requireAdmin(): void {
+  if (!ctx().user.isAdmin) throw new ApiError(403, 'forbidden', 'Chỉ quản trị hệ thống mới làm được việc này.');
+}
 
 /** Runs `fn` with extra cost-ledger tags (a video, a job, a purpose) added to the current context. */
 export function withUsage<T>(tags: UsageTags, fn: () => T): T {

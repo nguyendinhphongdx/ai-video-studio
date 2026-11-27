@@ -8,7 +8,8 @@ import { appApi, queryKeys } from '@/features/app';
 
 import { projectHref } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
-import { AiConnections } from './AiConnections';
+import { AiConnections, SystemTab } from './AiConnections';
+import { useMe } from '@/features/auth/AccountBox';
 import { CostTab, PricesTab } from './CostViews';
 import { WorkspaceTab } from './WorkspaceTab';
 
@@ -71,24 +72,28 @@ const SETTINGS_TABS = [
   { key: 'ai', label: 'Kết nối AI' },
   { key: 'cost', label: 'Chi phí' },
   { key: 'prices', label: 'Bảng giá' },
+  { key: 'system', label: 'Hệ thống' },
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number]['key'];
 
 /** Workspace settings: people, AI connections, spending across every project, and the price book. */
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('ai');
+  const admin = useMe().data?.user.isAdmin;
+  // The system tab (shared keys, which workspaces may use them) is for the system admin only.
+  const tabs = SETTINGS_TABS.filter((t) => t.key !== 'system' || admin);
   return (
     <>
       <Topbar crumbs={['Cài đặt', SETTINGS_TABS.find((t) => t.key === tab)!.label]} />
       <Page width={1180}>
         <div className="tabs" role="tablist">
-          {SETTINGS_TABS.map((t) => (
+          {tabs.map((t) => (
             <a key={t.key} href={`#${t.key}`} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : undefined} onClick={(e) => (e.preventDefault(), setTab(t.key))}>
               {t.label}
             </a>
           ))}
         </div>
-        {tab === 'workspace' ? <WorkspaceTab /> : tab === 'ai' ? <AiConnections /> : tab === 'cost' ? <CostTab /> : <PricesTab />}
+        {tab === 'workspace' ? <WorkspaceTab /> : tab === 'ai' ? <AiConnections /> : tab === 'cost' ? <CostTab /> : tab === 'system' ? <SystemTab /> : <PricesTab />}
       </Page>
     </>
   );

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { newId } from '@/core/domain/ids';
-import { ctx, makeContext, runWithContext, type RequestContext } from '@/server/context';
+import { ctx, makeContext, requireAdmin, runWithContext, type RequestContext } from '@/server/context';
 import { ApiError } from '@/server/http/api-error';
 
 import { authRepository } from './auth.repository';
@@ -102,6 +102,19 @@ export const authService = {
   me(): MeView {
     const { user, workspace, role } = ctx();
     return { user, workspace, role, workspaces: authRepository.workspacesOf(user.id) };
+  },
+
+  /** The system admin's list of every workspace. */
+  allWorkspaces() {
+    requireAdmin();
+    return authRepository.allWorkspaces();
+  },
+
+  /** The system admin lets a workspace fall back to the shared AI keys, or stops it. */
+  setSharedKeys(workspaceId: string, allowed: boolean) {
+    requireAdmin();
+    if (!authRepository.setSharedKeys(workspaceId, allowed)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
+    return authRepository.allWorkspaces();
   },
 
   /** Moves the current session to another workspace the person belongs to. */

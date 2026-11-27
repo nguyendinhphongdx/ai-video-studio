@@ -74,6 +74,24 @@ export const authRepository = {
     for (const t of DATA_TABLES) db().prepare(`UPDATE ${t} SET workspace_id = ?, user_id = COALESCE(user_id, ?) WHERE workspace_id IS NULL`).run(workspaceId, userId);
   },
 
+  /** Every workspace with its first owner and counts (the system admin's overview). */
+  allWorkspaces(): (Workspace & { ownerEmail: string; members: number; projects: number })[] {
+    const rows = db()
+      .prepare(
+        `SELECT w.*,
+           (SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = w.id AND m.role = 'owner' ORDER BY m.created_at LIMIT 1) AS owner_email,
+           (SELECT COUNT(*) FROM memberships m WHERE m.workspace_id = w.id) AS members,
+           (SELECT COUNT(*) FROM channels c WHERE c.workspace_id = w.id) AS projects
+         FROM workspaces w ORDER BY w.created_at`,
+      )
+      .all() as (WorkspaceRow & { owner_email: string | null; members: number; projects: number })[];
+    return rows.map((r) => ({ ...toWorkspace(r), ownerEmail: r.owner_email ?? '', members: r.members, projects: r.projects }));
+  },
+
+  setSharedKeys(workspaceId: string, allowed: boolean): boolean {
+    return db().prepare('UPDATE workspaces SET uses_shared_keys = ? WHERE id = ?').run(allowed ? 1 : 0, workspaceId).changes > 0;
+  },
+
   insertSession(s: { tokenHash: string; userId: string; workspaceId: string | null; createdAt: string; expiresAt: string }) {
     db().prepare('INSERT INTO sessions (token_hash, user_id, workspace_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)').run(s.tokenHash, s.userId, s.workspaceId, s.createdAt, s.expiresAt);
   },

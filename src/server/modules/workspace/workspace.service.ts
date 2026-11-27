@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 
 import { newId } from '@/core/domain/ids';
-import { ctx } from '@/server/context';
+import { ctx, requireOwner } from '@/server/context';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
 
 import { authRepository } from '../auth/auth.repository';
@@ -17,10 +17,6 @@ export const INVITE_DAYS = 7;
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
-/** Only an owner of the current workspace may manage its people (and, later, its keys and budgets). */
-export function requireOwner() {
-  if (ctx().role !== 'owner') throw new ApiError(403, 'forbidden', 'Chỉ chủ workspace mới làm được việc này.');
-}
 
 export const workspaceService = {
   members(): Member[] {

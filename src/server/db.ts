@@ -302,6 +302,41 @@ const MIGRATIONS = [
   `,
   // App-wide switches (sound effects on/off and level).
   `CREATE TABLE app_prefs (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+  // Accounts and workspaces (docs/PLAN-workspaces.md). A workspace owns the data; people join it as owner or member.
+  // Sessions and invites store a SHA-256 of the token, never the token.
+  `
+  CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    uses_shared_keys INTEGER NOT NULL DEFAULT 0,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE memberships (
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, user_id)
+  );
+  CREATE INDEX memberships_user ON memberships(user_id);
+  CREATE TABLE sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+  CREATE INDEX sessions_user ON sessions(user_id);
+  `,
 ];
 
 function open(): DatabaseSync {

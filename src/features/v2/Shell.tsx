@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { LogoMark } from '@/components/brand/LogoMark';
+import { AccountBox } from '@/features/auth/AccountBox';
 
 import { projectHref } from './model';
 
@@ -38,6 +39,7 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
           Studio
         </Link>
         {nav}
+        <AccountBox />
       </aside>
       <div className="main">{children}</div>
     </div>

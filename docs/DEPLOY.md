@@ -38,6 +38,25 @@ After signing in:
 3. Anyone may sign up and gets an empty workspace of their own. It has **no AI** until its owner enters its own keys
    (Cài đặt › Kết nối AI) or you switch on "Dùng khoá chung" for it in **Cài đặt › Hệ thống**.
 
+## Object storage (optional): Cloudflare R2, S3
+
+By default every picture, voice and video lives in `./data/media` on the server's disk. To keep them in a bucket
+instead (needed when the disk does not last, as on Cloudflare Containers, Fly or Render, or to run more than one
+worker), set in `.env`:
+
+```bash
+S3_BUCKET=avs-media
+S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com   # R2; leave empty for AWS S3
+S3_REGION=auto                                              # R2; the bucket's region on AWS
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+```
+
+`./data/media` then works as a cache: the worker fetches what a job needs before it runs and stores what it made
+afterwards; the web app uploads what people add and serves files it does not have through 15-minute signed links.
+For an install that already has media, upload it once: `docker compose run --rm web npm run media:upload`.
+The bucket stays private; nothing in it is public.
+
 ## 3. Moving an existing install to the server
 
 Copy the whole `data/` folder (with the app stopped on the old machine) into the repository folder on the server, and
@@ -62,7 +81,7 @@ Accounts, workspaces, projects, media and the shared keys come along; sign in wi
 ```
 
 This writes `data/backups/<time>/` with `db.dump` (pg_dump, consistent while the app runs), `settings.json` (the shared
-AI keys) and `media.tar.gz`, and keeps the newest 7 (`AVS_BACKUP_KEEP` changes that). Copy that folder off the server:
+AI keys, from before they moved into the database) and `media.tar.gz`, and keeps the newest 7 (`AVS_BACKUP_KEEP` changes that). Copy that folder off the server:
 a backup on the same disk does not survive a lost disk. With a managed Postgres, rely on its backups for the database.
 
 Every night at 03:00, from the server's crontab (`crontab -e`):

@@ -4,13 +4,12 @@
 //   system admin. A workspace without a working connection of its own falls back to the shared one only when the admin
 //   allows it (workspaces.uses_shared_keys). Which workspace is asking always comes from ctx().
 import fs from 'node:fs/promises';
-import path from 'node:path';
 
 import { and, eq } from 'drizzle-orm';
 
 import { ctx, requireAdmin, requireOwner } from '@/server/context';
 import { one, orm, owner, scoped } from '@/server/orm';
-import { workspacePrefs } from '@/server/schema';
+import { appPrefs, workspacePrefs } from '@/server/schema';
 import { ApiError } from '@/server/http/api-error';
 import { SETTINGS_FILE } from '@/server/config';
 
@@ -41,21 +40,29 @@ interface Store {
   env: boolean;
 }
 
-/** The system's shared connection: data/settings.json plus env vars. */
+const SHARED_KEY = 'shared_ai_settings';
+/**
+ * The system's shared connection: a system row of app_prefs plus env vars. Installs from before kept it in
+ * data/settings.json; that file is read once, copied into the database, and left alone afterwards.
+ */
 const sharedStore: Store = {
   env: true,
   async read() {
-    try {
-      return JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
-    } catch {
-      return {};
+    const r = await orm().select({ value: appPrefs.value }).from(appPrefs).where(eq(appPrefs.key, SHARED_KEY)).then(one);
+    if (r) {
+      try {
+        return JSON.parse(r.value) as All;
+      } catch {
+        return {};
+      }
     }
+    const legacy = await fs.readFile(SETTINGS_FILE, 'utf8').then((t) => JSON.parse(t) as All, () => null);
+    if (legacy) await sharedStore.write(legacy);
+    return legacy ?? {};
   },
   async write(data) {
-    await fs.mkdir(path.dirname(SETTINGS_FILE), { recursive: true });
-    const tmp = `${SETTINGS_FILE}.${process.pid}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
-    await fs.rename(tmp, SETTINGS_FILE);
+    const value = JSON.stringify(data);
+    await orm().insert(appPrefs).values({ key: SHARED_KEY, value }).onConflictDoUpdate({ target: appPrefs.key, set: { value } });
   },
 };
 

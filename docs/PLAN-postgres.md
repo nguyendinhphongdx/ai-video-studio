@@ -1,6 +1,6 @@
 # Plan: Drizzle ORM, then Postgres
 
-Status: steps 1–4 done (the app runs on Postgres); steps 5–6 not started, plus the column-type follow-up in step 4.
+Status: steps 1–5 done (Postgres; media in object storage); step 6 and the column-type follow-up in step 4 not started.
 
 ## Why
 
@@ -97,13 +97,22 @@ The step most likely to break things, so it goes first and alone.
   for flags. Moving them to `timestamptz`, `jsonb` and `boolean` is a separate migration; string comparisons of
   timestamps (sessions, invites, usage ranges) must become date comparisons at the same time.
 
-### 5. Media to object storage (R2/S3)
+### 5. Media to object storage (R2/S3) — done
 
-- A new `MediaPort` adapter on the S3 API. Uploads go to it; the app serves files through a signed URL or a proxy
-  that keeps `canReadMedia`.
-- Render temp files stay on the container's local disk. The finished video uploads to storage.
-- Shared AI keys move from `data/settings.json` into a table.
-- About 2–3 days.
+- `src/server/adapters/media/storage.ts` (AWS SDK v3; S3, R2, MinIO, S3Mock). On when `S3_BUCKET` is set; otherwise
+  nothing changes.
+- The local `data/media` stays the working copy (ffmpeg, Remotion and TTS need real files) and becomes a cache: the
+  worker pulls a job's prefixes (its episode, its channel, the workspace's character pictures) before the job and
+  pushes them after, also when the job failed. A file is sent when the other side lacks it, or has it older or of
+  another size.
+- The web app uploads logos, avatars, music, channel art and character pictures as it saves them, deletes an
+  episode's or channel's stored files with it, fetches renders for the publish kit, and answers `/api/v1/media/...`
+  for a file it does not have with a 302 to a 15-minute signed URL (range requests go to the bucket).
+- The shared AI keys moved from `data/settings.json` to a system row of `app_prefs` (`shared_ai_settings`). An old
+  file is copied in on first read and left alone.
+- `npm run media:upload` sends an existing `data/media` to the bucket. `docker-compose.dev.yml` has S3Mock on
+  127.0.0.1:9090 for trying it locally.
+- Not covered: the TTS preview cache and synthesized sound effects stay local (they are rebuilt when missing).
 
 ### 6. Moving existing data (the SQLite import is done in step 4)
 

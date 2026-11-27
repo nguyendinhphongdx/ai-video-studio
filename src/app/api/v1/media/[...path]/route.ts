@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 
 import { canReadMedia } from '@/server/adapters/media/media-access';
 import { mimeOf, resolveMedia } from '@/server/adapters/media/media.service';
+import { storage } from '@/server/adapters/media/storage';
 import { notFound } from '@/server/http/api-error';
 import { route } from '@/server/http/route';
 
@@ -12,7 +13,13 @@ export const GET = route<{ path: string[] }>(async (req, { path }) => {
   const file = resolveMedia(rel);
   // Another workspace's file is "not found", the same as a missing one.
   if (!await canReadMedia(rel)) throw notFound('tệp');
-  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw notFound('tệp');
+  if (!fs.existsSync(file)) {
+    // Not on this machine: the stored copy, through a short-lived signed link (the bucket handles range requests).
+    const url = await storage.signedUrl(rel, mimeOf(file));
+    if (url) return new Response(null, { status: 302, headers: { location: url, 'cache-control': 'private, no-store' } });
+    throw notFound('tệp');
+  }
+  if (!fs.statSync(file).isFile()) throw notFound('tệp');
   const size = fs.statSync(file).size;
   const type = mimeOf(file);
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') ?? '');

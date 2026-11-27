@@ -8,6 +8,8 @@ import type { MediaPort } from '@/core/ports';
 import { ApiError } from '@/server/http/api-error';
 import { MEDIA_DIR, PUBLIC_DIR } from '@/server/config';
 
+import { storage } from './storage';
+
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mp3': 'audio/mpeg',
@@ -48,19 +50,23 @@ export const media: MediaPort = {
 
 export async function removeEpisodeMedia(episodeId: string) {
   await fs.rm(path.join(MEDIA_DIR, 'episodes', episodeId), { recursive: true, force: true });
+  await storage.remove(`episodes/${episodeId}/`);
 }
 
 export async function removeChannelMedia(channelId: string) {
   await fs.rm(path.join(MEDIA_DIR, 'channels', channelId), { recursive: true, force: true });
+  await storage.remove(`channels/${channelId}/`);
 }
 
 /** Replaces the channel's previous file of this kind (logo, avatar or music); returns the media-relative path. */
 export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
   const dir = path.join(MEDIA_DIR, 'channels', channelId, kind);
   await fs.rm(dir, { recursive: true, force: true });
+  await storage.remove(`${path.relative(MEDIA_DIR, dir)}/`);
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `${kind}-${Date.now()}${ext}`);
   await fs.writeFile(file, data);
+  await storage.put(path.relative(MEDIA_DIR, file));
   return path.relative(MEDIA_DIR, file);
 }
 
@@ -70,5 +76,6 @@ export async function saveCharacterFile(data: Buffer, ext: string): Promise<stri
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `character-${Date.now().toString(36)}${ext}`);
   await fs.writeFile(file, data);
+  await storage.put(path.relative(MEDIA_DIR, file));
   return path.relative(MEDIA_DIR, file);
 }

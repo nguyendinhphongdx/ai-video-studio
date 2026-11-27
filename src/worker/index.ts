@@ -7,6 +7,7 @@ import { generateSceneAssets, type SceneAssetsRequest } from '@/core/workflows/a
 import { reviseScript, writeScript } from '@/core/workflows/script';
 import { createCoreDeps } from '@/server/core-deps';
 import { dbReady } from '@/server/db';
+import { jobPrefixes, storage } from '@/server/adapters/media/storage';
 import { createLogger } from '@/server/logger';
 import { characterSpriteService } from '@/server/modules/series/character-sprites.service';
 import { channelService } from '@/server/modules/channel/channel.service';
@@ -18,7 +19,7 @@ import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
 import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { SUBSCRIBERS } from '@/server/subscribers';
 import { closeRemotion, rendererCatalog } from '@/tools/renderers';
-import { runWithContext, withUsage } from '@/server/context';
+import { ctx, runWithContext, withUsage } from '@/server/context';
 
 const logger = createLogger('worker');
 const deps = createCoreDeps(rendererCatalog);
@@ -87,7 +88,7 @@ async function runScopedJob(job: Job): Promise<void> {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
     const episode = job.episodeId ? await episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
-    const result = await withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
+    const result = await withMedia(job, channelId, () => withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress)));
     // Only jobs that produce data (not an episode change) keep their return value.
     await jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });
@@ -97,6 +98,21 @@ async function runScopedJob(job: Job): Promise<void> {
     await jobRepository.fail(job.id, message);
     if (job.episodeId) await episodeRepository.addEvent(job.episodeId, `Lỗi: ${message}`);
     await rollback(job);
+  }
+}
+
+/**
+ * With object storage on: fetch the job's media (its video, channel and character pictures) before it runs and store
+ * what it made afterwards, even when it failed half way (finished pictures and voices are worth keeping).
+ */
+async function withMedia<T>(job: Job, channelId: string | undefined, fn: () => Promise<T>): Promise<T> {
+  if (!storage.enabled) return fn();
+  const prefixes = jobPrefixes(ctx().workspaceId, job.episodeId, channelId);
+  for (const p of prefixes) await storage.pull(p.prefix, p);
+  try {
+    return await fn();
+  } finally {
+    for (const p of prefixes) await storage.push(p.prefix, p).catch((e) => logger.error('media upload failed', { job: job.id, prefix: p.prefix, error: String((e as Error)?.message ?? e) }));
   }
 }
 

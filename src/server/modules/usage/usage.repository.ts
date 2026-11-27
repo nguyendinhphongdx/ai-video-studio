@@ -1,6 +1,7 @@
 import { newId } from '@/core/domain/ids';
 import type { PriceRow, UsageKind } from '@/core/usage/cost';
 import { db } from '@/server/db';
+import { maybeScope, uid, ws } from '@/server/http/scope';
 
 type Row = Record<string, unknown>;
 
@@ -76,56 +77,58 @@ export const usageRepository = {
   insert(e: Omit<UsageEvent, 'id'> & { runId?: string | null }): string {
     const id = newId();
     db()
-      .prepare('INSERT INTO usage_events (id, at, kind, provider, model, purpose, channel_id, series_id, episode_id, scene_id, job_id, thread_id, run_id, input_tokens, output_tokens, cached_tokens, units, cost_usd, estimated, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, e.at, e.kind, e.provider, e.model, e.purpose, e.channelId, e.seriesId, e.episodeId, e.sceneId, e.jobId, e.threadId, e.runId ?? null, e.inputTokens, e.outputTokens, e.cachedTokens, e.units, e.costUsd, e.estimated ? 1 : 0, e.durationMs);
+      .prepare('INSERT INTO usage_events (id, at, kind, provider, model, purpose, channel_id, series_id, episode_id, scene_id, job_id, thread_id, run_id, input_tokens, output_tokens, cached_tokens, units, cost_usd, estimated, duration_ms, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, e.at, e.kind, e.provider, e.model, e.purpose, e.channelId, e.seriesId, e.episodeId, e.sceneId, e.jobId, e.threadId, e.runId ?? null, e.inputTokens, e.outputTokens, e.cachedTokens, e.units, e.costUsd, e.estimated ? 1 : 0, e.durationMs, ws(), uid());
     return id;
   },
 
   totals(from: string, channelId?: string): Totals {
     const r = db()
-      .prepare(`SELECT ${SUMS}, COALESCE(SUM(CASE WHEN kind = 'image' THEN units END), 0) AS images, COALESCE(SUM(CASE WHEN kind = 'tts' THEN units END), 0) AS secs, COALESCE(SUM(cost_usd IS NULL), 0) AS unpriced, COALESCE(SUM(estimated), 0) AS est FROM usage_events WHERE at >= ?${channelId ? ' AND channel_id = ?' : ''}`)
-      .get(...(channelId ? [from, channelId] : [from])) as Row;
+      .prepare(`SELECT ${SUMS}, COALESCE(SUM(CASE WHEN kind = 'image' THEN units END), 0) AS images, COALESCE(SUM(CASE WHEN kind = 'tts' THEN units END), 0) AS secs, COALESCE(SUM(cost_usd IS NULL), 0) AS unpriced, COALESCE(SUM(estimated), 0) AS est FROM usage_events WHERE workspace_id = ? AND at >= ?${channelId ? ' AND channel_id = ?' : ''}`)
+      .get(...(channelId ? [ws(), from, channelId] : [ws(), from])) as Row;
     return { calls: Number(r.calls), usd: Number(r.usd), inputTokens: Number(r.i), outputTokens: Number(r.o), cachedTokens: Number(r.c), images: Number(r.images), ttsSeconds: Number(r.secs), unpriced: Number(r.unpriced), estimated: Number(r.est) };
   },
 
   daily(from: string): { day: string; kind: UsageKind; usd: number }[] {
-    return (db().prepare("SELECT date(at, 'localtime') AS d, kind, COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE at >= ? GROUP BY d, kind ORDER BY d").all(from) as Row[]).map((r) => ({ day: String(r.d), kind: r.kind as UsageKind, usd: Number(r.usd) }));
+    return (db().prepare("SELECT date(at, 'localtime') AS d, kind, COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY d, kind ORDER BY d").all(ws(), from) as Row[]).map((r) => ({ day: String(r.d), kind: r.kind as UsageKind, usd: Number(r.usd) }));
   },
 
   by(column: 'channel_id' | 'purpose' | 'episode_id', from: string, limit = 10): Group[] {
-    return (db().prepare(`SELECT ${column} AS k, ${SUMS} FROM usage_events WHERE at >= ? GROUP BY ${column} ORDER BY usd DESC, calls DESC LIMIT ?`).all(from, limit) as Row[]).map((r) => toGroup(r, str(r.k)));
+    return (db().prepare(`SELECT ${column} AS k, ${SUMS} FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY ${column} ORDER BY usd DESC, calls DESC LIMIT ?`).all(ws(), from, limit) as Row[]).map((r) => toGroup(r, str(r.k)));
   },
 
   byModel(from: string): Group[] {
-    return (db().prepare(`SELECT kind, provider, model AS k, ${SUMS} FROM usage_events WHERE at >= ? GROUP BY kind, provider, model ORDER BY usd DESC, calls DESC`).all(from) as Row[]).map((r) => toGroup(r, String(r.k), r.kind as UsageKind, String(r.provider)));
+    return (db().prepare(`SELECT kind, provider, model AS k, ${SUMS} FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY kind, provider, model ORDER BY usd DESC, calls DESC`).all(ws(), from) as Row[]).map((r) => toGroup(r, String(r.k), r.kind as UsageKind, String(r.provider)));
   },
 
   events(filter: { from?: string; before?: string; kind?: UsageKind; channelId?: string; episodeId?: string; limit: number }): UsageEvent[] {
-    const where: string[] = [];
-    const args: (string | number)[] = [];
+    const where: string[] = ['workspace_id = ?'];
+    const args: (string | number)[] = [ws()];
     if (filter.from) (where.push('at >= ?'), args.push(filter.from));
     if (filter.before) (where.push('at < ?'), args.push(filter.before));
     if (filter.kind) (where.push('kind = ?'), args.push(filter.kind));
     if (filter.channelId) (where.push('channel_id = ?'), args.push(filter.channelId));
     if (filter.episodeId) (where.push('episode_id = ?'), args.push(filter.episodeId));
-    return (db().prepare(`SELECT * FROM usage_events${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC LIMIT ?`).all(...args, filter.limit) as Row[]).map(toEvent);
+    return (db().prepare(`SELECT * FROM usage_events WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ?`).all(...args, filter.limit) as Row[]).map(toEvent);
   },
 
   spent(from: string, channelId: string | null): number {
-    const r = db().prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE at >= ?${channelId ? ' AND channel_id = ?' : ''}`).get(...(channelId ? [from, channelId] : [from])) as Row;
+    const r = db().prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE workspace_id = ? AND at >= ?${channelId ? ' AND channel_id = ?' : ''}`).get(...(channelId ? [ws(), from, channelId] : [ws(), from])) as Row;
     return Number(r.usd);
   },
 
+  /** The system price book (workspace_id NULL), which the admin edits. Per-workspace overrides come in phase 4. */
   prices(): PriceRow[] {
-    return (db().prepare('SELECT * FROM price_book ORDER BY kind, provider, pattern').all() as Row[]).map(toPrice);
+    return (db().prepare('SELECT * FROM price_book WHERE workspace_id IS NULL ORDER BY kind, provider, pattern').all() as Row[]).map(toPrice);
   },
   replacePrices(rows: Omit<PriceRow, 'id'>[]) {
     const d = db();
     d.exec('BEGIN');
     try {
-      d.exec('DELETE FROM price_book');
-      const ins = d.prepare('INSERT INTO price_book (kind, provider, pattern, input_per_mtok, output_per_mtok, cached_per_mtok, per_unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const r of rows) ins.run(r.kind, r.provider, r.pattern, r.inputPerMtok, r.outputPerMtok, r.cachedPerMtok, r.perUnit, r.note);
+      d.exec('DELETE FROM price_book WHERE workspace_id IS NULL');
+      const ins = d.prepare('INSERT INTO price_book (kind, provider, pattern, input_per_mtok, output_per_mtok, cached_per_mtok, per_unit, note, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)');
+      const by = maybeScope()?.user.id ?? null;
+      for (const r of rows) ins.run(r.kind, r.provider, r.pattern, r.inputPerMtok, r.outputPerMtok, r.cachedPerMtok, r.perUnit, r.note, by);
       d.exec('COMMIT');
     } catch (e) {
       d.exec('ROLLBACK');
@@ -134,24 +137,24 @@ export const usageRepository = {
   },
 
   budgets(): Budget[] {
-    return (db().prepare('SELECT * FROM budgets ORDER BY created_at').all() as Row[]).map(toBudget);
+    return (db().prepare('SELECT * FROM budgets WHERE workspace_id = ? ORDER BY created_at').all(ws()) as Row[]).map(toBudget);
   },
   upsertBudget(b: Omit<Budget, 'id'> & { id?: string }, at: string): string {
     const id = b.id ?? newId();
-    const has = db().prepare('SELECT 1 FROM budgets WHERE id = ?').get(id);
-    if (has) db().prepare('UPDATE budgets SET scope = ?, channel_id = ?, period = ?, limit_usd = ?, mode = ?, alert_pct = ? WHERE id = ?').run(b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, id);
-    else db().prepare('INSERT INTO budgets (id, scope, channel_id, period, limit_usd, mode, alert_pct, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, at);
+    const has = db().prepare('SELECT 1 FROM budgets WHERE id = ? AND workspace_id = ?').get(id, ws());
+    if (has) db().prepare('UPDATE budgets SET scope = ?, channel_id = ?, period = ?, limit_usd = ?, mode = ?, alert_pct = ? WHERE id = ? AND workspace_id = ?').run(b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, id, ws());
+    else db().prepare('INSERT INTO budgets (id, scope, channel_id, period, limit_usd, mode, alert_pct, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, at, ws(), uid());
     return id;
   },
   removeBudget(id: string) {
-    db().prepare('DELETE FROM budgets WHERE id = ?').run(id);
+    db().prepare('DELETE FROM budgets WHERE id = ? AND workspace_id = ?').run(id, ws());
   },
 
   pref(key: string): string | null {
-    const r = db().prepare('SELECT value FROM usage_prefs WHERE key = ?').get(key) as Row | undefined;
+    const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ws(), `usage:${key}`) as Row | undefined;
     return r ? String(r.value) : null;
   },
   setPref(key: string, value: string) {
-    db().prepare('INSERT INTO usage_prefs (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+    db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ws(), `usage:${key}`, value, uid());
   },
 };

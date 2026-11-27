@@ -15,6 +15,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const params = useSearchParams();
   const next = safeNext(params.get('next'));
   const [name, setName] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,7 +26,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     setBusy(true);
     setError('');
     try {
-      await api(signup ? '/auth/signup' : '/auth/login', { body: signup ? { name, email, password } : { email, password } });
+      await api(signup ? '/auth/signup' : '/auth/login', { body: signup ? { name, email, password, ...(workspaceName.trim() ? { workspaceName } : {}) } : { email, password } });
       // A full load, so every query starts fresh in the new session.
       window.location.assign(next);
     } catch (e) {
@@ -56,6 +57,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           <div className="field">
             <label htmlFor="au-name">Tên của bạn</label>
             <input id="au-name" className="input" autoComplete="name" maxLength={80} required value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+        )}
+        {signup && (
+          <div className="field">
+            <label htmlFor="au-ws">Tên workspace</label>
+            <input id="au-ws" className="input" maxLength={80} placeholder={name ? `Workspace của ${name}` : 'Ví dụ: Kênh truyện cổ tích'} value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
+            <span className="hint">Nơi chứa dự án của bạn; mời người khác vào sau. Để trống thì tự đặt theo tên bạn.</span>
           </div>
         )}
         <div className="field">

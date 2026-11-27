@@ -123,7 +123,7 @@ describe('series service', () => {
     expect(views.map((v) => v.episode.number)).toEqual([1, 3]);
     expect(views.every((v) => v.episode.status === 'draft' && v.job?.kind === 'write_script')).toBe(true);
     await expect(s.episode.episodeService.requestScripts(created.id, [eps[0]!.id])).rejects.toMatchObject({ status: 409 });
-    const claimed = [s.jobs.jobRepository.claimNext(), s.jobs.jobRepository.claimNext()].map((j) => j?.episodeId);
+    const claimed = [s.jobs.jobQueue.claimNext(), s.jobs.jobQueue.claimNext()].map((c) => c?.job.episodeId);
     expect(claimed).toEqual([eps[0]!.id, eps[2]!.id]);
   });
 

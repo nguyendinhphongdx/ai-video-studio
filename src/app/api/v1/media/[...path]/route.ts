@@ -1,13 +1,17 @@
 import fs from 'node:fs';
 import { Readable } from 'node:stream';
 
+import { canReadMedia } from '@/server/adapters/media/media-access';
 import { mimeOf, resolveMedia } from '@/server/adapters/media/media.service';
 import { notFound } from '@/server/http/api-error';
 import { route } from '@/server/http/route';
 
 /** Generated files (voice, renders, logos) with HTTP range support so videos can seek. */
 export const GET = route<{ path: string[] }>(async (req, { path }) => {
-  const file = resolveMedia(path.map(decodeURIComponent).join('/'));
+  const rel = path.map(decodeURIComponent).join('/');
+  const file = resolveMedia(rel);
+  // Another workspace's file is "not found", the same as a missing one.
+  if (!canReadMedia(rel)) throw notFound('tệp');
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw notFound('tệp');
   const size = fs.statSync(file).size;
   const type = mimeOf(file);

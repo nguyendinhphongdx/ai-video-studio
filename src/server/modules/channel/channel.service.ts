@@ -11,6 +11,8 @@ import type { ChannelStore } from '@/core/ports';
 import { now } from '@/server/db';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
 import { SEED_DIR } from '@/server/config';
+import { currentScope } from '@/server/http/scope';
+import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { mediaUrl, removeChannelMedia, saveChannelFile } from '@/server/adapters/media/media.service';
 
 import { channelRepository } from './channel.repository';
@@ -30,11 +32,14 @@ const MAX_LOGO_BYTES = 4 * 1024 * 1024;
 const MUSIC_TYPES: Record<string, string> = { 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav' };
 const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
 
-/** First run: create the channels shipped in seed/channels/<id>/ (brand.json + logo.png). */
-let seeded = false;
+/**
+ * First run: create the channels shipped in seed/channels/<id>/ (brand.json + logo.png), once, in the system admin's
+ * workspace only. Workspaces of people who sign up later start empty.
+ */
 async function ensureSeeded() {
-  if (seeded) return;
-  seeded = true;
+  const scope = currentScope();
+  if (!scope.user.isAdmin || prefsService.flag('seeded')) return;
+  prefsService.setFlag('seeded');
   if (channelRepository.count() > 0) return;
   const dir = path.join(SEED_DIR, 'channels');
   if (!fs.existsSync(dir)) return;

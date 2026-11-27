@@ -14,7 +14,26 @@ export function AccountBox() {
   if (!me) return null;
   return (
     <div className="col" style={{ marginTop: 'auto', gap: 6, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-      <span className="eyebrow">{me.workspace.name}</span>
+      {me.workspaces.length > 1 ? (
+        <select
+          className="select"
+          aria-label="Chọn workspace"
+          value={me.workspace.id}
+          onChange={async (e) => {
+            await api('/auth/workspace', { method: 'PUT', body: { workspaceId: e.target.value } });
+            // Every screen shows the new workspace's data: start from its home page with fresh queries.
+            window.location.assign('/');
+          }}
+        >
+          {me.workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="eyebrow">{me.workspace.name}</span>
+      )}
       <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
         <span className="cap" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={me.user.email}>
           {me.user.name || me.user.email}

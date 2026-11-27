@@ -46,7 +46,13 @@ export interface MeView {
 const email = z.string().trim().toLowerCase().email('Email không hợp lệ').max(200);
 const password = z.string().min(8, 'Mật khẩu cần ít nhất 8 ký tự').max(200);
 
-export const SignUpInput = z.object({ email, password, name: z.string().trim().min(1, 'Nhập tên của bạn').max(80) });
+export const SignUpInput = z.object({
+  email,
+  password,
+  name: z.string().trim().min(1, 'Nhập tên của bạn').max(80),
+  /** Optional: the new workspace's name (a default is made from the person's name). */
+  workspaceName: z.string().trim().max(80).optional(),
+});
 export type SignUpInput = z.infer<typeof SignUpInput>;
 
 export const LogInInput = z.object({ email, password: z.string().min(1).max(200) });

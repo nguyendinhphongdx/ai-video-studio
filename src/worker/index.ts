@@ -11,7 +11,9 @@ import { characterSpriteService } from '@/server/modules/series/character-sprite
 import { channelService } from '@/server/modules/channel/channel.service';
 import { assistantService } from '@/server/modules/assistant/assistant.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
-import { jobRepository } from '@/server/modules/job/job.repository';
+import { jobQueue, jobRepository } from '@/server/modules/job/job.repository';
+import { runInScope } from '@/server/http/scope';
+import { authService } from '@/server/modules/auth/auth.service';
 import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
 import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { SUBSCRIBERS } from '@/server/subscribers';
@@ -56,9 +58,22 @@ function rollback(job: Job) {
 
 const shortMessage = (e: unknown) => (e instanceof UserFacingError ? e.message : 'Có lỗi khi xử lý. Bấm Thử lại; nếu vẫn lỗi, xem nhật ký của worker.');
 
+/** Takes the next queued job of any workspace and runs it inside that workspace, as the person who started it. */
 async function runJob(): Promise<boolean> {
-  const job = jobRepository.claimNext();
-  if (!job) return false;
+  const claimed = jobQueue.claimNext();
+  if (!claimed) return false;
+  const { job } = claimed;
+  const scope = authService.scopeFor(claimed.workspaceId, claimed.userId);
+  if (!scope) {
+    logger.error(`job ${job.id} has no workspace, dropped`, { job: job.id });
+    jobQueue.failUnscoped(job.id, 'Workspace của việc này không còn.');
+    return true;
+  }
+  await runInScope(scope, () => runScopedJob(job));
+  return true;
+}
+
+async function runScopedJob(job: Job): Promise<void> {
   logger.info(`start ${job.kind}`, { job: job.id, episode: job.episodeId });
   const started = Date.now();
   let lastWrite = 0;
@@ -83,16 +98,21 @@ async function runJob(): Promise<boolean> {
     if (job.episodeId) episodeRepository.addEvent(job.episodeId, `Lỗi: ${message}`);
     rollback(job);
   }
-  return true;
 }
 
 async function deliverEvents(): Promise<boolean> {
   const items = outboxRepository.pending();
-  for (const { id, event } of items) {
+  for (const { id, event, workspaceId, userId } of items) {
     let error: string | null = null;
+    // Subscribers run in the workspace the event was published in, like the request that caused it.
+    const scope = authService.scopeFor(workspaceId, userId);
+    if (!scope) {
+      outboxRepository.done(id, 'no workspace');
+      continue;
+    }
     for (const s of SUBSCRIBERS.filter((x) => x.on === event.type)) {
       try {
-        await s.handle(event as never);
+        await runInScope(scope, () => s.handle(event as never));
       } catch (e) {
         error = `${s.id}: ${(e as Error).message}`;
         logger.error('subscriber failed', { subscriber: s.id, event: event.type, error: e });
@@ -113,7 +133,10 @@ async function main() {
       logger.warn('heartbeat failed', { error: String((e as Error)?.message ?? e) });
     }
   }, 5000).unref();
-  for (const job of jobRepository.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) rollback(job);
+  for (const { job, workspaceId, userId } of jobQueue.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) {
+    const scope = authService.scopeFor(workspaceId, userId);
+    if (scope) runInScope(scope, () => rollback(job));
+  }
   logger.info('ready, waiting for jobs');
   while (!stopping) {
     const busy = (await deliverEvents().catch((e) => (logger.error('outbox error', { error: e }), false))) || (await runJob().catch((e) => (logger.error('queue error', { error: e }), false)));

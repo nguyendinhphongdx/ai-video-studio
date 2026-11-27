@@ -11,10 +11,18 @@ import { toSprite } from '@/server/adapters/media/chroma-key';
 import { resolveMedia, saveCharacterFile } from '@/server/adapters/media/media.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
 import { withUsageScope } from '@/server/modules/usage/usage.scope';
+import { db } from '@/server/db';
+import { runInScope } from '@/server/http/scope';
+import { authService } from '@/server/modules/auth/auth.service';
 
 const [seriesId, file] = process.argv.slice(2);
 if (!seriesId || !file) throw new Error('usage: make-cast.ts <seriesId> <cast.json>');
 const items = JSON.parse(await fs.readFile(file, 'utf8')) as { id: string; kind: CastKind; description: string }[];
+// A command-line run has no signed-in person: act in the series' own workspace, as its owner.
+const owner = db().prepare('SELECT workspace_id FROM series WHERE id = ?').get(seriesId) as { workspace_id: string | null } | undefined;
+const scope = authService.scopeFor(owner?.workspace_id ?? null, null);
+if (!scope) throw new Error('series not found');
+await runInScope(scope, async () => {
 const series = seriesRepository.find(seriesId);
 if (!series) throw new Error('series not found');
 const bible = seriesRepository.version(seriesId, series.currentVersion)!.bible;
@@ -33,3 +41,4 @@ await withUsageScope({ seriesId, channelId: series.channelId }, async () => {
 });
 await fs.rm(dir, { recursive: true, force: true });
 console.log(JSON.stringify(made, null, 2));
+});

@@ -165,7 +165,7 @@ describe('channel knowledge', () => {
     await s.knowledge.knowledgeService.save(c.id, 'Tri thức v1', '');
     const made = await s.episodes.episodeService.create({ channelId: c.id, seriesId: null, skillId: d.skill.id, topic: 'Một chủ đề', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     expect(made.knowledge).toEqual({ used: null, current: 1 });
-    s.jobs.jobRepository.claimNext();
+    s.jobs.jobQueue.claimNext();
     await s.knowledge.knowledgeService.save(c.id, 'Tri thức v2', '');
     expect((await s.episodes.episodeService.get(made.episode.id)).knowledge).toEqual({ used: null, current: 2 });
   });

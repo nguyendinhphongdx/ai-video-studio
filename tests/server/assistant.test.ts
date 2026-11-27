@@ -61,7 +61,7 @@ async function work(threadId: string) {
   return s.assistant.assistantService.get(threadId);
 }
 const drainOthers = () => {
-  for (let j = s.jobs.jobRepository.claimNext(); j; j = s.jobs.jobRepository.claimNext()) s.jobs.jobRepository.finish(j.id);
+  for (let c = s.jobs.jobQueue.claimNext(); c; c = s.jobs.jobQueue.claimNext()) s.jobs.jobRepository.finish(c.job.id);
 };
 const say = async (threadId: string, text: string, focus = {}) => {
   await s.assistant.assistantService.send(threadId, text, focus);

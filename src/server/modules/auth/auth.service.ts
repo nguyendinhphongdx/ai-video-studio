@@ -49,10 +49,11 @@ export const authService = {
     const now = new Date().toISOString();
     const first = authRepository.userCount() === 0;
     const user: User = { id: newId(), email: input.email, name: input.name, isAdmin: first, createdAt: now };
-    const workspace: Workspace = { id: newId(), name: first ? 'Studio chính' : `Workspace của ${input.name}`, usesSharedKeys: first, userId: user.id, createdAt: now };
+    const workspace: Workspace = { id: newId(), name: input.workspaceName || (first ? 'Studio chính' : `Workspace của ${input.name}`), usesSharedKeys: first, userId: user.id, createdAt: now };
     authRepository.insertUser({ ...user, passwordHash: await hashPassword(input.password) });
     authRepository.insertWorkspace(workspace);
     authRepository.insertMembership({ workspaceId: workspace.id, userId: user.id, role: 'owner', createdAt: now });
+    if (first) authRepository.adoptOrphans(workspace.id, user.id);
     return { token: startSession(user.id, workspace.id), user };
   },
 
@@ -89,6 +90,19 @@ export const authService = {
     const scope = authService.scopeOf(token);
     if (!scope) throw unauthorized();
     return scope;
+  },
+
+  /**
+   * The scope a worker job runs in: the job's workspace, acting as the person who started it (or the workspace's first
+   * owner when that person is gone). Null when the workspace no longer exists.
+   */
+  scopeFor(workspaceId: string | null, userId: string | null): AuthScope | null {
+    const workspace = workspaceId ? authRepository.workspaceById(workspaceId) : null;
+    if (!workspace) return null;
+    const actor = (userId && authRepository.roleIn(workspace.id, userId) ? userId : null) ?? authRepository.ownerOf(workspace.id);
+    const user = actor ? authRepository.userById(actor) : null;
+    if (!user) return null;
+    return { user: publicUser(user), workspace, role: authRepository.roleIn(workspace.id, user.id) ?? 'member' };
   },
 
   me(scope: AuthScope): MeView {

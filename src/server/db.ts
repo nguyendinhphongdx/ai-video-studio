@@ -337,6 +337,102 @@ const MIGRATIONS = [
   );
   CREATE INDEX sessions_user ON sessions(user_id);
   `,
+  // Every data row belongs to a workspace and records who made it (docs/PLAN-workspaces.md). Existing rows go to the
+  // first workspace and first account; on a fresh install with no account yet they stay NULL until the first sign-up
+  // adopts them (authRepository.adoptOrphans). Every query filters by workspace_id.
+  `
+  ALTER TABLE channels ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE channels ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE channels SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX channels_ws ON channels(workspace_id);
+  ALTER TABLE series ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE series ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE series SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX series_ws ON series(workspace_id);
+  ALTER TABLE series_versions ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE series_versions ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE series_versions SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX series_versions_ws ON series_versions(workspace_id);
+  ALTER TABLE series_memory ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE series_memory ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE series_memory SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX series_memory_ws ON series_memory(workspace_id);
+  ALTER TABLE episodes ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE episodes ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE episodes SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX episodes_ws ON episodes(workspace_id);
+  ALTER TABLE scenes ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE scenes ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE scenes SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX scenes_ws ON scenes(workspace_id);
+  ALTER TABLE renders ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE renders ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE renders SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX renders_ws ON renders(workspace_id);
+  ALTER TABLE episode_memory ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE episode_memory ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE episode_memory SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX episode_memory_ws ON episode_memory(workspace_id);
+  ALTER TABLE episode_events ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE episode_events ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE episode_events SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX episode_events_ws ON episode_events(workspace_id);
+  ALTER TABLE jobs ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE jobs ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE jobs SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX jobs_ws ON jobs(workspace_id);
+  ALTER TABLE step_runs ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE step_runs ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE step_runs SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX step_runs_ws ON step_runs(workspace_id);
+  ALTER TABLE ai_runs ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE ai_runs ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE ai_runs SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX ai_runs_ws ON ai_runs(workspace_id);
+  ALTER TABLE outbox ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE outbox ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE outbox SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX outbox_ws ON outbox(workspace_id);
+  ALTER TABLE channel_skills ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE channel_skills ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE channel_skills SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX channel_skills_ws ON channel_skills(workspace_id);
+  ALTER TABLE channel_knowledge_versions ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE channel_knowledge_versions ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE channel_knowledge_versions SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX channel_knowledge_versions_ws ON channel_knowledge_versions(workspace_id);
+  ALTER TABLE assistant_threads ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE assistant_threads ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE assistant_threads SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX assistant_threads_ws ON assistant_threads(workspace_id);
+  ALTER TABLE assistant_messages ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE assistant_messages ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE assistant_messages SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX assistant_messages_ws ON assistant_messages(workspace_id);
+  ALTER TABLE usage_events ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE usage_events ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE usage_events SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX usage_events_ws ON usage_events(workspace_id);
+  ALTER TABLE budgets ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE budgets ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  UPDATE budgets SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), user_id = (SELECT id FROM users ORDER BY created_at LIMIT 1);
+  CREATE INDEX budgets_ws ON budgets(workspace_id);
+  ALTER TABLE price_book ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE price_book ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+  CREATE TABLE workspace_prefs (
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    PRIMARY KEY (workspace_id, key)
+  );
+  INSERT INTO workspace_prefs (workspace_id, key, value, user_id)
+    SELECT (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), 'usage:' || key, value, (SELECT id FROM users ORDER BY created_at LIMIT 1) FROM usage_prefs
+    WHERE EXISTS (SELECT 1 FROM workspaces);
+  INSERT INTO workspace_prefs (workspace_id, key, value, user_id)
+    SELECT (SELECT id FROM workspaces ORDER BY created_at LIMIT 1), key, value, (SELECT id FROM users ORDER BY created_at LIMIT 1) FROM app_prefs
+    WHERE key <> 'worker_seen_at' AND EXISTS (SELECT 1 FROM workspaces);
+  `,
 ];
 
 function open(): DatabaseSync {

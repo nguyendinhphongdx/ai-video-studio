@@ -1,6 +1,7 @@
 import type { EpisodeMemory } from '@/core/domain';
 import type { MemoryStore } from '@/core/ports';
 import { db, json, now } from '@/server/db';
+import { uid, ws } from '@/server/http/scope';
 
 type Row = Record<string, unknown>;
 
@@ -19,10 +20,10 @@ const toMemory = (r: Row): EpisodeMemory => ({
 
 export const memoryRepository = {
   list(seriesId: string): EpisodeMemory[] {
-    return (db().prepare('SELECT * FROM episode_memory WHERE series_id = ? ORDER BY number DESC, created_at DESC').all(seriesId) as Row[]).map(toMemory);
+    return (db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND workspace_id = ? ORDER BY number DESC, created_at DESC').all(seriesId, ws()) as Row[]).map(toMemory);
   },
   setSeason(seriesId: string, summary: string) {
-    db().prepare('INSERT INTO series_memory (series_id, season_summary, updated_at) VALUES (?, ?, ?) ON CONFLICT(series_id) DO UPDATE SET season_summary = excluded.season_summary, updated_at = excluded.updated_at').run(seriesId, summary, now());
+    db().prepare('INSERT INTO series_memory (series_id, season_summary, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(series_id) DO UPDATE SET season_summary = excluded.season_summary, updated_at = excluded.updated_at WHERE series_memory.workspace_id = excluded.workspace_id').run(seriesId, summary, now(), ws(), uid());
   },
 };
 
@@ -30,13 +31,13 @@ export const memoryStore: MemoryStore = {
   async recent(seriesId, beforeNumber, limit) {
     const rows = (
       beforeNumber === null
-        ? db().prepare('SELECT * FROM episode_memory WHERE series_id = ? ORDER BY number DESC LIMIT ?').all(seriesId, limit)
-        : db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND number < ? ORDER BY number DESC LIMIT ?').all(seriesId, beforeNumber, limit)
+        ? db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND workspace_id = ? ORDER BY number DESC LIMIT ?').all(seriesId, ws(), limit)
+        : db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND workspace_id = ? AND number < ? ORDER BY number DESC LIMIT ?').all(seriesId, ws(), beforeNumber, limit)
     ) as Row[];
     return rows.map(toMemory);
   },
   async season(seriesId) {
-    const r = db().prepare('SELECT season_summary FROM series_memory WHERE series_id = ?').get(seriesId) as { season_summary: string } | undefined;
+    const r = db().prepare('SELECT season_summary FROM series_memory WHERE series_id = ? AND workspace_id = ?').get(seriesId, ws()) as { season_summary: string } | undefined;
     return r?.season_summary ?? null;
   },
   async setSeason(seriesId, summary) {
@@ -48,10 +49,10 @@ export const memoryStore: MemoryStore = {
   async save(m) {
     db()
       .prepare(
-        `INSERT INTO episode_memory (episode_id, series_id, number, title, summary, concepts, examples, vocabulary, jokes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO episode_memory (episode_id, series_id, number, title, summary, concepts, examples, vocabulary, jokes, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(episode_id) DO UPDATE SET title = excluded.title, summary = excluded.summary, concepts = excluded.concepts, examples = excluded.examples,
-         vocabulary = excluded.vocabulary, jokes = excluded.jokes, created_at = excluded.created_at`,
+         vocabulary = excluded.vocabulary, jokes = excluded.jokes, created_at = excluded.created_at WHERE episode_memory.workspace_id = excluded.workspace_id`,
       )
-      .run(m.episodeId, m.seriesId, m.number, m.title, m.summary, JSON.stringify(m.concepts), JSON.stringify(m.examples), JSON.stringify(m.vocabulary), JSON.stringify(m.jokes), m.createdAt);
+      .run(m.episodeId, m.seriesId, m.number, m.title, m.summary, JSON.stringify(m.concepts), JSON.stringify(m.examples), JSON.stringify(m.vocabulary), JSON.stringify(m.jokes), m.createdAt, ws(), uid());
   },
 };

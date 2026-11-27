@@ -25,7 +25,7 @@ Goal: the app can be deployed on the internet. Every person signs in; every piec
 - `price_book`: `workspace_id` NULL means the system default the admin edits; a workspace row overrides it for that workspace.
 - `usage_prefs`, `app_prefs`: keyed by `(workspace_id, key)` instead of `key`.
 - `workspace_settings` (workspace_id, user_id, json): the workspace's own AI connections. The global `settings.json` stays as the admin's shared keys.
-- Repositories take the workspace id as a required first argument (`list(ws, …)`, `get(ws, id)`, `insert(ws, user, …)`); there is no unscoped read. A test walks every repository with two workspaces and asserts nothing of one is visible from the other.
+- Repositories read the workspace and person from the request scope (`ws()`, `uid()` in `src/server/http/scope.ts`, an AsyncLocalStorage that `route()` sets per request and the worker sets per job and per outbox event). Outside a scope they throw, so there is no unscoped read. The only cross-workspace queries are the worker's queue (`jobQueue`), outbox delivery and auth. `tests/server/workspace-isolation.test.ts` checks with two workspaces that nothing of one is visible, changeable or downloadable from the other.
 
 ## Request flow
 

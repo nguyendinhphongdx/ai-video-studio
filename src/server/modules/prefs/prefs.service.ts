@@ -1,13 +1,24 @@
 import { db } from '@/server/db';
+import { uid, ws } from '@/server/http/scope';
 
 type Row = Record<string, unknown>;
 
-const get = (key: string): string | null => {
+/** System-wide values (the worker heartbeat), the same for every workspace. */
+const getSystem = (key: string): string | null => {
   const r = db().prepare('SELECT value FROM app_prefs WHERE key = ?').get(key) as Row | undefined;
   return r ? String(r.value) : null;
 };
-const set = (key: string, value: string) => {
+const setSystem = (key: string, value: string) => {
   db().prepare('INSERT INTO app_prefs (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+};
+
+/** The current workspace's own switches. */
+const get = (key: string): string | null => {
+  const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ws(), key) as Row | undefined;
+  return r ? String(r.value) : null;
+};
+const set = (key: string, value: string) => {
+  db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ws(), key, value, uid());
 };
 
 export interface SfxPrefs {
@@ -16,13 +27,13 @@ export interface SfxPrefs {
   volume: number;
 }
 
-/** Small app-wide switches that are not part of any channel or video. */
+/** Small switches that are not part of any channel or video: per workspace, except the worker heartbeat. */
 export const prefsService = {
   /** The worker calls this every few seconds; the web app reads it to tell whether background work is being picked up. */
-  workerBeat: (): void => set('worker_seen_at', String(Date.now())),
+  workerBeat: (): void => setSystem('worker_seen_at', String(Date.now())),
   workerSeenAt: (): number | null => {
-    const v = Number(get('worker_seen_at'));
-    return Number.isFinite(v) && get('worker_seen_at') !== null ? v : null;
+    const v = Number(getSystem('worker_seen_at'));
+    return Number.isFinite(v) && getSystem('worker_seen_at') !== null ? v : null;
   },
 
   /** One-time markers ("this was done once"), so a thing a person later undoes is not redone. */

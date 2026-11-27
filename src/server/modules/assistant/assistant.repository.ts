@@ -2,6 +2,7 @@ import type { AssistantMessage, AssistantStore, AssistantThreadInfo } from '@/co
 import { newId } from '@/core/domain/ids';
 import { notFound } from '@/server/http/api-error';
 import { db, json, now } from '@/server/db';
+import { uid, ws } from '@/server/http/scope';
 
 type Row = Record<string, unknown>;
 
@@ -29,40 +30,40 @@ const toMessage = (r: Row): AssistantMessage => ({
 
 export const assistantRepository = {
   threads(channelId: string): AssistantThread[] {
-    return (db().prepare('SELECT * FROM assistant_threads WHERE channel_id = ? ORDER BY updated_at DESC').all(channelId) as Row[]).map(toThread);
+    return (db().prepare('SELECT * FROM assistant_threads WHERE channel_id = ? AND workspace_id = ? ORDER BY updated_at DESC').all(channelId, ws()) as Row[]).map(toThread);
   },
   find(id: string): AssistantThread | null {
-    const r = db().prepare('SELECT * FROM assistant_threads WHERE id = ?').get(id) as Row | undefined;
+    const r = db().prepare('SELECT * FROM assistant_threads WHERE id = ? AND workspace_id = ?').get(id, ws()) as Row | undefined;
     return r ? toThread(r) : null;
   },
   insertThread(channelId: string, mode: AssistantThread['mode']): AssistantThread {
     const id = newId();
     const ts = now();
-    db().prepare('INSERT INTO assistant_threads (id, channel_id, title, mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, channelId, '', mode, ts, ts);
+    db().prepare('INSERT INTO assistant_threads (id, channel_id, title, mode, created_at, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, channelId, '', mode, ts, ts, ws(), uid());
     return assistantRepository.find(id)!;
   },
   updateThread(id: string, patch: Partial<Pick<AssistantThread, 'title' | 'mode'>>) {
-    if (patch.title !== undefined) db().prepare('UPDATE assistant_threads SET title = ?, updated_at = ? WHERE id = ?').run(patch.title, now(), id);
-    if (patch.mode !== undefined) db().prepare('UPDATE assistant_threads SET mode = ?, updated_at = ? WHERE id = ?').run(patch.mode, now(), id);
+    if (patch.title !== undefined) db().prepare('UPDATE assistant_threads SET title = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.title, now(), id, ws());
+    if (patch.mode !== undefined) db().prepare('UPDATE assistant_threads SET mode = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.mode, now(), id, ws());
   },
   removeThread(id: string) {
-    db().prepare('DELETE FROM assistant_threads WHERE id = ?').run(id);
+    db().prepare('DELETE FROM assistant_threads WHERE id = ? AND workspace_id = ?').run(id, ws());
   },
   messages(threadId: string): AssistantMessage[] {
-    return (db().prepare('SELECT * FROM assistant_messages WHERE thread_id = ? ORDER BY id').all(threadId) as Row[]).map(toMessage);
+    return (db().prepare('SELECT * FROM assistant_messages WHERE thread_id = ? AND workspace_id = ? ORDER BY id').all(threadId, ws()) as Row[]).map(toMessage);
   },
   append(threadId: string, m: Omit<AssistantMessage, 'id' | 'threadId' | 'createdAt'>): AssistantMessage {
     const r = db()
-      .prepare('INSERT INTO assistant_messages (thread_id, role, content, tool_calls, tool_call_id, tool_name, status, summary, data, focus, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(threadId, m.role, m.content, JSON.stringify(m.toolCalls), m.toolCallId, m.toolName, m.status, m.summary, m.data === null || m.data === undefined ? null : JSON.stringify(m.data), m.focus ? JSON.stringify(m.focus) : null, now());
-    db().prepare('UPDATE assistant_threads SET updated_at = ? WHERE id = ?').run(now(), threadId);
-    return toMessage(db().prepare('SELECT * FROM assistant_messages WHERE id = ?').get(Number(r.lastInsertRowid)) as Row);
+      .prepare('INSERT INTO assistant_messages (thread_id, role, content, tool_calls, tool_call_id, tool_name, status, summary, data, focus, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(threadId, m.role, m.content, JSON.stringify(m.toolCalls), m.toolCallId, m.toolName, m.status, m.summary, m.data === null || m.data === undefined ? null : JSON.stringify(m.data), m.focus ? JSON.stringify(m.focus) : null, now(), ws(), uid());
+    db().prepare('UPDATE assistant_threads SET updated_at = ? WHERE id = ? AND workspace_id = ?').run(now(), threadId, ws());
+    return toMessage(db().prepare('SELECT * FROM assistant_messages WHERE id = ? AND workspace_id = ?').get(Number(r.lastInsertRowid), ws()) as Row);
   },
   update(id: number, patch: Partial<Pick<AssistantMessage, 'content' | 'status' | 'summary' | 'data'>>) {
-    if (patch.content !== undefined) db().prepare('UPDATE assistant_messages SET content = ? WHERE id = ?').run(patch.content, id);
-    if (patch.status !== undefined) db().prepare('UPDATE assistant_messages SET status = ? WHERE id = ?').run(patch.status, id);
-    if (patch.summary !== undefined) db().prepare('UPDATE assistant_messages SET summary = ? WHERE id = ?').run(patch.summary, id);
-    if (patch.data !== undefined) db().prepare('UPDATE assistant_messages SET data = ? WHERE id = ?').run(patch.data === null ? null : JSON.stringify(patch.data), id);
+    if (patch.content !== undefined) db().prepare('UPDATE assistant_messages SET content = ? WHERE id = ? AND workspace_id = ?').run(patch.content, id, ws());
+    if (patch.status !== undefined) db().prepare('UPDATE assistant_messages SET status = ? WHERE id = ? AND workspace_id = ?').run(patch.status, id, ws());
+    if (patch.summary !== undefined) db().prepare('UPDATE assistant_messages SET summary = ? WHERE id = ? AND workspace_id = ?').run(patch.summary, id, ws());
+    if (patch.data !== undefined) db().prepare('UPDATE assistant_messages SET data = ? WHERE id = ? AND workspace_id = ?').run(patch.data === null ? null : JSON.stringify(patch.data), id, ws());
   },
 };
 

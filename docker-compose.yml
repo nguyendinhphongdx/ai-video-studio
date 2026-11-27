@@ -1,10 +1,29 @@
-# docker compose up -d --build
-# Web and worker share ./data (SQLite + media), so they must run on the same machine.
-# Put a reverse proxy with HTTPS (Caddy, Nginx) in front of 127.0.0.1:3300; the app has its own settings page for API keys.
+# Production: docker compose up -d --build   (see docs/DEPLOY.md)
+# caddy (HTTPS, ports 80/443) -> web (Next.js) ; worker (jobs, renders). Web and worker share ./data
+# (SQLite, media, shared AI keys), so the three run on one machine.
 services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env, e.g. studio.example.com}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
   web:
     build: .
     restart: unless-stopped
+    # Not published to the internet: only Caddy reaches it. 127.0.0.1 lets you check it from the server itself.
     ports:
       - "127.0.0.1:3300:3300"
     volumes:
@@ -13,10 +32,11 @@ services:
       - path: .env
         required: false
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 30s
 
   worker:
     build: .
@@ -31,3 +51,7 @@ services:
     shm_size: "1gb"
     depends_on:
       - web
+
+volumes:
+  caddy_data:
+  caddy_config:

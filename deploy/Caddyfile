@@ -1,0 +1,23 @@
+# HTTPS in front of the app. Caddy gets and renews a Let's Encrypt certificate for $DOMAIN by itself
+# (the domain's DNS A record must point at this server, and ports 80 and 443 must be open).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	# Uploads (music up to 20 MB, character pictures) and long renders: generous limits.
+	request_body {
+		max_size 50MB
+	}
+	reverse_proxy web:3300 {
+		# The app marks its session cookie Secure when this says https (Caddy sets it).
+		header_up X-Forwarded-Proto {scheme}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

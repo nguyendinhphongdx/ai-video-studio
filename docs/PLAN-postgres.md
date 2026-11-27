@@ -1,6 +1,6 @@
 # Plan: Drizzle ORM, then Postgres
 
-Status: steps 1–2 done (async data layer, Drizzle schema); steps 3–6 not started.
+Status: steps 1–3 done (async data layer, Drizzle schema, repositories on Drizzle); steps 4–6 not started.
 
 ## Why
 
@@ -66,13 +66,16 @@ The step most likely to break things, so it goes first and alone.
   migration baseline for SQLite would be thrown away when Postgres gets its own. `tests/server/schema.test.ts` keeps
   the two in step (tables, columns, types, NOT NULL, primary keys, indexes).
 
-### 3. Move repositories to Drizzle, one module at a time
+### 3. Move repositories to Drizzle, one module at a time — done
 
-- Order: prefs → channel → series → episode → job → the rest → auth/workspace last.
-- `json` TEXT columns become a custom column type that parses and serializes.
-- Booleans stored as 0/1 become `integer({ mode: 'boolean' })`.
-- Raw `sql\`\`` only where Drizzle is awkward: usage aggregates, `LIKE` in media access.
-- About 3–4 days.
+- Every repository (and the few services and routes that ran SQL: prefs, settings, media access, health) queries
+  through `orm()`. Raw `db()` is left only for migrations and the test context.
+- `scoped(table)` is the workspace filter and `owner()` the workspace and person stamped on inserts.
+- JSON columns stay TEXT, written with `JSON.stringify` and read with `json()`. Booleans stay 0/1 integers mapped in
+  the row mappers. Both become `jsonb` and `boolean` in step 4.
+- Raw `sql` only where it reads better: usage sums, the admin's workspace overview, `adoptOrphans` over the data
+  tables, conflict updates that keep another workspace's row.
+- Episodes load their scenes in one query for a whole list (was one query per episode).
 
 ### 4. Switch to Postgres
 

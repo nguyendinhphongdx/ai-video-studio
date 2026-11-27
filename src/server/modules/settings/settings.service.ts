@@ -6,8 +6,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { and, eq } from 'drizzle-orm';
+
 import { ctx, requireAdmin, requireOwner } from '@/server/context';
-import { db } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { workspacePrefs } from '@/server/schema';
 import { ApiError } from '@/server/http/api-error';
 import { SETTINGS_FILE } from '@/server/config';
 
@@ -61,7 +64,7 @@ const AI_KEY = 'ai_settings';
 const workspaceStore: Store = {
   env: false,
   async read() {
-    const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ctx().workspaceId, AI_KEY) as { value: string } | undefined;
+    const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, AI_KEY))).get();
     try {
       return r ? (JSON.parse(r.value) as All) : {};
     } catch {
@@ -69,9 +72,9 @@ const workspaceStore: Store = {
     }
   },
   async write(all) {
-    db()
-      .prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id')
-      .run(ctx().workspaceId, AI_KEY, JSON.stringify(all), ctx().userId);
+    const by = owner();
+    const value = JSON.stringify(all);
+    await orm().insert(workspacePrefs).values({ ...by, key: AI_KEY, value }).onConflictDoUpdate({ target: [workspacePrefs.workspaceId, workspacePrefs.key], set: { value, userId: by.userId } });
   },
 };
 

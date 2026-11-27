@@ -1,69 +1,81 @@
+import { and, asc, desc, eq } from 'drizzle-orm';
+
 import type { AssistantMessage, AssistantStore, AssistantThreadInfo } from '@/core/ports';
 import { newId } from '@/core/domain/ids';
 import { notFound } from '@/server/http/api-error';
-import { db, json, now } from '@/server/db';
-import { ctx } from '@/server/context';
-
-type Row = Record<string, unknown>;
+import { json, now } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { assistantMessages as messages, assistantThreads as threads } from '@/server/schema';
 
 export interface AssistantThread extends AssistantThreadInfo {
   createdAt: string;
   updatedAt: string;
 }
 
-const toThread = (r: Row): AssistantThread => ({ id: String(r.id), channelId: String(r.channel_id), title: String(r.title), mode: String(r.mode) as AssistantThread['mode'], createdAt: String(r.created_at), updatedAt: String(r.updated_at) });
+const toThread = (r: typeof threads.$inferSelect): AssistantThread => ({ id: r.id, channelId: r.channelId, title: r.title, mode: r.mode as AssistantThread['mode'], createdAt: r.createdAt, updatedAt: r.updatedAt });
 
-const toMessage = (r: Row): AssistantMessage => ({
-  id: Number(r.id),
-  threadId: String(r.thread_id),
-  role: String(r.role) as AssistantMessage['role'],
-  content: String(r.content),
-  toolCalls: json(r.tool_calls, []),
-  toolCallId: (r.tool_call_id as string | null) ?? null,
-  toolName: (r.tool_name as string | null) ?? null,
-  status: String(r.status) as AssistantMessage['status'],
-  summary: String(r.summary),
+const toMessage = (r: typeof messages.$inferSelect): AssistantMessage => ({
+  id: r.id,
+  threadId: r.threadId,
+  role: r.role as AssistantMessage['role'],
+  content: r.content,
+  toolCalls: json(r.toolCalls, []),
+  toolCallId: r.toolCallId,
+  toolName: r.toolName,
+  status: r.status as AssistantMessage['status'],
+  summary: r.summary,
   data: json(r.data, null),
   focus: json(r.focus, null),
-  createdAt: String(r.created_at),
+  createdAt: r.createdAt,
 });
+
+const thisThread = (id: string) => and(eq(threads.id, id), scoped(threads));
+const thisMessage = (id: number) => and(eq(messages.id, id), scoped(messages));
 
 export const assistantRepository = {
   async threads(channelId: string): Promise<AssistantThread[]> {
-    return (db().prepare('SELECT * FROM assistant_threads WHERE channel_id = ? AND workspace_id = ? ORDER BY updated_at DESC').all(channelId, ctx().workspaceId) as Row[]).map(toThread);
+    return (await orm().select().from(threads).where(and(eq(threads.channelId, channelId), scoped(threads))).orderBy(desc(threads.updatedAt))).map(toThread);
   },
   async find(id: string): Promise<AssistantThread | null> {
-    const r = db().prepare('SELECT * FROM assistant_threads WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
+    const r = await orm().select().from(threads).where(thisThread(id)).get();
     return r ? toThread(r) : null;
   },
   async insertThread(channelId: string, mode: AssistantThread['mode']): Promise<AssistantThread> {
     const id = newId();
     const ts = now();
-    db().prepare('INSERT INTO assistant_threads (id, channel_id, title, mode, created_at, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, channelId, '', mode, ts, ts, ctx().workspaceId, ctx().userId);
+    await orm().insert(threads).values({ id, channelId, title: '', mode, createdAt: ts, updatedAt: ts, ...owner() });
     return (await assistantRepository.find(id))!;
   },
   async updateThread(id: string, patch: Partial<Pick<AssistantThread, 'title' | 'mode'>>) {
-    if (patch.title !== undefined) db().prepare('UPDATE assistant_threads SET title = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.title, now(), id, ctx().workspaceId);
-    if (patch.mode !== undefined) db().prepare('UPDATE assistant_threads SET mode = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.mode, now(), id, ctx().workspaceId);
+    const set: Partial<typeof threads.$inferInsert> = {};
+    if (patch.title !== undefined) set.title = patch.title;
+    if (patch.mode !== undefined) set.mode = patch.mode;
+    if (Object.keys(set).length) await orm().update(threads).set({ ...set, updatedAt: now() }).where(thisThread(id));
   },
   async removeThread(id: string) {
-    db().prepare('DELETE FROM assistant_threads WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
+    await orm().delete(threads).where(thisThread(id));
   },
   async messages(threadId: string): Promise<AssistantMessage[]> {
-    return (db().prepare('SELECT * FROM assistant_messages WHERE thread_id = ? AND workspace_id = ? ORDER BY id').all(threadId, ctx().workspaceId) as Row[]).map(toMessage);
+    return (await orm().select().from(messages).where(and(eq(messages.threadId, threadId), scoped(messages))).orderBy(asc(messages.id))).map(toMessage);
   },
   async append(threadId: string, m: Omit<AssistantMessage, 'id' | 'threadId' | 'createdAt'>): Promise<AssistantMessage> {
-    const r = db()
-      .prepare('INSERT INTO assistant_messages (thread_id, role, content, tool_calls, tool_call_id, tool_name, status, summary, data, focus, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(threadId, m.role, m.content, JSON.stringify(m.toolCalls), m.toolCallId, m.toolName, m.status, m.summary, m.data === null || m.data === undefined ? null : JSON.stringify(m.data), m.focus ? JSON.stringify(m.focus) : null, now(), ctx().workspaceId, ctx().userId);
-    db().prepare('UPDATE assistant_threads SET updated_at = ? WHERE id = ? AND workspace_id = ?').run(now(), threadId, ctx().workspaceId);
-    return toMessage(db().prepare('SELECT * FROM assistant_messages WHERE id = ? AND workspace_id = ?').get(Number(r.lastInsertRowid), ctx().workspaceId) as Row);
+    const [row] = await orm()
+      .insert(messages)
+      .values({
+        threadId, role: m.role, content: m.content, toolCalls: JSON.stringify(m.toolCalls), toolCallId: m.toolCallId, toolName: m.toolName, status: m.status, summary: m.summary,
+        data: m.data === null || m.data === undefined ? null : JSON.stringify(m.data), focus: m.focus ? JSON.stringify(m.focus) : null, createdAt: now(), ...owner(),
+      })
+      .returning();
+    await orm().update(threads).set({ updatedAt: now() }).where(thisThread(threadId));
+    return toMessage(row!);
   },
   async update(id: number, patch: Partial<Pick<AssistantMessage, 'content' | 'status' | 'summary' | 'data'>>) {
-    if (patch.content !== undefined) db().prepare('UPDATE assistant_messages SET content = ? WHERE id = ? AND workspace_id = ?').run(patch.content, id, ctx().workspaceId);
-    if (patch.status !== undefined) db().prepare('UPDATE assistant_messages SET status = ? WHERE id = ? AND workspace_id = ?').run(patch.status, id, ctx().workspaceId);
-    if (patch.summary !== undefined) db().prepare('UPDATE assistant_messages SET summary = ? WHERE id = ? AND workspace_id = ?').run(patch.summary, id, ctx().workspaceId);
-    if (patch.data !== undefined) db().prepare('UPDATE assistant_messages SET data = ? WHERE id = ? AND workspace_id = ?').run(patch.data === null ? null : JSON.stringify(patch.data), id, ctx().workspaceId);
+    const set: Partial<typeof messages.$inferInsert> = {};
+    if (patch.content !== undefined) set.content = patch.content;
+    if (patch.status !== undefined) set.status = patch.status;
+    if (patch.summary !== undefined) set.summary = patch.summary;
+    if (patch.data !== undefined) set.data = patch.data === null ? null : JSON.stringify(patch.data);
+    if (Object.keys(set).length) await orm().update(messages).set(set).where(thisMessage(id));
   },
 };
 

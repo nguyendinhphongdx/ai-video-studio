@@ -1,67 +1,84 @@
-import type { Channel } from '@/core/domain';
-import { db, json } from '@/server/db';
-import { ctx } from '@/server/context';
+import { and, asc, count, eq } from 'drizzle-orm';
 
-type Row = Record<string, unknown>;
+import type { Channel } from '@/core/domain';
+import { json } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { channels, episodes } from '@/server/schema';
+
+type Row = typeof channels.$inferSelect;
 
 const dj = (d: unknown) => (d ? JSON.stringify(d) : null);
 
 const toChannel = (r: Row): Channel => ({
-  id: String(r.id),
-  name: String(r.name),
-  description: String(r.description ?? ''),
-  audience: String(r.audience),
-  style: String(r.style),
-  voice: String(r.voice) as Channel['voice'],
-  outroText: String(r.outro_text),
-  subscribeText: String(r.subscribe_text),
+  id: r.id,
+  name: r.name,
+  description: r.description,
+  audience: r.audience,
+  style: r.style,
+  voice: r.voice as Channel['voice'],
+  outroText: r.outroText,
+  subscribeText: r.subscribeText,
   hashtags: json<string[]>(r.hashtags, []),
   palette: json<string[]>(r.palette, []),
-  music: String(r.music),
-  font: String(r.font ?? 'Baloo2') as Channel['font'],
-  imageStyle: String(r.image_style ?? ''),
-  introDesign: json<Channel['introDesign']>(r.intro_design, null),
-  outroDesign: json<Channel['outroDesign']>(r.outro_design, null),
-  introArtPath: (r.intro_art_path as string | null) ?? null,
-  outroArtPath: (r.outro_art_path as string | null) ?? null,
-  logoPath: (r.logo_path as string | null) ?? null,
-  avatarPath: (r.avatar_path as string | null) ?? null,
-  defaultSkillId: (r.default_skill_id as string | null) ?? null,
-  createdAt: String(r.created_at),
-  updatedAt: String(r.updated_at),
+  music: r.music,
+  font: r.font as Channel['font'],
+  imageStyle: r.imageStyle,
+  introDesign: json<Channel['introDesign']>(r.introDesign, null),
+  outroDesign: json<Channel['outroDesign']>(r.outroDesign, null),
+  introArtPath: r.introArtPath,
+  outroArtPath: r.outroArtPath,
+  logoPath: r.logoPath,
+  avatarPath: r.avatarPath,
+  defaultSkillId: r.defaultSkillId,
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
+});
+
+/** The columns a person edits (insert and update share them). */
+const fields = (c: Channel) => ({
+  name: c.name,
+  description: c.description,
+  font: c.font,
+  audience: c.audience,
+  style: c.style,
+  voice: c.voice,
+  outroText: c.outroText,
+  subscribeText: c.subscribeText,
+  hashtags: JSON.stringify(c.hashtags),
+  palette: JSON.stringify(c.palette),
+  music: c.music,
+  logoPath: c.logoPath,
+  defaultSkillId: c.defaultSkillId,
+  avatarPath: c.avatarPath,
+  imageStyle: c.imageStyle,
+  introDesign: dj(c.introDesign),
+  outroDesign: dj(c.outroDesign),
+  introArtPath: c.introArtPath,
+  outroArtPath: c.outroArtPath,
+  updatedAt: c.updatedAt,
 });
 
 export const channelRepository = {
   async list(): Promise<Channel[]> {
-    return (db().prepare('SELECT * FROM channels WHERE workspace_id = ? ORDER BY created_at').all(ctx().workspaceId) as Row[]).map(toChannel);
+    return (await orm().select().from(channels).where(scoped(channels)).orderBy(asc(channels.createdAt))).map(toChannel);
   },
   async find(id: string): Promise<Channel | null> {
-    const r = db().prepare('SELECT * FROM channels WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
+    const r = await orm().select().from(channels).where(and(eq(channels.id, id), scoped(channels))).get();
     return r ? toChannel(r) : null;
   },
   async count(): Promise<number> {
-    return (db().prepare('SELECT COUNT(*) AS n FROM channels WHERE workspace_id = ?').get(ctx().workspaceId) as { n: number }).n;
+    return (await orm().select({ n: count() }).from(channels).where(scoped(channels)).get())?.n ?? 0;
   },
   async insert(c: Channel) {
-    db()
-      .prepare(
-        `INSERT INTO channels (id, name, description, font, audience, style, voice, outro_text, subscribe_text, hashtags, palette, music, logo_path, default_skill_id, avatar_path, image_style, intro_design, outro_design, intro_art_path, outro_art_path, created_at, updated_at, workspace_id, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(c.id, c.name, c.description, c.font, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.avatarPath, c.imageStyle, dj(c.introDesign), dj(c.outroDesign), c.introArtPath, c.outroArtPath, c.createdAt, c.updatedAt, ctx().workspaceId, ctx().userId);
+    await orm().insert(channels).values({ id: c.id, ...fields(c), createdAt: c.createdAt, ...owner() });
   },
   async update(c: Channel) {
-    db()
-      .prepare(
-        `UPDATE channels SET name = ?, description = ?, font = ?, audience = ?, style = ?, voice = ?, outro_text = ?, subscribe_text = ?, hashtags = ?, palette = ?, music = ?,
-         logo_path = ?, default_skill_id = ?, avatar_path = ?, image_style = ?, intro_design = ?, outro_design = ?, intro_art_path = ?, outro_art_path = ?, updated_at = ? WHERE id = ? AND workspace_id = ?`,
-      )
-      .run(c.name, c.description, c.font, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.avatarPath, c.imageStyle, dj(c.introDesign), dj(c.outroDesign), c.introArtPath, c.outroArtPath, c.updatedAt, c.id, ctx().workspaceId);
+    await orm().update(channels).set(fields(c)).where(and(eq(channels.id, c.id), scoped(channels)));
   },
   async remove(id: string) {
-    db().prepare('DELETE FROM channels WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
+    await orm().delete(channels).where(and(eq(channels.id, id), scoped(channels)));
   },
   async projectCount(id: string): Promise<number> {
-    return (db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as { n: number }).n;
+    return (await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, id), scoped(episodes))).get())?.n ?? 0;
   },
 };

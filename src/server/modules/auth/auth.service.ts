@@ -74,12 +74,12 @@ export const authService = {
   async authenticate(token: string | undefined): Promise<RequestContext | null> {
     if (!token) return null;
     const s = await authRepository.session(sha256(token));
-    if (!s || s.expires_at <= new Date().toISOString()) return null;
-    const user = await authRepository.userById(s.user_id);
+    if (!s || s.expiresAt <= new Date().toISOString()) return null;
+    const user = await authRepository.userById(s.userId);
     if (!user) return null;
     const all = await authRepository.workspacesOf(user.id);
     // The session's workspace if the person still belongs to it, else their first one.
-    const current = all.find((w) => w.id === s.workspace_id) ?? all[0];
+    const current = all.find((w) => w.id === s.workspaceId) ?? all[0];
     if (!current) return null;
     const { role, ...workspace } = current;
     return makeContext(publicUser(user), workspace, role, token);

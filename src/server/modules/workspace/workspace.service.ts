@@ -80,20 +80,20 @@ export const workspaceService = {
   async preview(token: string): Promise<InvitePreview> {
     const i = await workspaceRepository.inviteByToken(sha256(token));
     if (!i) throw notFound('lời mời');
-    const state = i.used_at ? 'used' : i.expires_at <= new Date().toISOString() ? 'expired' : 'open';
-    return { workspaceId: i.workspace_id, workspaceName: i.workspace_name, invitedBy: i.by_name, email: i.email, state };
+    const state = i.usedAt ? 'used' : i.expiresAt <= new Date().toISOString() ? 'expired' : 'open';
+    return { workspaceId: i.workspaceId, workspaceName: i.workspaceName, invitedBy: i.byName, email: i.email, state };
   },
 
   /** The signed-in person joins the invite's workspace, and their session moves into it. */
   async accept(token: string): Promise<MeView> {
     const i = await workspaceRepository.inviteByToken(sha256(token));
     if (!i) throw notFound('lời mời');
-    if (i.used_at) throw conflict('Lời mời này đã được dùng.');
-    if (i.expires_at <= new Date().toISOString()) throw conflict('Lời mời đã hết hạn. Nhờ chủ workspace gửi lời mời mới.');
+    if (i.usedAt) throw conflict('Lời mời này đã được dùng.');
+    if (i.expiresAt <= new Date().toISOString()) throw conflict('Lời mời đã hết hạn. Nhờ chủ workspace gửi lời mời mới.');
     // Already in: keep the link for the person it was meant for.
-    if (await authRepository.roleIn(i.workspace_id, ctx().userId)) throw conflict('Bạn đã ở trong workspace này.');
+    if (await authRepository.roleIn(i.workspaceId, ctx().userId)) throw conflict('Bạn đã ở trong workspace này.');
     if (i.email && i.email !== ctx().user.email) throw new ApiError(403, 'forbidden', `Lời mời này dành cho ${i.email}. Hãy đăng nhập bằng email đó.`);
     if (!await workspaceRepository.acceptInvite(i, new Date().toISOString())) throw conflict('Lời mời này đã được dùng.');
-    return await authService.switchWorkspace(i.workspace_id);
+    return await authService.switchWorkspace(i.workspaceId);
   },
 };

@@ -1,9 +1,13 @@
 import { newId } from '@/core/domain/ids';
 import type { PriceRow, UsageKind } from '@/core/usage/cost';
-import { db } from '@/server/db';
-import { ctx, maybeCtx } from '@/server/context';
+import { and, asc, desc, eq, gte, isNull, lt, sql, type SQL } from 'drizzle-orm';
 
-type Row = Record<string, unknown>;
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+
+import { maybeCtx } from '@/server/context';
+import { transaction } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { budgets, priceBook, usageEvents as ev, workspacePrefs } from '@/server/schema';
 
 export interface UsageEvent {
   id: string;
@@ -37,15 +41,14 @@ export interface Budget {
   alertPct: number;
 }
 
-const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
-const toEvent = (r: Row): UsageEvent => ({
-  id: String(r.id), at: String(r.at), kind: r.kind as UsageKind, provider: String(r.provider), model: String(r.model), purpose: String(r.purpose),
-  channelId: str(r.channel_id), seriesId: str(r.series_id), episodeId: str(r.episode_id), sceneId: str(r.scene_id), jobId: str(r.job_id), threadId: str(r.thread_id),
-  inputTokens: Number(r.input_tokens), outputTokens: Number(r.output_tokens), cachedTokens: Number(r.cached_tokens), units: Number(r.units),
-  costUsd: r.cost_usd === null ? null : Number(r.cost_usd), estimated: Number(r.estimated) === 1, durationMs: Number(r.duration_ms),
+const toEvent = (r: typeof ev.$inferSelect): UsageEvent => ({
+  id: r.id, at: r.at, kind: r.kind as UsageKind, provider: r.provider, model: r.model, purpose: r.purpose,
+  channelId: r.channelId, seriesId: r.seriesId, episodeId: r.episodeId, sceneId: r.sceneId, jobId: r.jobId, threadId: r.threadId,
+  inputTokens: r.inputTokens, outputTokens: r.outputTokens, cachedTokens: r.cachedTokens, units: r.units,
+  costUsd: r.costUsd, estimated: r.estimated === 1, durationMs: r.durationMs,
 });
-const toPrice = (r: Row): PriceRow => ({ id: Number(r.id), kind: r.kind as UsageKind, provider: str(r.provider), pattern: String(r.pattern), inputPerMtok: Number(r.input_per_mtok), outputPerMtok: Number(r.output_per_mtok), cachedPerMtok: Number(r.cached_per_mtok), perUnit: Number(r.per_unit), note: String(r.note) });
-const toBudget = (r: Row): Budget => ({ id: String(r.id), scope: r.scope as Budget['scope'], channelId: str(r.channel_id), period: r.period as Budget['period'], limitUsd: Number(r.limit_usd), mode: r.mode as Budget['mode'], alertPct: Number(r.alert_pct) });
+const toPrice = (r: typeof priceBook.$inferSelect): PriceRow => ({ id: r.id, kind: r.kind as UsageKind, provider: r.provider, pattern: r.pattern, inputPerMtok: r.inputPerMtok, outputPerMtok: r.outputPerMtok, cachedPerMtok: r.cachedPerMtok, perUnit: r.perUnit, note: r.note });
+const toBudget = (r: typeof budgets.$inferSelect): Budget => ({ id: r.id, scope: r.scope as Budget['scope'], channelId: r.channelId, period: r.period as Budget['period'], limitUsd: r.limitUsd, mode: r.mode as Budget['mode'], alertPct: r.alertPct });
 
 export interface Totals {
   calls: number;
@@ -70,91 +73,108 @@ export interface Group {
   units: number;
 }
 
-const SUMS = `COUNT(*) AS calls, COALESCE(SUM(cost_usd), 0) AS usd, COALESCE(SUM(input_tokens), 0) AS i, COALESCE(SUM(output_tokens), 0) AS o, COALESCE(SUM(cached_tokens), 0) AS c, COALESCE(SUM(units), 0) AS units`;
-const toGroup = (r: Row, key: string | null, kind: UsageKind | null = null, provider: string | null = null): Group => ({ key, kind, provider, calls: Number(r.calls), usd: Number(r.usd), inputTokens: Number(r.i), outputTokens: Number(r.o), units: Number(r.units) });
+/** Sums that SQLite returns as numbers (COALESCE keeps an empty range at 0). */
+const total = (col: SQL | AnySQLiteColumn) => sql<number>`COALESCE(SUM(${col}), 0)`.mapWith(Number);
+const SUMS = { calls: sql<number>`COUNT(*)`.mapWith(Number), usd: total(ev.costUsd), i: total(ev.inputTokens), o: total(ev.outputTokens), c: total(ev.cachedTokens), units: total(ev.units) };
+const toGroup = (r: { calls: number; usd: number; i: number; o: number; units: number }, key: string | null, kind: UsageKind | null = null, provider: string | null = null): Group => ({ key, kind, provider, calls: r.calls, usd: r.usd, inputTokens: r.i, outputTokens: r.o, units: r.units });
+/** This workspace's events since `from`, optionally of one channel. */
+const since = (from: string, channelId?: string | null) => and(scoped(ev), gte(ev.at, from), channelId ? eq(ev.channelId, channelId) : undefined);
+const GROUP_COLUMN = { channel_id: ev.channelId, purpose: ev.purpose, episode_id: ev.episodeId } as const;
+const USAGE_PREF = (key: string) => and(scoped(workspacePrefs), eq(workspacePrefs.key, `usage:${key}`));
 
 export const usageRepository = {
   async insert(e: Omit<UsageEvent, 'id'> & { runId?: string | null }): Promise<string> {
     const id = newId();
-    db()
-      .prepare('INSERT INTO usage_events (id, at, kind, provider, model, purpose, channel_id, series_id, episode_id, scene_id, job_id, thread_id, run_id, input_tokens, output_tokens, cached_tokens, units, cost_usd, estimated, duration_ms, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, e.at, e.kind, e.provider, e.model, e.purpose, e.channelId, e.seriesId, e.episodeId, e.sceneId, e.jobId, e.threadId, e.runId ?? null, e.inputTokens, e.outputTokens, e.cachedTokens, e.units, e.costUsd, e.estimated ? 1 : 0, e.durationMs, ctx().workspaceId, ctx().userId);
+    await orm()
+      .insert(ev)
+      .values({
+        id, at: e.at, kind: e.kind, provider: e.provider, model: e.model, purpose: e.purpose, channelId: e.channelId, seriesId: e.seriesId, episodeId: e.episodeId, sceneId: e.sceneId, jobId: e.jobId,
+        threadId: e.threadId, runId: e.runId ?? null, inputTokens: e.inputTokens, outputTokens: e.outputTokens, cachedTokens: e.cachedTokens, units: e.units, costUsd: e.costUsd, estimated: e.estimated ? 1 : 0,
+        durationMs: e.durationMs, ...owner(),
+      });
     return id;
   },
 
   async totals(from: string, channelId?: string): Promise<Totals> {
-    const r = db()
-      .prepare(`SELECT ${SUMS}, COALESCE(SUM(CASE WHEN kind = 'image' THEN units END), 0) AS images, COALESCE(SUM(CASE WHEN kind = 'tts' THEN units END), 0) AS secs, COALESCE(SUM(cost_usd IS NULL), 0) AS unpriced, COALESCE(SUM(estimated), 0) AS est FROM usage_events WHERE workspace_id = ? AND at >= ?${channelId ? ' AND channel_id = ?' : ''}`)
-      .get(...(channelId ? [ctx().workspaceId, from, channelId] : [ctx().workspaceId, from])) as Row;
-    return { calls: Number(r.calls), usd: Number(r.usd), inputTokens: Number(r.i), outputTokens: Number(r.o), cachedTokens: Number(r.c), images: Number(r.images), ttsSeconds: Number(r.secs), unpriced: Number(r.unpriced), estimated: Number(r.est) };
+    const r = (await orm()
+      .select({
+        ...SUMS,
+        images: total(sql`CASE WHEN ${ev.kind} = 'image' THEN ${ev.units} END`),
+        secs: total(sql`CASE WHEN ${ev.kind} = 'tts' THEN ${ev.units} END`),
+        unpriced: total(sql`${ev.costUsd} IS NULL`),
+        est: total(sql`${ev.estimated}`),
+      })
+      .from(ev)
+      .where(since(from, channelId))
+      .get())!;
+    return { calls: r.calls, usd: r.usd, inputTokens: r.i, outputTokens: r.o, cachedTokens: r.c, images: r.images, ttsSeconds: r.secs, unpriced: r.unpriced, estimated: r.est };
   },
 
   async daily(from: string): Promise<{ day: string; kind: UsageKind; usd: number }[]> {
-    return (db().prepare("SELECT date(at, 'localtime') AS d, kind, COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY d, kind ORDER BY d").all(ctx().workspaceId, from) as Row[]).map((r) => ({ day: String(r.d), kind: r.kind as UsageKind, usd: Number(r.usd) }));
+    const day = sql<string>`date(${ev.at}, 'localtime')`;
+    const rows = await orm().select({ day, kind: ev.kind, usd: total(ev.costUsd) }).from(ev).where(since(from)).groupBy(day, ev.kind).orderBy(day);
+    return rows.map((r) => ({ day: r.day, kind: r.kind as UsageKind, usd: r.usd }));
   },
 
   async by(column: 'channel_id' | 'purpose' | 'episode_id', from: string, limit = 10): Promise<Group[]> {
-    return (db().prepare(`SELECT ${column} AS k, ${SUMS} FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY ${column} ORDER BY usd DESC, calls DESC LIMIT ?`).all(ctx().workspaceId, from, limit) as Row[]).map((r) => toGroup(r, str(r.k)));
+    const col = GROUP_COLUMN[column];
+    const rows = await orm().select({ k: col, ...SUMS }).from(ev).where(since(from)).groupBy(col).orderBy(desc(SUMS.usd), desc(SUMS.calls)).limit(limit);
+    return rows.map((r) => toGroup(r, r.k));
   },
 
   async byModel(from: string): Promise<Group[]> {
-    return (db().prepare(`SELECT kind, provider, model AS k, ${SUMS} FROM usage_events WHERE workspace_id = ? AND at >= ? GROUP BY kind, provider, model ORDER BY usd DESC, calls DESC`).all(ctx().workspaceId, from) as Row[]).map((r) => toGroup(r, String(r.k), r.kind as UsageKind, String(r.provider)));
+    const rows = await orm().select({ kind: ev.kind, provider: ev.provider, k: ev.model, ...SUMS }).from(ev).where(since(from)).groupBy(ev.kind, ev.provider, ev.model).orderBy(desc(SUMS.usd), desc(SUMS.calls));
+    return rows.map((r) => toGroup(r, r.k, r.kind as UsageKind, r.provider));
   },
 
   async events(filter: { from?: string; before?: string; kind?: UsageKind; channelId?: string; episodeId?: string; limit: number }): Promise<UsageEvent[]> {
-    const where: string[] = ['workspace_id = ?'];
-    const args: (string | number)[] = [ctx().workspaceId];
-    if (filter.from) (where.push('at >= ?'), args.push(filter.from));
-    if (filter.before) (where.push('at < ?'), args.push(filter.before));
-    if (filter.kind) (where.push('kind = ?'), args.push(filter.kind));
-    if (filter.channelId) (where.push('channel_id = ?'), args.push(filter.channelId));
-    if (filter.episodeId) (where.push('episode_id = ?'), args.push(filter.episodeId));
-    return (db().prepare(`SELECT * FROM usage_events WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ?`).all(...args, filter.limit) as Row[]).map(toEvent);
+    const where = and(
+      scoped(ev),
+      filter.from ? gte(ev.at, filter.from) : undefined,
+      filter.before ? lt(ev.at, filter.before) : undefined,
+      filter.kind ? eq(ev.kind, filter.kind) : undefined,
+      filter.channelId ? eq(ev.channelId, filter.channelId) : undefined,
+      filter.episodeId ? eq(ev.episodeId, filter.episodeId) : undefined,
+    );
+    return (await orm().select().from(ev).where(where).orderBy(desc(ev.at)).limit(filter.limit)).map(toEvent);
   },
 
   async spent(from: string, channelId: string | null): Promise<number> {
-    const r = db().prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage_events WHERE workspace_id = ? AND at >= ?${channelId ? ' AND channel_id = ?' : ''}`).get(...(channelId ? [ctx().workspaceId, from, channelId] : [ctx().workspaceId, from])) as Row;
-    return Number(r.usd);
+    return (await orm().select({ usd: total(ev.costUsd) }).from(ev).where(since(from, channelId)).get())?.usd ?? 0;
   },
 
-  /** The system price book (workspace_id NULL), which the admin edits. Per-workspace overrides come in phase 4. */
+  /** The system price book (workspace_id NULL), which the admin edits. */
   async prices(): Promise<PriceRow[]> {
-    return (db().prepare('SELECT * FROM price_book WHERE workspace_id IS NULL ORDER BY kind, provider, pattern').all() as Row[]).map(toPrice);
+    return (await orm().select().from(priceBook).where(isNull(priceBook.workspaceId)).orderBy(asc(priceBook.kind), asc(priceBook.provider), asc(priceBook.pattern))).map(toPrice);
   },
   async replacePrices(rows: Omit<PriceRow, 'id'>[]) {
-    const d = db();
-    d.exec('BEGIN');
-    try {
-      d.exec('DELETE FROM price_book WHERE workspace_id IS NULL');
-      const ins = d.prepare('INSERT INTO price_book (kind, provider, pattern, input_per_mtok, output_per_mtok, cached_per_mtok, per_unit, note, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)');
-      const by = maybeCtx()?.userId ?? null;
-      for (const r of rows) ins.run(r.kind, r.provider, r.pattern, r.inputPerMtok, r.outputPerMtok, r.cachedPerMtok, r.perUnit, r.note, by);
-      d.exec('COMMIT');
-    } catch (e) {
-      d.exec('ROLLBACK');
-      throw e;
-    }
+    const by = maybeCtx()?.userId ?? null;
+    await transaction(async () => {
+      await orm().delete(priceBook).where(isNull(priceBook.workspaceId));
+      if (rows.length) await orm().insert(priceBook).values(rows.map((r) => ({ ...r, workspaceId: null, userId: by })));
+    });
   },
 
   async budgets(): Promise<Budget[]> {
-    return (db().prepare('SELECT * FROM budgets WHERE workspace_id = ? ORDER BY created_at').all(ctx().workspaceId) as Row[]).map(toBudget);
+    return (await orm().select().from(budgets).where(scoped(budgets)).orderBy(asc(budgets.createdAt))).map(toBudget);
   },
   async upsertBudget(b: Omit<Budget, 'id'> & { id?: string }, at: string): Promise<string> {
     const id = b.id ?? newId();
-    const has = db().prepare('SELECT 1 FROM budgets WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId);
-    if (has) db().prepare('UPDATE budgets SET scope = ?, channel_id = ?, period = ?, limit_usd = ?, mode = ?, alert_pct = ? WHERE id = ? AND workspace_id = ?').run(b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, id, ctx().workspaceId);
-    else db().prepare('INSERT INTO budgets (id, scope, channel_id, period, limit_usd, mode, alert_pct, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.scope, b.channelId, b.period, b.limitUsd, b.mode, b.alertPct, at, ctx().workspaceId, ctx().userId);
+    const fields = { scope: b.scope, channelId: b.channelId, period: b.period, limitUsd: b.limitUsd, mode: b.mode, alertPct: b.alertPct };
+    const thisBudget = and(eq(budgets.id, id), scoped(budgets));
+    if (await orm().select({ id: budgets.id }).from(budgets).where(thisBudget).get()) await orm().update(budgets).set(fields).where(thisBudget);
+    else await orm().insert(budgets).values({ id, ...fields, createdAt: at, ...owner() });
     return id;
   },
   async removeBudget(id: string) {
-    db().prepare('DELETE FROM budgets WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
+    await orm().delete(budgets).where(and(eq(budgets.id, id), scoped(budgets)));
   },
 
   async pref(key: string): Promise<string | null> {
-    const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ctx().workspaceId, `usage:${key}`) as Row | undefined;
-    return r ? String(r.value) : null;
+    return (await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(USAGE_PREF(key)).get())?.value ?? null;
   },
   async setPref(key: string, value: string) {
-    db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ctx().workspaceId, `usage:${key}`, value, ctx().userId);
+    const by = owner();
+    await orm().insert(workspacePrefs).values({ ...by, key: `usage:${key}`, value }).onConflictDoUpdate({ target: [workspacePrefs.workspaceId, workspacePrefs.key], set: { value, userId: by.userId } });
   },
 };

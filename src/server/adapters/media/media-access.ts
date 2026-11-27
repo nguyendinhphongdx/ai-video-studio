@@ -1,6 +1,9 @@
 // Who may download a generated file: the media route serves a path only when the current workspace owns it.
-import { db } from '@/server/db';
+import { and, like, sql } from 'drizzle-orm';
+
 import { ctx } from '@/server/context';
+import { orm, scoped } from '@/server/orm';
+import { seriesVersions } from '@/server/schema';
 import { channelRepository } from '@/server/modules/channel/channel.repository';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 
@@ -21,7 +24,7 @@ export async function canReadMedia(rel: string): Promise<boolean> {
     if (rest) return owner === ctx().workspaceId;
     // LIKE wildcards never appear in a generated file name; refuse them so a crafted path cannot match broadly.
     if (/[%_\\]/.test(rel)) return false;
-    const used = db().prepare('SELECT 1 FROM series_versions WHERE workspace_id = ? AND bible LIKE ? LIMIT 1').get(ctx().workspaceId, `%${rel}%`);
+    const used = await orm().select({ one: sql`1` }).from(seriesVersions).where(and(scoped(seriesVersions), like(seriesVersions.bible, `%${rel}%`))).limit(1).get();
     return used !== undefined;
   }
   return false;

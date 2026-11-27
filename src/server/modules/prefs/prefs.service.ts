@@ -1,24 +1,25 @@
-import { db } from '@/server/db';
-import { ctx } from '@/server/context';
+import { and, eq } from 'drizzle-orm';
 
-type Row = Record<string, unknown>;
+import { orm, owner, scoped } from '@/server/orm';
+import { appPrefs, workspacePrefs } from '@/server/schema';
 
 /** System-wide values (the worker heartbeat), the same for every workspace. */
 const getSystem = async (key: string): Promise<string | null> => {
-  const r = db().prepare('SELECT value FROM app_prefs WHERE key = ?').get(key) as Row | undefined;
-  return r ? String(r.value) : null;
+  const r = await orm().select({ value: appPrefs.value }).from(appPrefs).where(eq(appPrefs.key, key)).get();
+  return r?.value ?? null;
 };
 const setSystem = async (key: string, value: string) => {
-  db().prepare('INSERT INTO app_prefs (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+  await orm().insert(appPrefs).values({ key, value }).onConflictDoUpdate({ target: appPrefs.key, set: { value } });
 };
 
 /** The current workspace's own switches. */
 const get = async (key: string): Promise<string | null> => {
-  const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ctx().workspaceId, key) as Row | undefined;
-  return r ? String(r.value) : null;
+  const r = await orm().select({ value: workspacePrefs.value }).from(workspacePrefs).where(and(scoped(workspacePrefs), eq(workspacePrefs.key, key))).get();
+  return r?.value ?? null;
 };
 const set = async (key: string, value: string) => {
-  db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ctx().workspaceId, key, value, ctx().userId);
+  const by = owner();
+  await orm().insert(workspacePrefs).values({ ...by, key, value }).onConflictDoUpdate({ target: [workspacePrefs.workspaceId, workspacePrefs.key], set: { value, userId: by.userId } });
 };
 
 export interface SfxPrefs {

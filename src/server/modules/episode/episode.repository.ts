@@ -1,176 +1,189 @@
+import { and, asc, count, desc, eq, inArray, isNotNull, max, type SQL } from 'drizzle-orm';
+
 import type { Episode, EpisodeEvent, Format, Render, Scene, SceneAssets } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
 import type { EpisodePatch } from '@/core/ports';
 import { ctx } from '@/server/context';
-import { db, json, now, transaction } from '@/server/db';
+import { json, now, transaction } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { episodeEvents, episodes, renders, scenes } from '@/server/schema';
 
-type Row = Record<string, unknown>;
-
-const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-
-const toScene = (r: Row): Scene => ({
-  id: String(r.id),
-  slotId: String(r.slot_id),
-  block: String(r.block),
+const toScene = (r: typeof scenes.$inferSelect): Scene => ({
+  id: r.id,
+  slotId: r.slotId,
+  block: r.block,
   locked: Boolean(r.locked),
-  narration: String(r.narration),
+  narration: r.narration,
   props: json(r.props, {}),
   approved: Boolean(r.approved),
-  assets: {
-    imagePath: (r.image_path as string | null) ?? null,
-    imageHash: (r.image_hash as string | null) ?? null,
-    voicePath: (r.voice_path as string | null) ?? null,
-    voiceSeconds: num(r.voice_seconds),
-    voiceHash: (r.voice_hash as string | null) ?? null,
-  },
+  assets: { imagePath: r.imagePath, imageHash: r.imageHash, voicePath: r.voicePath, voiceSeconds: r.voiceSeconds, voiceHash: r.voiceHash },
 });
 
-const toEpisode = (r: Row, scenes: Scene[]): Episode => ({
-  id: String(r.id),
-  channelId: String(r.channel_id),
-  seriesId: (r.series_id as string | null) ?? null,
-  seriesVersion: num(r.series_version),
-  knowledgeVersion: num(r.knowledge_version),
-  number: num(r.number),
-  topic: String(r.topic),
-  goal: String(r.goal),
-  notes: String(r.notes),
-  skillId: String(r.skill_id),
-  status: String(r.status) as Episode['status'],
+const toEpisode = (r: typeof episodes.$inferSelect, sceneList: Scene[]): Episode => ({
+  id: r.id,
+  channelId: r.channelId,
+  seriesId: r.seriesId,
+  seriesVersion: r.seriesVersion,
+  knowledgeVersion: r.knowledgeVersion,
+  number: r.number,
+  topic: r.topic,
+  goal: r.goal,
+  notes: r.notes,
+  skillId: r.skillId,
+  status: r.status as Episode['status'],
   formats: json<Format[]>(r.formats, ['landscape']),
-  voice: String(r.voice) as Episode['voice'],
+  voice: r.voice as Episode['voice'],
   music: Boolean(r.music),
-  autoImages: Boolean(r.auto_images),
-  autoVoice: Boolean(r.auto_voice),
-  sceneCount: num(r.scene_count),
-  title: String(r.title),
-  scenes,
+  autoImages: Boolean(r.autoImages),
+  autoVoice: Boolean(r.autoVoice),
+  sceneCount: r.sceneCount,
+  title: r.title,
+  scenes: sceneList,
   publish: json(r.publish, null),
-  createdAt: String(r.created_at),
-  updatedAt: String(r.updated_at),
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
 });
 
-const toRender = (r: Row): Render => ({
-  id: String(r.id),
-  episodeId: String(r.episode_id),
-  format: String(r.format) as Format,
-  filePath: String(r.file_path),
-  thumbnailPath: (r.thumbnail_path as string | null) ?? null,
-  durationSec: Number(r.duration_sec),
-  createdAt: String(r.created_at),
+const toRender = (r: typeof renders.$inferSelect): Render => ({
+  id: r.id,
+  episodeId: r.episodeId,
+  format: r.format as Format,
+  filePath: r.filePath,
+  thumbnailPath: r.thumbnailPath,
+  durationSec: r.durationSec,
+  createdAt: r.createdAt,
 });
 
-const scenesOf = async (episodeId: string) => (db().prepare('SELECT * FROM scenes WHERE episode_id = ? AND workspace_id = ? ORDER BY position').all(episodeId, ctx().workspaceId) as Row[]).map(toScene);
+/** The scenes of several episodes in one query, in script order. */
+async function scenesOf(episodeIds: string[]): Promise<Map<string, Scene[]>> {
+  const out = new Map<string, Scene[]>(episodeIds.map((id) => [id, []]));
+  if (!episodeIds.length) return out;
+  const rows = await orm().select().from(scenes).where(and(inArray(scenes.episodeId, episodeIds), scoped(scenes))).orderBy(asc(scenes.position));
+  for (const r of rows) out.get(r.episodeId)?.push(toScene(r));
+  return out;
+}
 
 export type EpisodeUpdate = EpisodePatch & Partial<Pick<Episode, 'formats' | 'voice' | 'music' | 'topic' | 'goal' | 'notes' | 'skillId' | 'autoImages' | 'autoVoice'>>;
 
+const bit = (b: boolean) => (b ? 1 : 0);
+const thisEpisode = (id: string) => and(eq(episodes.id, id), scoped(episodes));
+
 export const episodeRepository = {
   async list(filter: { channelId?: string; seriesId?: string } = {}): Promise<Episode[]> {
-    const where: string[] = ['workspace_id = ?'];
-    const args: string[] = [ctx().workspaceId];
-    if (filter.channelId) (where.push('channel_id = ?'), args.push(filter.channelId));
-    if (filter.seriesId) (where.push('series_id = ?'), args.push(filter.seriesId));
-    const order = filter.seriesId ? 'number, created_at' : 'created_at DESC';
-    const rows = db().prepare(`SELECT * FROM episodes WHERE ${where.join(' AND ')} ORDER BY ${order}`).all(...args) as Row[];
-    return Promise.all(rows.map(async (r) => toEpisode(r, await scenesOf(String(r.id)))));
+    const where: SQL[] = [scoped(episodes)];
+    if (filter.channelId) where.push(eq(episodes.channelId, filter.channelId));
+    if (filter.seriesId) where.push(eq(episodes.seriesId, filter.seriesId));
+    const order = filter.seriesId ? [asc(episodes.number), asc(episodes.createdAt)] : [desc(episodes.createdAt)];
+    const rows = await orm().select().from(episodes).where(and(...where)).orderBy(...order);
+    const byEpisode = await scenesOf(rows.map((r) => r.id));
+    return rows.map((r) => toEpisode(r, byEpisode.get(r.id) ?? []));
   },
   async find(id: string): Promise<Episode | null> {
-    const r = db().prepare('SELECT * FROM episodes WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
-    return r ? toEpisode(r, await scenesOf(id)) : null;
+    const r = await orm().select().from(episodes).where(thisEpisode(id)).get();
+    return r ? toEpisode(r, (await scenesOf([id])).get(id) ?? []) : null;
   },
   async insert(e: Omit<Episode, 'scenes' | 'publish' | 'title' | 'knowledgeVersion' | 'autoImages' | 'autoVoice'>) {
-    db()
-      .prepare(
-        `INSERT INTO episodes (id, channel_id, series_id, series_version, number, topic, goal, notes, skill_id, status, formats, voice, music, scene_count, title, publish, created_at, updated_at, workspace_id, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, ?, ?, ?, ?)`,
-      )
-      .run(e.id, e.channelId, e.seriesId, e.seriesVersion, e.number, e.topic, e.goal, e.notes, e.skillId, e.status, JSON.stringify(e.formats), e.voice, e.music ? 1 : 0, e.sceneCount, e.createdAt, e.updatedAt, ctx().workspaceId, ctx().userId);
+    await orm()
+      .insert(episodes)
+      .values({
+        id: e.id, channelId: e.channelId, seriesId: e.seriesId, seriesVersion: e.seriesVersion, number: e.number, topic: e.topic, goal: e.goal, notes: e.notes, skillId: e.skillId, status: e.status,
+        formats: JSON.stringify(e.formats), voice: e.voice, music: bit(e.music), sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
+      });
   },
   async update(id: string, patch: EpisodeUpdate) {
     await transaction(async () => {
-      const sets: string[] = [];
-      const values: (string | number | null)[] = [];
-      const set = (col: string, v: string | number | null) => (sets.push(`${col} = ?`), values.push(v));
-      if (patch.title !== undefined) set('title', patch.title);
-      if (patch.status !== undefined) set('status', patch.status);
-      if (patch.publish !== undefined) set('publish', patch.publish === null ? null : JSON.stringify(patch.publish));
-      if (patch.seriesVersion !== undefined) set('series_version', patch.seriesVersion);
-      if (patch.knowledgeVersion !== undefined) set('knowledge_version', patch.knowledgeVersion);
-      if (patch.formats !== undefined) set('formats', JSON.stringify(patch.formats));
-      if (patch.voice !== undefined) set('voice', patch.voice);
-      if (patch.music !== undefined) set('music', patch.music ? 1 : 0);
-      if (patch.topic !== undefined) set('topic', patch.topic);
-      if (patch.goal !== undefined) set('goal', patch.goal);
-      if (patch.notes !== undefined) set('notes', patch.notes);
-      if (patch.skillId !== undefined) set('skill_id', patch.skillId);
-      if (patch.autoImages !== undefined) set('auto_images', patch.autoImages ? 1 : 0);
-      if (patch.autoVoice !== undefined) set('auto_voice', patch.autoVoice ? 1 : 0);
-      set('updated_at', now());
-      const changed = db().prepare(`UPDATE episodes SET ${sets.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...values, id, ctx().workspaceId);
-      if (patch.scenes && changed.changes) {
+      const set: Partial<typeof episodes.$inferInsert> = { updatedAt: now() };
+      if (patch.title !== undefined) set.title = patch.title;
+      if (patch.status !== undefined) set.status = patch.status;
+      if (patch.publish !== undefined) set.publish = patch.publish === null ? null : JSON.stringify(patch.publish);
+      if (patch.seriesVersion !== undefined) set.seriesVersion = patch.seriesVersion;
+      if (patch.knowledgeVersion !== undefined) set.knowledgeVersion = patch.knowledgeVersion;
+      if (patch.formats !== undefined) set.formats = JSON.stringify(patch.formats);
+      if (patch.voice !== undefined) set.voice = patch.voice;
+      if (patch.music !== undefined) set.music = bit(patch.music);
+      if (patch.topic !== undefined) set.topic = patch.topic;
+      if (patch.goal !== undefined) set.goal = patch.goal;
+      if (patch.notes !== undefined) set.notes = patch.notes;
+      if (patch.skillId !== undefined) set.skillId = patch.skillId;
+      if (patch.autoImages !== undefined) set.autoImages = bit(patch.autoImages);
+      if (patch.autoVoice !== undefined) set.autoVoice = bit(patch.autoVoice);
+      const changed = await orm().update(episodes).set(set).where(thisEpisode(id)).returning({ id: episodes.id });
+      if (patch.scenes && changed.length) {
         // Scenes are rewritten as a whole; a scene that already existed keeps the person who made it.
-        const makers = new Map((db().prepare('SELECT id, user_id FROM scenes WHERE episode_id = ? AND workspace_id = ?').all(id, ctx().workspaceId) as { id: string; user_id: string | null }[]).map((r) => [r.id, r.user_id]));
-        db().prepare('DELETE FROM scenes WHERE episode_id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
-        const ins = db().prepare('INSERT INTO scenes (id, episode_id, position, slot_id, block, locked, narration, props, approved, image_path, image_hash, voice_path, voice_seconds, voice_hash, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        patch.scenes.forEach((s, i) => ins.run(s.id, id, i, s.slotId, s.block, s.locked ? 1 : 0, s.narration, JSON.stringify(s.props), s.approved ? 1 : 0, s.assets.imagePath, s.assets.imageHash, s.assets.voicePath, s.assets.voiceSeconds, s.assets.voiceHash, ctx().workspaceId, makers.has(s.id) ? (makers.get(s.id) ?? null) : ctx().userId));
+        const ofEpisode = and(eq(scenes.episodeId, id), scoped(scenes));
+        const makers = new Map((await orm().select({ id: scenes.id, userId: scenes.userId }).from(scenes).where(ofEpisode)).map((r) => [r.id, r.userId]));
+        await orm().delete(scenes).where(ofEpisode);
+        if (patch.scenes.length) {
+          await orm()
+            .insert(scenes)
+            .values(
+              patch.scenes.map((s, i) => ({
+                id: s.id, episodeId: id, position: i, slotId: s.slotId, block: s.block, locked: bit(s.locked), narration: s.narration, props: JSON.stringify(s.props), approved: bit(s.approved),
+                imagePath: s.assets.imagePath, imageHash: s.assets.imageHash, voicePath: s.assets.voicePath, voiceSeconds: s.assets.voiceSeconds, voiceHash: s.assets.voiceHash,
+                workspaceId: ctx().workspaceId, userId: makers.has(s.id) ? (makers.get(s.id) ?? null) : ctx().userId,
+              })),
+            );
+        }
       }
     });
   },
   /** Store a generated picture/voice (or the approval) of one scene without touching the rest of the script. */
   async updateScene(episodeId: string, sceneId: string, patch: Partial<SceneAssets> & { approved?: boolean }) {
-    const map: Record<string, string> = { imagePath: 'image_path', imageHash: 'image_hash', voicePath: 'voice_path', voiceSeconds: 'voice_seconds', voiceHash: 'voice_hash' };
-    const sets: string[] = [];
-    const values: (string | number | null)[] = [];
-    for (const [k, col] of Object.entries(map)) {
-      const v = (patch as Record<string, string | number | null | undefined>)[k];
-      if (v !== undefined) (sets.push(`${col} = ?`), values.push(v));
-    }
-    if (patch.approved !== undefined) (sets.push('approved = ?'), values.push(patch.approved ? 1 : 0));
-    if (!sets.length) return;
-    db().prepare(`UPDATE scenes SET ${sets.join(', ')} WHERE id = ? AND episode_id = ? AND workspace_id = ?`).run(...values, sceneId, episodeId, ctx().workspaceId);
+    const set: Partial<typeof scenes.$inferInsert> = {};
+    if (patch.imagePath !== undefined) set.imagePath = patch.imagePath;
+    if (patch.imageHash !== undefined) set.imageHash = patch.imageHash;
+    if (patch.voicePath !== undefined) set.voicePath = patch.voicePath;
+    if (patch.voiceSeconds !== undefined) set.voiceSeconds = patch.voiceSeconds;
+    if (patch.voiceHash !== undefined) set.voiceHash = patch.voiceHash;
+    if (patch.approved !== undefined) set.approved = bit(patch.approved);
+    if (!Object.keys(set).length) return;
+    await orm().update(scenes).set(set).where(and(eq(scenes.id, sceneId), eq(scenes.episodeId, episodeId), scoped(scenes)));
     await episodeRepository.touch(episodeId);
   },
   async touch(id: string) {
-    db().prepare('UPDATE episodes SET updated_at = ? WHERE id = ? AND workspace_id = ?').run(now(), id, ctx().workspaceId);
+    await orm().update(episodes).set({ updatedAt: now() }).where(thisEpisode(id));
   },
   async remove(id: string) {
-    db().prepare('DELETE FROM episodes WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
+    await orm().delete(episodes).where(thisEpisode(id));
   },
   async nextNumber(seriesId: string): Promise<number> {
-    const r = db().prepare('SELECT MAX(number) AS n FROM episodes WHERE series_id = ? AND workspace_id = ?').get(seriesId, ctx().workspaceId) as { n: number | null };
-    return (r.n ?? 0) + 1;
+    const r = await orm().select({ n: max(episodes.number) }).from(episodes).where(and(eq(episodes.seriesId, seriesId), scoped(episodes))).get();
+    return (r?.n ?? 0) + 1;
   },
   /** Episode counts per status, by series (for series cards). */
   async countsBySeries(channelId: string): Promise<Map<string, Partial<Record<Episode['status'], number>>>> {
-    const rows = db().prepare('SELECT series_id AS s, status, COUNT(*) AS n FROM episodes WHERE channel_id = ? AND workspace_id = ? AND series_id IS NOT NULL GROUP BY series_id, status').all(channelId, ctx().workspaceId) as { s: string; status: Episode['status']; n: number }[];
+    const rows = await orm()
+      .select({ s: episodes.seriesId, status: episodes.status, n: count() })
+      .from(episodes)
+      .where(and(eq(episodes.channelId, channelId), scoped(episodes), isNotNull(episodes.seriesId)))
+      .groupBy(episodes.seriesId, episodes.status);
     const out = new Map<string, Partial<Record<Episode['status'], number>>>();
-    for (const r of rows) out.set(r.s, { ...out.get(r.s), [r.status]: r.n });
+    for (const r of rows) out.set(r.s!, { ...out.get(r.s!), [r.status]: r.n });
     return out;
   },
   /** Assign episode numbers atomically (the series/number index is unique, so go through negative numbers). */
   async renumber(assignments: { id: string; number: number }[]) {
     await transaction(async () => {
-      const set = db().prepare('UPDATE episodes SET number = ?, updated_at = ? WHERE id = ? AND workspace_id = ?');
-      assignments.forEach((a, i) => set.run(-(i + 1), now(), a.id, ctx().workspaceId));
-      for (const a of assignments) set.run(a.number, now(), a.id, ctx().workspaceId);
+      const setNumber = (id: string, number: number) => orm().update(episodes).set({ number, updatedAt: now() }).where(thisEpisode(id));
+      for (const [i, a] of assignments.entries()) await setNumber(a.id, -(i + 1));
+      for (const a of assignments) await setNumber(a.id, a.number);
     });
   },
   async renders(episodeId: string): Promise<Render[]> {
-    return (db().prepare('SELECT * FROM renders WHERE episode_id = ? AND workspace_id = ? ORDER BY format').all(episodeId, ctx().workspaceId) as Row[]).map(toRender);
+    return (await orm().select().from(renders).where(and(eq(renders.episodeId, episodeId), scoped(renders))).orderBy(asc(renders.format))).map(toRender);
   },
-  async replaceRenders(episodeId: string, renders: Omit<Render, 'id' | 'episodeId' | 'createdAt'>[]): Promise<Render[]> {
+  async replaceRenders(episodeId: string, list: Omit<Render, 'id' | 'episodeId' | 'createdAt'>[]): Promise<Render[]> {
     await transaction(async () => {
-      db().prepare('DELETE FROM renders WHERE episode_id = ? AND workspace_id = ?').run(episodeId, ctx().workspaceId);
-      const ins = db().prepare('INSERT INTO renders (id, episode_id, format, file_path, thumbnail_path, duration_sec, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const r of renders) ins.run(newId(), episodeId, r.format, r.filePath, r.thumbnailPath, r.durationSec, now(), ctx().workspaceId, ctx().userId);
+      await orm().delete(renders).where(and(eq(renders.episodeId, episodeId), scoped(renders)));
+      if (list.length) await orm().insert(renders).values(list.map((r) => ({ id: newId(), episodeId, format: r.format, filePath: r.filePath, thumbnailPath: r.thumbnailPath, durationSec: r.durationSec, createdAt: now(), ...owner() })));
     });
     return await episodeRepository.renders(episodeId);
   },
   async events(episodeId: string): Promise<EpisodeEvent[]> {
-    return db().prepare('SELECT at, message FROM episode_events WHERE episode_id = ? AND workspace_id = ? ORDER BY id').all(episodeId, ctx().workspaceId) as unknown as EpisodeEvent[];
+    return orm().select({ at: episodeEvents.at, message: episodeEvents.message }).from(episodeEvents).where(and(eq(episodeEvents.episodeId, episodeId), scoped(episodeEvents))).orderBy(asc(episodeEvents.id));
   },
   async addEvent(episodeId: string, message: string) {
-    db().prepare('INSERT INTO episode_events (episode_id, at, message, workspace_id, user_id) VALUES (?, ?, ?, ?, ?)').run(episodeId, now(), message, ctx().workspaceId, ctx().userId);
+    await orm().insert(episodeEvents).values({ episodeId, at: now(), message, ...owner() });
     await episodeRepository.touch(episodeId);
   },
 };

@@ -1,7 +1,11 @@
 // Drizzle over the same node:sqlite connection as db(). Drizzle has no node:sqlite driver, so this uses its
 // sqlite-proxy driver: Drizzle builds the SQL, we run it. Async like the rest of the data layer, so the Postgres
 // driver can replace it (docs/PLAN-postgres.md, step 4).
+import { eq, type SQL } from 'drizzle-orm';
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { drizzle, type SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
+
+import { ctx } from './context';
 
 import { db } from './db';
 import * as schema from './schema';
@@ -53,3 +57,12 @@ export function orm(): SqliteRemoteDatabase<typeof schema> {
   );
   return g.__avsOrm;
 }
+
+/** The current workspace's rows of a table (AGENTS.md rule 10): `where(and(scoped(episodes), eq(episodes.id, id)))`. */
+export const scoped = (table: { workspaceId: SQLiteColumn }): SQL => eq(table.workspaceId, ctx().workspaceId);
+
+/** Who a new row belongs to: spread into every insert of a workspace table. */
+export const owner = () => ({ workspaceId: ctx().workspaceId, userId: ctx().userId });
+
+/** JSON kept in a TEXT column: written with `toJson`, read with `json()` from db.ts. */
+export const toJson = (v: unknown): string => JSON.stringify(v);

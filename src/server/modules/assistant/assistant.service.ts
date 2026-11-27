@@ -10,7 +10,7 @@ import { aiRunStore } from '@/server/modules/ai-run/ai-run.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 import { jobRepository } from '@/server/modules/job/job.repository';
-import { withUsageScope } from '@/server/modules/usage/usage.scope';
+import { withUsage } from '@/server/context';
 import { knowledgeRepository } from '@/server/modules/knowledge/knowledge.repository';
 import { seriesRepository } from '@/server/modules/series/series.repository';
 import { skillService } from '@/server/modules/skill/skill.service';
@@ -129,7 +129,7 @@ export const assistantService = {
   async runTurn(id: string): Promise<void> {
     try {
       const thread = assistantRepository.find(id);
-      await withUsageScope({ threadId: id, channelId: thread?.channelId, purpose: 'assistant' }, () => runAssistantTurn(createAssistantRuntime(), id));
+      await withUsage({ threadId: id, channelId: thread?.channelId, purpose: 'assistant' }, () => runAssistantTurn(createAssistantRuntime(), id));
     } catch (e) {
       const text = e instanceof UserFacingError ? e.message : 'Trợ lý gặp lỗi. Thử lại hoặc xem nhật ký worker.';
       assistantRepository.append(id, { role: 'assistant', content: `⚠️ ${text}`, toolCalls: [], toolCallId: null, toolName: null, status: 'error', summary: '', data: null, focus: null });

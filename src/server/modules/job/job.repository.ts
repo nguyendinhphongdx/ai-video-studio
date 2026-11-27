@@ -1,7 +1,7 @@
 import type { Job, JobKind } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
 import { db, json, now, transaction } from '@/server/db';
-import { uid, ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 type Row = Record<string, unknown>;
 
@@ -25,37 +25,37 @@ export const jobRepository = {
     const id = newId();
     db()
       .prepare(`INSERT INTO jobs (id, episode_id, kind, payload, state, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`)
-      .run(id, episodeId, kind, JSON.stringify(payload), now(), ws(), uid());
+      .run(id, episodeId, kind, JSON.stringify(payload), now(), ctx().workspaceId, ctx().userId);
     return jobRepository.find(id)!;
   },
   find(id: string): Job | null {
-    const r = db().prepare('SELECT * FROM jobs WHERE id = ? AND workspace_id = ?').get(id, ws()) as Row | undefined;
+    const r = db().prepare('SELECT * FROM jobs WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
   active(episodeId: string): Job | null {
-    const r = db().prepare(`SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(episodeId, ws()) as Row | undefined;
+    const r = db().prepare(`SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(episodeId, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
   latest(episodeId: string): Job | null {
-    const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId, ws()) as Row | undefined;
+    const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
   /** The running or queued assistant turn of a conversation, if any. */
   activeAssistant(threadId: string): Job | null {
-    const r = db().prepare(`SELECT * FROM jobs WHERE kind = 'assistant_turn' AND workspace_id = ? AND state IN ('queued', 'running') AND payload LIKE ? ORDER BY created_at DESC LIMIT 1`).get(ws(), `%"threadId":"${threadId}"%`) as Row | undefined;
+    const r = db().prepare(`SELECT * FROM jobs WHERE kind = 'assistant_turn' AND workspace_id = ? AND state IN ('queued', 'running') AND payload LIKE ? ORDER BY created_at DESC LIMIT 1`).get(ctx().workspaceId, `%"threadId":"${threadId}"%`) as Row | undefined;
     return r ? toJob(r) : null;
   },
   listActive(): Job[] {
-    return (db().prepare(`SELECT * FROM jobs WHERE workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at`).all(ws()) as Row[]).map(toJob);
+    return (db().prepare(`SELECT * FROM jobs WHERE workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at`).all(ctx().workspaceId) as Row[]).map(toJob);
   },
   progress(id: string, progress: number, phase: string | null) {
-    db().prepare('UPDATE jobs SET progress = ?, phase = COALESCE(?, phase) WHERE id = ? AND workspace_id = ?').run(Math.max(0, Math.min(1, progress)), phase, id, ws());
+    db().prepare('UPDATE jobs SET progress = ?, phase = COALESCE(?, phase) WHERE id = ? AND workspace_id = ?').run(Math.max(0, Math.min(1, progress)), phase, id, ctx().workspaceId);
   },
   finish(id: string, result?: unknown) {
-    db().prepare(`UPDATE jobs SET state = 'done', progress = 1, result = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(result === undefined ? null : JSON.stringify(result), now(), id, ws());
+    db().prepare(`UPDATE jobs SET state = 'done', progress = 1, result = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(result === undefined ? null : JSON.stringify(result), now(), id, ctx().workspaceId);
   },
   fail(id: string, error: string) {
-    db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(error, now(), id, ws());
+    db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(error, now(), id, ctx().workspaceId);
   },
 };
 

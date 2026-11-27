@@ -12,13 +12,12 @@ import { channelService } from '@/server/modules/channel/channel.service';
 import { assistantService } from '@/server/modules/assistant/assistant.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 import { jobQueue, jobRepository } from '@/server/modules/job/job.repository';
-import { runInScope } from '@/server/http/scope';
 import { authService } from '@/server/modules/auth/auth.service';
 import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
 import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { SUBSCRIBERS } from '@/server/subscribers';
 import { closeRemotion, rendererCatalog } from '@/tools/renderers';
-import { withUsageScope } from '@/server/modules/usage/usage.scope';
+import { runWithContext, withUsage } from '@/server/context';
 
 const logger = createLogger('worker');
 const deps = createCoreDeps(rendererCatalog);
@@ -63,13 +62,13 @@ async function runJob(): Promise<boolean> {
   const claimed = jobQueue.claimNext();
   if (!claimed) return false;
   const { job } = claimed;
-  const scope = authService.scopeFor(claimed.workspaceId, claimed.userId);
-  if (!scope) {
+  const context = authService.contextFor(claimed.workspaceId, claimed.userId);
+  if (!context) {
     logger.error(`job ${job.id} has no workspace, dropped`, { job: job.id });
     jobQueue.failUnscoped(job.id, 'Workspace của việc này không còn.');
     return true;
   }
-  await runInScope(scope, () => runScopedJob(job));
+  await runWithContext(context, () => runScopedJob(job));
   return true;
 }
 
@@ -87,7 +86,7 @@ async function runScopedJob(job: Job): Promise<void> {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
     const episode = job.episodeId ? episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
-    const result = await withUsageScope({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
+    const result = await withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
     // Only jobs that produce data (not an episode change) keep their return value.
     jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });
@@ -105,14 +104,14 @@ async function deliverEvents(): Promise<boolean> {
   for (const { id, event, workspaceId, userId } of items) {
     let error: string | null = null;
     // Subscribers run in the workspace the event was published in, like the request that caused it.
-    const scope = authService.scopeFor(workspaceId, userId);
-    if (!scope) {
+    const context = authService.contextFor(workspaceId, userId);
+    if (!context) {
       outboxRepository.done(id, 'no workspace');
       continue;
     }
     for (const s of SUBSCRIBERS.filter((x) => x.on === event.type)) {
       try {
-        await runInScope(scope, () => s.handle(event as never));
+        await runWithContext(context, () => s.handle(event as never));
       } catch (e) {
         error = `${s.id}: ${(e as Error).message}`;
         logger.error('subscriber failed', { subscriber: s.id, event: event.type, error: e });
@@ -134,8 +133,8 @@ async function main() {
     }
   }, 5000).unref();
   for (const { job, workspaceId, userId } of jobQueue.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) {
-    const scope = authService.scopeFor(workspaceId, userId);
-    if (scope) runInScope(scope, () => rollback(job));
+    const context = authService.contextFor(workspaceId, userId);
+    if (context) runWithContext(context, () => rollback(job));
   }
   logger.info('ready, waiting for jobs');
   while (!stopping) {

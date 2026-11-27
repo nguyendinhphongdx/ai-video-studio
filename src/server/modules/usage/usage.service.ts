@@ -12,7 +12,7 @@ import { settingsService } from '@/server/modules/settings/settings.service';
 
 import { DEFAULT_PRICES } from './pricing';
 import { usageRepository, type Budget, type Group } from './usage.repository';
-import { currentUsageScope } from './usage.scope';
+import { maybeCtx } from '@/server/context';
 import type { BudgetInputType } from './usage.types';
 
 const logger = createLogger('usage');
@@ -56,7 +56,7 @@ export const usageService = {
   /** Writes one paid call to the ledger with its cost. Never throws: a ledger problem must not break the call itself. */
   record(input: RecordInput): void {
     try {
-      const scope = currentUsageScope();
+      const scope = (maybeCtx()?.usage ?? {});
       const price = pickPrice(prices(), input.kind, input.provider, input.model);
       usageRepository.insert({
         at: now(), kind: input.kind, provider: input.provider, model: input.model, purpose: input.purpose ?? scope.purpose ?? '',
@@ -71,7 +71,7 @@ export const usageService = {
 
   /** Called before a paid call: a budget set to "block" that is used up stops new spending until the period ends. */
   assertWithinBudget(): void {
-    const { channelId } = currentUsageScope();
+    const { channelId } = (maybeCtx()?.usage ?? {});
     for (const b of usageRepository.budgets()) {
       if (b.mode !== 'block') continue;
       if (b.scope === 'channel' && b.channelId !== channelId) continue;

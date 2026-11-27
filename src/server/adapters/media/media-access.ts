@@ -1,6 +1,6 @@
 // Who may download a generated file: the media route serves a path only when the current workspace owns it.
 import { db } from '@/server/db';
-import { ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 import { channelRepository } from '@/server/modules/channel/channel.repository';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 
@@ -18,10 +18,10 @@ export function canReadMedia(rel: string): boolean {
   if (top === 'channels') return channelRepository.find(owner) !== null;
   if (top === 'tts-preview') return true;
   if (top === 'series-characters') {
-    if (rest) return owner === ws();
+    if (rest) return owner === ctx().workspaceId;
     // LIKE wildcards never appear in a generated file name; refuse them so a crafted path cannot match broadly.
     if (/[%_\\]/.test(rel)) return false;
-    const used = db().prepare('SELECT 1 FROM series_versions WHERE workspace_id = ? AND bible LIKE ? LIMIT 1').get(ws(), `%${rel}%`);
+    const used = db().prepare('SELECT 1 FROM series_versions WHERE workspace_id = ? AND bible LIKE ? LIMIT 1').get(ctx().workspaceId, `%${rel}%`);
     return used !== undefined;
   }
   return false;

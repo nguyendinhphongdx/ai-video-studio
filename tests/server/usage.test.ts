@@ -20,7 +20,7 @@ import { UserFacingError } from '@/core/domain';
 type S = {
   llm: typeof import('@/server/adapters/llm/llm.service');
   usage: typeof import('@/server/modules/usage/usage.service');
-  scope: typeof import('@/server/modules/usage/usage.scope');
+  scope: typeof import('@/server/context');
   settings: typeof import('@/server/modules/settings/settings.service');
 };
 let s: S;
@@ -30,7 +30,7 @@ beforeAll(async () => {
   s = {
     llm: await import('@/server/adapters/llm/llm.service'),
     usage: await import('@/server/modules/usage/usage.service'),
-    scope: await import('@/server/modules/usage/usage.scope'),
+    scope: await import('@/server/context'),
     settings: await import('@/server/modules/settings/settings.service'),
   };
   await s.settings.settingsService.saveLlm({ provider: 'gemini', model: 'gemini-3.8-flash', apiKey: 'k' });
@@ -39,7 +39,7 @@ beforeAll(async () => {
 
 describe('usage ledger', () => {
   it('records an LLM call with the provider usage, its purpose and who it belongs to', async () => {
-    await s.scope.withUsageScope({ channelId: 'ch1', episodeId: 'ep1', jobId: 'j1' }, () => s.llm.llm.generateObject({ system: 's', user: 'u', schema: {} as never, purpose: 'write-episode' }));
+    await s.scope.withUsage({ channelId: 'ch1', episodeId: 'ep1', jobId: 'j1' }, () => s.llm.llm.generateObject({ system: 's', user: 'u', schema: {} as never, purpose: 'write-episode' }));
     const e = s.usage.usageService.events({ limit: 5 })[0]!;
     expect(e).toMatchObject({ kind: 'llm', provider: 'gemini', model: 'gemini-3.8-flash', purpose: 'write-episode', channelId: 'ch1', episodeId: 'ep1', jobId: 'j1', inputTokens: 1000, outputTokens: 500, estimated: false });
     // gemini flash: 1000 in x 0.30 + 500 out x 2.50 per million
@@ -47,7 +47,7 @@ describe('usage ledger', () => {
   });
 
   it('splits cached tokens, and estimates (and says so) when the provider reports no usage', async () => {
-    await s.scope.withUsageScope({ channelId: 'ch1', threadId: 't1' }, () => s.llm.llm.chat({ system: 'abc', messages: [], tools: [], purpose: 'assistant' }));
+    await s.scope.withUsage({ channelId: 'ch1', threadId: 't1' }, () => s.llm.llm.chat({ system: 'abc', messages: [], tools: [], purpose: 'assistant' }));
     expect(s.usage.usageService.events({ limit: 1 })[0]).toMatchObject({ purpose: 'assistant', threadId: 't1', inputTokens: 2000, cachedTokens: 1000, outputTokens: 100 });
     env.reported = false;
     await s.llm.llm.generateObject({ system: 'x'.repeat(400), user: '', schema: {} as never, purpose: 'suggest-topics' });
@@ -83,8 +83,8 @@ describe('usage ledger', () => {
     expect(() => usageService.saveBudget({ scope: 'channel', channelId: 'nope', period: 'day', limitUsd: 1, mode: 'block', alertPct: 80 })).toThrow(/kênh/);
     const repo = await import('@/server/modules/usage/usage.repository');
     const id = repo.usageRepository.upsertBudget({ scope: 'channel', channelId: 'ch1', period: 'day', limitUsd: 0.0000001, mode: 'block', alertPct: 80 }, new Date().toISOString());
-    expect(() => s.scope.withUsageScope({ channelId: 'other' }, () => usageService.assertWithinBudget())).not.toThrow();
-    expect(() => s.scope.withUsageScope({ channelId: 'ch1' }, () => usageService.assertWithinBudget())).toThrow(/ngân sách/);
+    expect(() => s.scope.withUsage({ channelId: 'other' }, () => usageService.assertWithinBudget())).not.toThrow();
+    expect(() => s.scope.withUsage({ channelId: 'ch1' }, () => usageService.assertWithinBudget())).toThrow(/ngân sách/);
     usageService.removeBudget(id);
   });
 

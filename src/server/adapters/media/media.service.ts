@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 import type { MediaPort } from '@/core/ports';
 import { ApiError } from '@/server/http/api-error';
@@ -66,7 +66,7 @@ export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar'
 
 /** Stores a series character picture in the current workspace's folder; returns the media-relative path. */
 export async function saveCharacterFile(data: Buffer, ext: string): Promise<string> {
-  const dir = path.join(MEDIA_DIR, 'series-characters', ws());
+  const dir = path.join(MEDIA_DIR, 'series-characters', ctx().workspaceId);
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `character-${Date.now().toString(36)}${ext}`);
   await fs.writeFile(file, data);

@@ -11,14 +11,14 @@ vi.hoisted(() => {
 type Auth = typeof import('@/server/modules/auth/auth.service');
 let auth: Auth;
 let http: typeof import('@/server/http/route');
-let scope: typeof import('@/server/http/scope');
+let context: typeof import('@/server/context');
 
 beforeAll(async () => {
   fs.rmSync(process.env.AVS_DATA_DIR!, { recursive: true, force: true });
   fs.mkdirSync(process.env.AVS_DATA_DIR!, { recursive: true });
   auth = await import('@/server/modules/auth/auth.service');
   http = await import('@/server/http/route');
-  scope = await import('@/server/http/scope');
+  context = await import('@/server/context');
   return () => fs.rmSync(process.env.AVS_DATA_DIR!, { recursive: true, force: true });
 });
 
@@ -28,7 +28,7 @@ describe('accounts', () => {
   it('makes the first account the system admin, with its own workspace that may use the shared keys', async () => {
     const { token, user } = await auth.authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'An' });
     expect(user.isAdmin).toBe(true);
-    const s = auth.authService.scopeOf(token)!;
+    const s = auth.authService.authenticate(token)!;
     expect(s.role).toBe('owner');
     expect(s.workspace.usesSharedKeys).toBe(true);
   });
@@ -36,7 +36,7 @@ describe('accounts', () => {
   it('gives later accounts their own workspace without the shared keys, and no admin rights', async () => {
     const { token, user } = await auth.authService.signUp({ email: 'b@x.vn', password: 'secret-123', name: 'Bình' });
     expect(user.isAdmin).toBe(false);
-    const s = auth.authService.scopeOf(token)!;
+    const s = auth.authService.authenticate(token)!;
     expect(s.workspace.usesSharedKeys).toBe(false);
     expect(s.workspace.name).toContain('Bình');
   });
@@ -60,16 +60,16 @@ describe('accounts', () => {
 
   it('ends the session on sign-out', async () => {
     const { token } = await auth.authService.logIn({ email: 'a@x.vn', password: 'secret-123' });
-    expect(auth.authService.scopeOf(token)).not.toBeNull();
+    expect(auth.authService.authenticate(token)).not.toBeNull();
     auth.authService.logOut(token);
-    expect(auth.authService.scopeOf(token)).toBeNull();
-    expect(auth.authService.scopeOf('made-up-token')).toBeNull();
+    expect(auth.authService.authenticate(token)).toBeNull();
+    expect(auth.authService.authenticate('made-up-token')).toBeNull();
   });
 });
 
 describe('the API gate', () => {
   it('answers 401 without a session and runs the handler in the caller’s workspace with one', async () => {
-    const handler = http.route(async () => ({ ws: scope.currentScope().workspace.name }));
+    const handler = http.route(async () => ({ ws: context.ctx().workspace.name }));
     const ctx = { params: Promise.resolve({}) };
     const out = await handler(req(), ctx);
     expect(out.status).toBe(401);

@@ -1,5 +1,5 @@
 import { db } from '@/server/db';
-import { uid, ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 type Row = Record<string, unknown>;
 
@@ -14,11 +14,11 @@ const setSystem = (key: string, value: string) => {
 
 /** The current workspace's own switches. */
 const get = (key: string): string | null => {
-  const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ws(), key) as Row | undefined;
+  const r = db().prepare('SELECT value FROM workspace_prefs WHERE workspace_id = ? AND key = ?').get(ctx().workspaceId, key) as Row | undefined;
   return r ? String(r.value) : null;
 };
 const set = (key: string, value: string) => {
-  db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ws(), key, value, uid());
+  db().prepare('INSERT INTO workspace_prefs (workspace_id, key, value, user_id) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, key) DO UPDATE SET value = excluded.value, user_id = excluded.user_id').run(ctx().workspaceId, key, value, ctx().userId);
 };
 
 export interface SfxPrefs {

@@ -33,6 +33,8 @@ tests/                         vitest: core contracts and tool catalog
 6. The web process never imports `src/tools/renderers.ts` or `@remotion/renderer`.
 7. Migrations in `src/server/db.ts` are append-only. Paid calls (LLM, picture, voice) must go through the adapters that record them in the cost ledger (see docs/ARCHITECTURE.md, Cost tracking).
 8. UI text is Vietnamese; code, comments and commit messages are English.
+9. **Request context, never parameters.** Who is acting and in which workspace lives in one AsyncLocalStorage, `ctx()` from `src/server/context.ts` (NestJS-style request scope). The auth guard `route()` verifies the session and sets it for every API request; the worker sets it for every job and outbox event (`authService.contextFor` + `runWithContext`). Services and repositories read `ctx().workspaceId`, `ctx().userId`, `ctx().user`, `ctx().role`, and tag paid calls with `withUsage({...})`. Never pass the user, the workspace, the role or the session through function parameters. Only `src/server/modules/auth`, the worker's queue (`jobQueue`) and outbox delivery may read across workspaces.
+10. **Every data table has `workspace_id` and `user_id`; every query filters by `workspace_id`** (and every insert sets both from `ctx()`). A row of another workspace is "not found" (404), never 403. New tables follow the same rule; `tests/server/workspace-isolation.test.ts` covers it.
 
 ## Commands
 

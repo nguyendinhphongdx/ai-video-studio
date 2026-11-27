@@ -1,7 +1,7 @@
 import type { AiRun } from '@/core/agent/runner';
 import type { AiRunStore } from '@/core/ports';
 import { db, json } from '@/server/db';
-import { uid, ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 type Row = Record<string, unknown>;
 
@@ -23,7 +23,7 @@ const toRun = (r: Row): AiRun => ({
 
 export const aiRunRepository = {
   forEpisode(episodeId: string, limit = 20): AiRun[] {
-    return (db().prepare('SELECT * FROM ai_runs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT ?').all(episodeId, ws(), limit) as Row[]).map(toRun);
+    return (db().prepare('SELECT * FROM ai_runs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT ?').all(episodeId, ctx().workspaceId, limit) as Row[]).map(toRun);
   },
 };
 
@@ -34,6 +34,6 @@ export const aiRunStore: AiRunStore = {
         `INSERT INTO ai_runs (id, episode_id, series_id, task, task_version, model, context, sections, prompt, output, error, duration_ms, created_at, workspace_id, user_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(r.id, r.episodeId, r.seriesId, r.task, r.taskVersion, r.model, r.context, JSON.stringify(r.sections), r.prompt, r.output === null ? null : JSON.stringify(r.output), r.error, r.durationMs, r.createdAt, ws(), uid());
+      .run(r.id, r.episodeId, r.seriesId, r.task, r.taskVersion, r.model, r.context, JSON.stringify(r.sections), r.prompt, r.output === null ? null : JSON.stringify(r.output), r.error, r.durationMs, r.createdAt, ctx().workspaceId, ctx().userId);
   },
 };

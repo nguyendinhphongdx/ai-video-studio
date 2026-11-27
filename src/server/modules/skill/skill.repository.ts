@@ -6,7 +6,7 @@ import path from 'node:path';
 import { SKILL_ID_RE } from '@/core/skills/skill';
 import { MARKET_SKILLS_DIR } from '@/server/config';
 import { db } from '@/server/db';
-import { uid, ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 type Row = Record<string, unknown>;
 
@@ -41,26 +41,26 @@ const toRow = (r: Row): ChannelSkillRow => ({
 
 export const channelSkillRepository = {
   list(channelId: string): ChannelSkillRow[] {
-    return (db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? AND workspace_id = ? ORDER BY created_at, skill_id').all(channelId, ws()) as Row[]).map(toRow);
+    return (db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? AND workspace_id = ? ORDER BY created_at, skill_id').all(channelId, ctx().workspaceId) as Row[]).map(toRow);
   },
   find(channelId: string, skillId: string): ChannelSkillRow | null {
-    const r = db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').get(channelId, skillId, ws()) as Row | undefined;
+    const r = db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').get(channelId, skillId, ctx().workspaceId) as Row | undefined;
     return r ? toRow(r) : null;
   },
   insert(row: Omit<ChannelSkillRow, 'updatedAt'>) {
     db()
       .prepare('INSERT INTO channel_skills (channel_id, skill_id, markdown, source, created_at, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(row.channelId, row.skillId, row.markdown, row.source, row.createdAt, row.createdAt, ws(), uid());
+      .run(row.channelId, row.skillId, row.markdown, row.source, row.createdAt, row.createdAt, ctx().workspaceId, ctx().userId);
   },
   update(channelId: string, skillId: string, markdown: string, updatedAt: string) {
-    db().prepare('UPDATE channel_skills SET markdown = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(markdown, updatedAt, channelId, skillId, ws());
+    db().prepare('UPDATE channel_skills SET markdown = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(markdown, updatedAt, channelId, skillId, ctx().workspaceId);
   },
   /** Replaces a skill with a newer market version (and points its source at the market id it now follows). */
   replaceFromMarket(channelId: string, skillId: string, markdown: string, source: string, updatedAt: string) {
-    db().prepare('UPDATE channel_skills SET markdown = ?, source = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(markdown, source, updatedAt, channelId, skillId, ws());
+    db().prepare('UPDATE channel_skills SET markdown = ?, source = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(markdown, source, updatedAt, channelId, skillId, ctx().workspaceId);
   },
   remove(channelId: string, skillId: string) {
-    db().prepare('DELETE FROM channel_skills WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(channelId, skillId, ws());
+    db().prepare('DELETE FROM channel_skills WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').run(channelId, skillId, ctx().workspaceId);
   },
   /** Skill ids a channel's videos, series or default already point at (to adopt them from the market). */
   referenced(channelId: string): string[] {
@@ -70,13 +70,13 @@ export const channelSkillRepository = {
          UNION SELECT v.skill_id FROM series_versions v JOIN series s ON s.id = v.series_id WHERE s.channel_id = ? AND s.workspace_id = ? AND v.workspace_id = ?
          UNION SELECT default_skill_id FROM channels WHERE id = ? AND workspace_id = ? AND default_skill_id IS NOT NULL`,
       )
-      .all(channelId, ws(), channelId, ws(), ws(), channelId, ws()) as { id: string }[];
+      .all(channelId, ctx().workspaceId, channelId, ctx().workspaceId, ctx().workspaceId, channelId, ctx().workspaceId) as { id: string }[];
     return rows.map((r) => r.id);
   },
   /** How many videos and series versions use the skill. */
   usage(channelId: string, skillId: string): { episodes: number; series: number } {
-    const e = db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').get(channelId, skillId, ws()) as { n: number };
-    const s = db().prepare('SELECT COUNT(DISTINCT v.series_id) AS n FROM series_versions v JOIN series s ON s.id = v.series_id WHERE s.channel_id = ? AND v.skill_id = ? AND s.workspace_id = ? AND v.workspace_id = ?').get(channelId, skillId, ws(), ws()) as { n: number };
+    const e = db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ? AND skill_id = ? AND workspace_id = ?').get(channelId, skillId, ctx().workspaceId) as { n: number };
+    const s = db().prepare('SELECT COUNT(DISTINCT v.series_id) AS n FROM series_versions v JOIN series s ON s.id = v.series_id WHERE s.channel_id = ? AND v.skill_id = ? AND s.workspace_id = ? AND v.workspace_id = ?').get(channelId, skillId, ctx().workspaceId, ctx().workspaceId) as { n: number };
     return { episodes: e.n, series: s.n };
   },
 };

@@ -11,7 +11,7 @@ import type { ChannelStore } from '@/core/ports';
 import { now } from '@/server/db';
 import { ApiError, conflict, notFound } from '@/server/http/api-error';
 import { SEED_DIR } from '@/server/config';
-import { currentScope } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { mediaUrl, removeChannelMedia, saveChannelFile } from '@/server/adapters/media/media.service';
 
@@ -37,8 +37,7 @@ const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
  * workspace only. Workspaces of people who sign up later start empty.
  */
 async function ensureSeeded() {
-  const scope = currentScope();
-  if (!scope.user.isAdmin || prefsService.flag('seeded')) return;
+  if (!ctx().user.isAdmin || prefsService.flag('seeded')) return;
   prefsService.setFlag('seeded');
   if (channelRepository.count() > 0) return;
   const dir = path.join(SEED_DIR, 'channels');

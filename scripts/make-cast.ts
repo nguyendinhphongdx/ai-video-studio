@@ -10,9 +10,8 @@ import { images } from '@/server/adapters/image/image.service';
 import { toSprite } from '@/server/adapters/media/chroma-key';
 import { resolveMedia, saveCharacterFile } from '@/server/adapters/media/media.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
-import { withUsageScope } from '@/server/modules/usage/usage.scope';
+import { runWithContext, withUsage } from '@/server/context';
 import { db } from '@/server/db';
-import { runInScope } from '@/server/http/scope';
 import { authService } from '@/server/modules/auth/auth.service';
 
 const [seriesId, file] = process.argv.slice(2);
@@ -20,9 +19,9 @@ if (!seriesId || !file) throw new Error('usage: make-cast.ts <seriesId> <cast.js
 const items = JSON.parse(await fs.readFile(file, 'utf8')) as { id: string; kind: CastKind; description: string }[];
 // A command-line run has no signed-in person: act in the series' own workspace, as its owner.
 const owner = db().prepare('SELECT workspace_id FROM series WHERE id = ?').get(seriesId) as { workspace_id: string | null } | undefined;
-const scope = authService.scopeFor(owner?.workspace_id ?? null, null);
-if (!scope) throw new Error('series not found');
-await runInScope(scope, async () => {
+const context = authService.contextFor(owner?.workspace_id ?? null, null);
+if (!context) throw new Error('series not found');
+await runWithContext(context, async () => {
 const series = seriesRepository.find(seriesId);
 if (!series) throw new Error('series not found');
 const bible = seriesRepository.version(seriesId, series.currentVersion)!.bible;
@@ -30,7 +29,7 @@ const style = bible.characterSprites.neutral ?? bible.characterAssets[0];
 if (!style) throw new Error('the series needs a character picture to copy the style from');
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'avs-cast-'));
 const made: Record<string, string> = {};
-await withUsageScope({ seriesId, channelId: series.channelId }, async () => {
+await withUsage({ seriesId, channelId: series.channelId }, async () => {
   for (const it of items) {
     const raw = path.join(dir, `${it.id}.png`);
     await images.generate(castPrompt(it.description, it.kind), raw, { purpose: 'cast_sprite' }, [resolveMedia(style)]);

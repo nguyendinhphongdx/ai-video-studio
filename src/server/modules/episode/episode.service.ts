@@ -22,7 +22,7 @@ import { conflict } from '@/server/http/api-error';
 import { aiRunRepository } from '@/server/modules/ai-run/ai-run.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
-import { withUsageScope } from '@/server/modules/usage/usage.scope';
+import { withUsage } from '@/server/context';
 import { jobRepository } from '@/server/modules/job/job.repository';
 import { seriesService } from '@/server/modules/series/series.service';
 import { skillService } from '@/server/modules/skill/skill.service';
@@ -91,7 +91,7 @@ export const episodeService = {
       .list({ channelId })
       .slice(0, 30)
       .map((e) => ({ topic: e.topic, title: e.title, status: e.status, series: e.seriesId ? (seriesRepository.find(e.seriesId)?.name ?? null) : null }));
-    return withUsageScope({ channelId, purpose: 'suggest-topics' }, () => suggestTopics(appDeps, channelId, recent, 5));
+    return withUsage({ channelId, purpose: 'suggest-topics' }, () => suggestTopics(appDeps, channelId, recent, 5));
   },
 
   async list(filter: { channelId?: string; seriesId?: string } = {}): Promise<EpisodeView[]> {

@@ -28,13 +28,6 @@ export interface Membership {
   createdAt: string;
 }
 
-/** Who is asking, and in which workspace: every request (and every worker job) runs under one. */
-export interface AuthScope {
-  user: User;
-  workspace: Workspace;
-  role: Role;
-}
-
 /** What the browser gets about the signed-in person. */
 export interface MeView {
   user: User;

@@ -8,7 +8,7 @@ vi.hoisted(() => {
 });
 vi.mock('@/server/adapters/llm/llm.service', () => ({ llm: { isReady: async () => false } }));
 
-type AuthScope = import('@/server/modules/auth/auth.types').AuthScope;
+type AuthScope = import('@/server/context').RequestContext;
 
 let A: AuthScope;
 let B: AuthScope;
@@ -30,7 +30,7 @@ beforeAll(async () => {
   fs.rmSync(process.env.AVS_DATA_DIR!, { recursive: true, force: true });
   fs.mkdirSync(process.env.AVS_DATA_DIR!, { recursive: true });
   const { authService } = await import('@/server/modules/auth/auth.service');
-  run = (await import('@/server/http/scope')).runInScope;
+  run = (await import('@/server/context')).runWithContext;
   m = {
     channels: await import('@/server/modules/channel/channel.service'),
     episodes: await import('@/server/modules/episode/episode.service'),
@@ -41,8 +41,8 @@ beforeAll(async () => {
     media: await import('@/server/adapters/media/media-access'),
     db: await import('@/server/db'),
   };
-  A = authService.scopeOf((await authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'An' })).token)!;
-  B = authService.scopeOf((await authService.signUp({ email: 'b@x.vn', password: 'secret-123', name: 'Bình' })).token)!;
+  A = authService.authenticate((await authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'An' })).token)!;
+  B = authService.authenticate((await authService.signUp({ email: 'b@x.vn', password: 'secret-123', name: 'Bình' })).token)!;
   // Workspace A makes a project, an episode, a job, a cost and a preference.
   const { NEW_CHANNEL } = await import('@/features/channel/services/channel.api');
   await run(A, async () => {

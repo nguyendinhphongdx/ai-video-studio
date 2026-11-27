@@ -3,17 +3,17 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { newId } from '@/core/domain/ids';
+import { ctx, makeContext, runWithContext, type RequestContext } from '@/server/context';
 import { ApiError } from '@/server/http/api-error';
 
 import { authRepository } from './auth.repository';
-import type { AuthScope, LogInInput, MeView, SignUpInput, User, Workspace } from './auth.types';
+import type { LogInInput, MeView, SignUpInput, User, Workspace } from './auth.types';
 
 const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number) => Promise<Buffer>;
 
 export const SESSION_COOKIE = 'avs_session';
 export const SESSION_DAYS = 30;
 
-const unauthorized = () => new ApiError(401, 'unauthorized', 'Bạn cần đăng nhập.');
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 export async function hashPassword(password: string): Promise<string> {
@@ -70,8 +70,8 @@ export const authService = {
     if (token) authRepository.deleteSession(sha256(token));
   },
 
-  /** The scope of a session token, or null when it is missing, unknown or expired. */
-  scopeOf(token: string | undefined): AuthScope | null {
+  /** The guard's check: the context of a session token, or null when it is missing, unknown or expired. */
+  authenticate(token: string | undefined): RequestContext | null {
     if (!token) return null;
     const s = authRepository.session(sha256(token));
     if (!s || s.expires_at <= new Date().toISOString()) return null;
@@ -82,36 +82,34 @@ export const authService = {
     const current = all.find((w) => w.id === s.workspace_id) ?? all[0];
     if (!current) return null;
     const { role, ...workspace } = current;
-    return { user: publicUser(user), workspace, role };
-  },
-
-  /** Throws 401 when signed out. */
-  requireScope(token: string | undefined): AuthScope {
-    const scope = authService.scopeOf(token);
-    if (!scope) throw unauthorized();
-    return scope;
+    return makeContext(publicUser(user), workspace, role, token);
   },
 
   /**
-   * The scope a worker job runs in: the job's workspace, acting as the person who started it (or the workspace's first
-   * owner when that person is gone). Null when the workspace no longer exists.
+   * The context a worker job (or outbox event) runs in: its workspace, acting as the person who started it (or the
+   * workspace's first owner when that person is gone). Null when the workspace no longer exists.
    */
-  scopeFor(workspaceId: string | null, userId: string | null): AuthScope | null {
+  contextFor(workspaceId: string | null, userId: string | null): RequestContext | null {
     const workspace = workspaceId ? authRepository.workspaceById(workspaceId) : null;
     if (!workspace) return null;
     const actor = (userId && authRepository.roleIn(workspace.id, userId) ? userId : null) ?? authRepository.ownerOf(workspace.id);
     const user = actor ? authRepository.userById(actor) : null;
     if (!user) return null;
-    return { user: publicUser(user), workspace, role: authRepository.roleIn(workspace.id, user.id) ?? 'member' };
+    return makeContext(publicUser(user), workspace, authRepository.roleIn(workspace.id, user.id) ?? 'member');
   },
 
-  me(scope: AuthScope): MeView {
-    return { ...scope, workspaces: authRepository.workspacesOf(scope.user.id) };
+  /** The signed-in person, their current workspace and every workspace they belong to. */
+  me(): MeView {
+    const { user, workspace, role } = ctx();
+    return { user, workspace, role, workspaces: authRepository.workspacesOf(user.id) };
   },
 
-  switchWorkspace(token: string | undefined, scope: AuthScope, workspaceId: string): MeView {
-    if (!authRepository.workspacesOf(scope.user.id).some((w) => w.id === workspaceId)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
-    authRepository.setSessionWorkspace(sha256(token!), workspaceId);
-    return authService.me(authService.requireScope(token));
+  /** Moves the current session to another workspace the person belongs to. */
+  switchWorkspace(workspaceId: string): MeView {
+    const { user, sessionToken } = ctx();
+    if (!sessionToken || !authRepository.workspacesOf(user.id).some((w) => w.id === workspaceId)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
+    authRepository.setSessionWorkspace(sha256(sessionToken), workspaceId);
+    const next = authService.authenticate(sessionToken)!;
+    return runWithContext(next, () => authService.me());
   },
 };

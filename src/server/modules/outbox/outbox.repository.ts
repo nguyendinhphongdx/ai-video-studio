@@ -1,7 +1,7 @@
 // Outbox: services append events in their own transaction; the worker delivers them to subscribers.
 import type { DomainEvent, EventBus } from '@/core/events/events';
 import { db, json, now } from '@/server/db';
-import { uid, ws } from '@/server/http/scope';
+import { ctx } from '@/server/context';
 
 export interface OutboxItem {
   id: number;
@@ -23,6 +23,6 @@ export const outboxRepository = {
 
 export const eventBus: EventBus = {
   async publish(event) {
-    db().prepare('INSERT INTO outbox (type, payload, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?)').run(event.type, JSON.stringify(event), now(), ws(), uid());
+    db().prepare('INSERT INTO outbox (type, payload, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?)').run(event.type, JSON.stringify(event), now(), ctx().workspaceId, ctx().userId);
   },
 };

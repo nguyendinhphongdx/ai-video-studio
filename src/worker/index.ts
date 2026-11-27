@@ -30,15 +30,15 @@ const episodeOf = (job: Job): string => {
 };
 
 /** The person chose to make pictures/voices as soon as a script exists: queue that work right after the script. */
-function chainAssets(episode: Episode): Episode {
-  if (episode.autoImages || episode.autoVoice) jobRepository.insert(episode.id, 'scene_assets', { sceneIds: null, image: episode.autoImages, voice: episode.autoVoice });
+async function chainAssets(episode: Episode): Promise<Episode> {
+  if (episode.autoImages || episode.autoVoice) await jobRepository.insert(episode.id, 'scene_assets', { sceneIds: null, image: episode.autoImages, voice: episode.autoVoice });
   return episode;
 }
 
 const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: string) => void) => Promise<unknown>> = {
-  write_script: async (job, p) => chainAssets(await writeScript(deps, episodeOf(job), p)),
-  revise_script: async (job, p) => chainAssets(await reviseScript(deps, episodeOf(job), String(job.payload.feedback ?? ''), p)),
-  assistant_turn: (job) => assistantService.runTurn(String(job.payload.threadId)),
+  write_script: async (job, p) => await chainAssets(await writeScript(deps, episodeOf(job), p)),
+  revise_script: async (job, p) => await chainAssets(await reviseScript(deps, episodeOf(job), String(job.payload.feedback ?? ''), p)),
+  assistant_turn: async (job) => await assistantService.runTurn(String(job.payload.threadId)),
   scene_assets: (job, p) => generateSceneAssets(deps, episodeOf(job), job.payload as unknown as SceneAssetsRequest, p),
   produce: (job, p) => produce(deps, episodeOf(job), p),
   summarize: (job) => summarizeEpisode(deps, episodeOf(job)),
@@ -50,22 +50,22 @@ const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: str
 };
 
 /** Put the episode back where the person can act on it after a failed job. */
-function rollback(job: Job) {
-  const e = job.episodeId ? episodeRepository.find(job.episodeId) : null;
-  if (e?.status === 'producing') episodeRepository.update(e.id, { status: 'script_review' });
+async function rollback(job: Job) {
+  const e = job.episodeId ? await episodeRepository.find(job.episodeId) : null;
+  if (e?.status === 'producing') await episodeRepository.update(e.id, { status: 'script_review' });
 }
 
 const shortMessage = (e: unknown) => (e instanceof UserFacingError ? e.message : 'Có lỗi khi xử lý. Bấm Thử lại; nếu vẫn lỗi, xem nhật ký của worker.');
 
 /** Takes the next queued job of any workspace and runs it inside that workspace, as the person who started it. */
 async function runJob(): Promise<boolean> {
-  const claimed = jobQueue.claimNext();
+  const claimed = await jobQueue.claimNext();
   if (!claimed) return false;
   const { job } = claimed;
-  const context = authService.contextFor(claimed.workspaceId, claimed.userId);
+  const context = await authService.contextFor(claimed.workspaceId, claimed.userId);
   if (!context) {
     logger.error(`job ${job.id} has no workspace, dropped`, { job: job.id });
-    jobQueue.failUnscoped(job.id, 'Workspace của việc này không còn.');
+    await jobQueue.failUnscoped(job.id, 'Workspace của việc này không còn.');
     return true;
   }
   await runWithContext(context, () => runScopedJob(job));
@@ -76,37 +76,37 @@ async function runScopedJob(job: Job): Promise<void> {
   logger.info(`start ${job.kind}`, { job: job.id, episode: job.episodeId });
   const started = Date.now();
   let lastWrite = 0;
-  const progress = (fraction: number, phase?: string) => {
+  const progress = async (fraction: number, phase?: string) => {
     if (Date.now() - lastWrite < 500 && fraction < 1) return;
     lastWrite = Date.now();
-    jobRepository.progress(job.id, fraction, phase ?? null);
-    if (job.episodeId) episodeRepository.touch(job.episodeId);
+    await jobRepository.progress(job.id, fraction, phase ?? null);
+    if (job.episodeId) await episodeRepository.touch(job.episodeId);
   };
   try {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
-    const episode = job.episodeId ? episodeRepository.find(job.episodeId) : null;
+    const episode = job.episodeId ? await episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
     const result = await withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress));
     // Only jobs that produce data (not an episode change) keep their return value.
-    jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
+    await jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });
   } catch (e) {
     const message = shortMessage(e);
     logger.error(`failed ${job.kind}`, { job: job.id, message, detail: e instanceof UserFacingError ? e.detail : ((e as Error)?.stack ?? String(e)) });
-    jobRepository.fail(job.id, message);
-    if (job.episodeId) episodeRepository.addEvent(job.episodeId, `Lỗi: ${message}`);
-    rollback(job);
+    await jobRepository.fail(job.id, message);
+    if (job.episodeId) await episodeRepository.addEvent(job.episodeId, `Lỗi: ${message}`);
+    await rollback(job);
   }
 }
 
 async function deliverEvents(): Promise<boolean> {
-  const items = outboxRepository.pending();
+  const items = await outboxRepository.pending();
   for (const { id, event, workspaceId, userId } of items) {
     let error: string | null = null;
     // Subscribers run in the workspace the event was published in, like the request that caused it.
-    const context = authService.contextFor(workspaceId, userId);
+    const context = await authService.contextFor(workspaceId, userId);
     if (!context) {
-      outboxRepository.done(id, 'no workspace');
+      await outboxRepository.done(id, 'no workspace');
       continue;
     }
     for (const s of SUBSCRIBERS.filter((x) => x.on === event.type)) {
@@ -117,24 +117,24 @@ async function deliverEvents(): Promise<boolean> {
         logger.error('subscriber failed', { subscriber: s.id, event: event.type, error: e });
       }
     }
-    outboxRepository.done(id, error);
+    await outboxRepository.done(id, error);
   }
   return items.length > 0;
 }
 
 async function main() {
   // Say "I am here" on a timer of its own: a long render must not look like a dead worker.
-  prefsService.workerBeat();
-  setInterval(() => {
+  await prefsService.workerBeat();
+  setInterval(async () => {
     try {
-      prefsService.workerBeat();
+      await prefsService.workerBeat();
     } catch (e) {
       logger.warn('heartbeat failed', { error: String((e as Error)?.message ?? e) });
     }
   }, 5000).unref();
-  for (const { job, workspaceId, userId } of jobQueue.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) {
-    const context = authService.contextFor(workspaceId, userId);
-    if (context) runWithContext(context, () => rollback(job));
+  for (const { job, workspaceId, userId } of await jobQueue.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) {
+    const context = await authService.contextFor(workspaceId, userId);
+    if (context) await runWithContext(context, () => rollback(job));
   }
   logger.info('ready, waiting for jobs');
   while (!stopping) {

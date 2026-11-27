@@ -32,17 +32,17 @@ const toChannel = (r: Row): Channel => ({
 });
 
 export const channelRepository = {
-  list(): Channel[] {
+  async list(): Promise<Channel[]> {
     return (db().prepare('SELECT * FROM channels WHERE workspace_id = ? ORDER BY created_at').all(ctx().workspaceId) as Row[]).map(toChannel);
   },
-  find(id: string): Channel | null {
+  async find(id: string): Promise<Channel | null> {
     const r = db().prepare('SELECT * FROM channels WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
     return r ? toChannel(r) : null;
   },
-  count(): number {
+  async count(): Promise<number> {
     return (db().prepare('SELECT COUNT(*) AS n FROM channels WHERE workspace_id = ?').get(ctx().workspaceId) as { n: number }).n;
   },
-  insert(c: Channel) {
+  async insert(c: Channel) {
     db()
       .prepare(
         `INSERT INTO channels (id, name, description, font, audience, style, voice, outro_text, subscribe_text, hashtags, palette, music, logo_path, default_skill_id, avatar_path, image_style, intro_design, outro_design, intro_art_path, outro_art_path, created_at, updated_at, workspace_id, user_id)
@@ -50,7 +50,7 @@ export const channelRepository = {
       )
       .run(c.id, c.name, c.description, c.font, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.avatarPath, c.imageStyle, dj(c.introDesign), dj(c.outroDesign), c.introArtPath, c.outroArtPath, c.createdAt, c.updatedAt, ctx().workspaceId, ctx().userId);
   },
-  update(c: Channel) {
+  async update(c: Channel) {
     db()
       .prepare(
         `UPDATE channels SET name = ?, description = ?, font = ?, audience = ?, style = ?, voice = ?, outro_text = ?, subscribe_text = ?, hashtags = ?, palette = ?, music = ?,
@@ -58,10 +58,10 @@ export const channelRepository = {
       )
       .run(c.name, c.description, c.font, c.audience, c.style, c.voice, c.outroText, c.subscribeText, JSON.stringify(c.hashtags), JSON.stringify(c.palette), c.music, c.logoPath, c.defaultSkillId, c.avatarPath, c.imageStyle, dj(c.introDesign), dj(c.outroDesign), c.introArtPath, c.outroArtPath, c.updatedAt, c.id, ctx().workspaceId);
   },
-  remove(id: string) {
+  async remove(id: string) {
     db().prepare('DELETE FROM channels WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
   },
-  projectCount(id: string): number {
+  async projectCount(id: string): Promise<number> {
     return (db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as { n: number }).n;
   },
 };

@@ -14,12 +14,12 @@ export interface KnowledgeView {
 export const knowledgeService = {
   async get(channelId: string): Promise<KnowledgeView> {
     await channelService.get(channelId);
-    return { current: knowledgeRepository.latest(channelId), versions: knowledgeRepository.list(channelId).map(({ markdown: _m, ...v }) => v) };
+    return { current: await knowledgeRepository.latest(channelId), versions: (await knowledgeRepository.list(channelId)).map(({ markdown: _m, ...v }) => v) };
   },
 
   async version(channelId: string, version: number): Promise<KnowledgeVersion> {
     await channelService.get(channelId);
-    const v = knowledgeRepository.find(channelId, version);
+    const v = await knowledgeRepository.find(channelId, version);
     if (!v) throw notFound(`phiên bản tri thức v${version}`);
     return v;
   },
@@ -28,8 +28,8 @@ export const knowledgeService = {
   async save(channelId: string, markdown: string, note: string): Promise<KnowledgeView> {
     await channelService.get(channelId);
     const text = markdown.trim();
-    const latest = knowledgeRepository.latest(channelId);
-    if (!(latest && latest.markdown === text) && (text || latest)) knowledgeRepository.insert(channelId, text, note.trim());
-    return knowledgeService.get(channelId);
+    const latest = await knowledgeRepository.latest(channelId);
+    if (!(latest && latest.markdown === text) && (text || latest)) await knowledgeRepository.insert(channelId, text, note.trim());
+    return await knowledgeService.get(channelId);
   },
 };

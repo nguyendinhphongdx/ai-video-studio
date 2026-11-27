@@ -28,7 +28,7 @@ describe('accounts', () => {
   it('makes the first account the system admin, with its own workspace that may use the shared keys', async () => {
     const { token, user } = await auth.authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'An' });
     expect(user.isAdmin).toBe(true);
-    const s = auth.authService.authenticate(token)!;
+    const s = (await auth.authService.authenticate(token))!;
     expect(s.role).toBe('owner');
     expect(s.workspace.usesSharedKeys).toBe(true);
   });
@@ -36,19 +36,19 @@ describe('accounts', () => {
   it('gives later accounts their own workspace without the shared keys, and no admin rights', async () => {
     const { token, user } = await auth.authService.signUp({ email: 'b@x.vn', password: 'secret-123', name: 'Bình' });
     expect(user.isAdmin).toBe(false);
-    const s = auth.authService.authenticate(token)!;
+    const s = (await auth.authService.authenticate(token))!;
     expect(s.workspace.usesSharedKeys).toBe(false);
     expect(s.workspace.name).toContain('Bình');
   });
 
   it('refuses a second account on the same email', async () => {
-    await expect(auth.authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'Khác' })).rejects.toThrow(/đã có tài khoản/);
+    await expect(async () => auth.authService.signUp({ email: 'a@x.vn', password: 'secret-123', name: 'Khác' })).rejects.toThrow(/đã có tài khoản/);
   });
 
   it('signs in with the right password only, with one message for a wrong password or an unknown email', async () => {
     expect((await auth.authService.logIn({ email: 'a@x.vn', password: 'secret-123' })).user.email).toBe('a@x.vn');
-    await expect(auth.authService.logIn({ email: 'a@x.vn', password: 'wrong-pass' })).rejects.toThrow('Email hoặc mật khẩu không đúng.');
-    await expect(auth.authService.logIn({ email: 'nobody@x.vn', password: 'secret-123' })).rejects.toThrow('Email hoặc mật khẩu không đúng.');
+    await expect(async () => auth.authService.logIn({ email: 'a@x.vn', password: 'wrong-pass' })).rejects.toThrow('Email hoặc mật khẩu không đúng.');
+    await expect(async () => auth.authService.logIn({ email: 'nobody@x.vn', password: 'secret-123' })).rejects.toThrow('Email hoặc mật khẩu không đúng.');
   });
 
   it('stores passwords hashed, never in the clear', async () => {
@@ -60,10 +60,10 @@ describe('accounts', () => {
 
   it('ends the session on sign-out', async () => {
     const { token } = await auth.authService.logIn({ email: 'a@x.vn', password: 'secret-123' });
-    expect(auth.authService.authenticate(token)).not.toBeNull();
-    auth.authService.logOut(token);
-    expect(auth.authService.authenticate(token)).toBeNull();
-    expect(auth.authService.authenticate('made-up-token')).toBeNull();
+    expect(await auth.authService.authenticate(token)).not.toBeNull();
+    await auth.authService.logOut(token);
+    expect(await auth.authService.authenticate(token)).toBeNull();
+    expect(await auth.authService.authenticate('made-up-token')).toBeNull();
   });
 });
 

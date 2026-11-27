@@ -4,4 +4,4 @@ import { authService } from '@/server/modules/auth/auth.service';
 import { SwitchWorkspaceInput } from '@/server/modules/auth/auth.types';
 
 /** Switches the session to another workspace the person belongs to. */
-export const PUT = route(async (req) => authService.switchWorkspace((await parseJsonBody(req, SwitchWorkspaceInput)).workspaceId));
+export const PUT = route(async (req) => await authService.switchWorkspace((await parseJsonBody(req, SwitchWorkspaceInput)).workspaceId));

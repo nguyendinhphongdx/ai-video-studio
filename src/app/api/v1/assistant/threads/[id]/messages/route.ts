@@ -12,5 +12,5 @@ const Body = z.object({
 /** The person writes to the assistant; the turn runs in the worker (poll GET /threads/:id). */
 export const POST = route<{ id: string }>(async (req, { id }) => {
   const body = await parseJsonBody(req, Body);
-  return assistantService.send(id, body.text, body.focus);
+  return await assistantService.send(id, body.text, body.focus);
 });

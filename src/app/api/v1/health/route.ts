@@ -13,7 +13,7 @@ const WORKER_STALE_MS = 60_000;
  */
 export const GET = publicRoute(async () => {
   db().prepare('SELECT 1').get();
-  const seen = prefsService.workerSeenAt();
+  const seen = await prefsService.workerSeenAt();
   const worker = seen !== null && Date.now() - seen < WORKER_STALE_MS;
   return NextResponse.json({ ok: true, worker }, { headers: { 'cache-control': 'no-store' } });
 });

@@ -13,7 +13,7 @@ process.env.AVS_DATA_DIR = dataDir;
 const scene = (id: string, block = 'remotion/vox'): CueScene => ({ id, block, props: {}, ordinal: 1 });
 
 describe('planning cues', () => {
-  it('puts a sweep into every cut after the first and the block\'s own sounds where the scene says', () => {
+  it('puts a sweep into every cut after the first and the block\'s own sounds where the scene says', async () => {
     const scenes = [scene('a'), scene('b'), scene('c')];
     const cues = planCues(scenes, [4, 5, 6], (s) => (s.id === 'b' ? [{ kind: 'stamp', at: 0.55 }] : undefined));
     expect(cues.map((c) => [c.sceneId, c.kind])).toEqual([['b', 'whoosh-soft'], ['b', 'stamp'], ['c', 'whoosh']]);
@@ -22,7 +22,7 @@ describe('planning cues', () => {
     expect(cues[2]!.atSec).toBeCloseTo(8.94, 2);
   });
 
-  it('skips the automatic sweep when a scene opens with its own entrance sound, and thins out crowded cues', () => {
+  it('skips the automatic sweep when a scene opens with its own entrance sound, and thins out crowded cues', async () => {
     const scenes = [scene('a'), scene('b')];
     const own = planCues(scenes, [3, 3], (s) => (s.id === 'b' ? [{ kind: 'impact', at: 0.05 }] : undefined));
     expect(own.map((c) => c.kind)).toEqual(['impact']);
@@ -31,7 +31,7 @@ describe('planning cues', () => {
     expect(crowded.every((c, i) => i === 0 || c.atSec - crowded[i - 1]!.atSec >= 0.22 || c.kind === 'tick')).toBe(true);
   });
 
-  it('scales every cue by the master level and never exceeds 1', () => {
+  it('scales every cue by the master level and never exceeds 1', async () => {
     const cues = planCues([scene('a'), scene('b')], [3, 3], (s) => (s.id === 'b' ? [{ kind: 'impact', at: 0.05 }] : undefined), 0.5);
     expect(cues[0]!.volume).toBeCloseTo(BASE_VOLUME.impact * 0.5, 5);
     expect(Math.max(...planCues([scene('a'), scene('b')], [3, 3], () => [{ kind: 'impact', at: 0.1, volume: 5 }], 1).map((c) => c.volume))).toBeLessThanOrEqual(1);
@@ -77,10 +77,10 @@ describe('sound files and the mix (needs ffmpeg)', () => {
     expect(await prefs.prefsService.sfx()).toEqual({ enabled: false, volume: 0.4 });
   });
 
-  it('remembers that the first-run guide was dismissed', () => {
-    expect(prefs.prefsService.onboardingDismissed()).toBe(false);
-    prefs.prefsService.setOnboardingDismissed(true);
-    expect(prefs.prefsService.onboardingDismissed()).toBe(true);
+  it('remembers that the first-run guide was dismissed', async () => {
+    expect(await prefs.prefsService.onboardingDismissed()).toBe(false);
+    await prefs.prefsService.setOnboardingDismissed(true);
+    expect(await prefs.prefsService.onboardingDismissed()).toBe(true);
   });
 
   it('mixes the sounds into the joined video without changing its length', async () => {

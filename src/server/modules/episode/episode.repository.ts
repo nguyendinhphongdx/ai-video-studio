@@ -60,25 +60,25 @@ const toRender = (r: Row): Render => ({
   createdAt: String(r.created_at),
 });
 
-const scenesOf = (episodeId: string) => (db().prepare('SELECT * FROM scenes WHERE episode_id = ? AND workspace_id = ? ORDER BY position').all(episodeId, ctx().workspaceId) as Row[]).map(toScene);
+const scenesOf = async (episodeId: string) => (db().prepare('SELECT * FROM scenes WHERE episode_id = ? AND workspace_id = ? ORDER BY position').all(episodeId, ctx().workspaceId) as Row[]).map(toScene);
 
 export type EpisodeUpdate = EpisodePatch & Partial<Pick<Episode, 'formats' | 'voice' | 'music' | 'topic' | 'goal' | 'notes' | 'skillId' | 'autoImages' | 'autoVoice'>>;
 
 export const episodeRepository = {
-  list(filter: { channelId?: string; seriesId?: string } = {}): Episode[] {
+  async list(filter: { channelId?: string; seriesId?: string } = {}): Promise<Episode[]> {
     const where: string[] = ['workspace_id = ?'];
     const args: string[] = [ctx().workspaceId];
     if (filter.channelId) (where.push('channel_id = ?'), args.push(filter.channelId));
     if (filter.seriesId) (where.push('series_id = ?'), args.push(filter.seriesId));
     const order = filter.seriesId ? 'number, created_at' : 'created_at DESC';
     const rows = db().prepare(`SELECT * FROM episodes WHERE ${where.join(' AND ')} ORDER BY ${order}`).all(...args) as Row[];
-    return rows.map((r) => toEpisode(r, scenesOf(String(r.id))));
+    return Promise.all(rows.map(async (r) => toEpisode(r, await scenesOf(String(r.id)))));
   },
-  find(id: string): Episode | null {
+  async find(id: string): Promise<Episode | null> {
     const r = db().prepare('SELECT * FROM episodes WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
-    return r ? toEpisode(r, scenesOf(id)) : null;
+    return r ? toEpisode(r, await scenesOf(id)) : null;
   },
-  insert(e: Omit<Episode, 'scenes' | 'publish' | 'title' | 'knowledgeVersion' | 'autoImages' | 'autoVoice'>) {
+  async insert(e: Omit<Episode, 'scenes' | 'publish' | 'title' | 'knowledgeVersion' | 'autoImages' | 'autoVoice'>) {
     db()
       .prepare(
         `INSERT INTO episodes (id, channel_id, series_id, series_version, number, topic, goal, notes, skill_id, status, formats, voice, music, scene_count, title, publish, created_at, updated_at, workspace_id, user_id)
@@ -86,8 +86,8 @@ export const episodeRepository = {
       )
       .run(e.id, e.channelId, e.seriesId, e.seriesVersion, e.number, e.topic, e.goal, e.notes, e.skillId, e.status, JSON.stringify(e.formats), e.voice, e.music ? 1 : 0, e.sceneCount, e.createdAt, e.updatedAt, ctx().workspaceId, ctx().userId);
   },
-  update(id: string, patch: EpisodeUpdate) {
-    transaction(() => {
+  async update(id: string, patch: EpisodeUpdate) {
+    await transaction(async () => {
       const sets: string[] = [];
       const values: (string | number | null)[] = [];
       const set = (col: string, v: string | number | null) => (sets.push(`${col} = ?`), values.push(v));
@@ -117,7 +117,7 @@ export const episodeRepository = {
     });
   },
   /** Store a generated picture/voice (or the approval) of one scene without touching the rest of the script. */
-  updateScene(episodeId: string, sceneId: string, patch: Partial<SceneAssets> & { approved?: boolean }) {
+  async updateScene(episodeId: string, sceneId: string, patch: Partial<SceneAssets> & { approved?: boolean }) {
     const map: Record<string, string> = { imagePath: 'image_path', imageHash: 'image_hash', voicePath: 'voice_path', voiceSeconds: 'voice_seconds', voiceHash: 'voice_hash' };
     const sets: string[] = [];
     const values: (string | number | null)[] = [];
@@ -128,49 +128,49 @@ export const episodeRepository = {
     if (patch.approved !== undefined) (sets.push('approved = ?'), values.push(patch.approved ? 1 : 0));
     if (!sets.length) return;
     db().prepare(`UPDATE scenes SET ${sets.join(', ')} WHERE id = ? AND episode_id = ? AND workspace_id = ?`).run(...values, sceneId, episodeId, ctx().workspaceId);
-    episodeRepository.touch(episodeId);
+    await episodeRepository.touch(episodeId);
   },
-  touch(id: string) {
+  async touch(id: string) {
     db().prepare('UPDATE episodes SET updated_at = ? WHERE id = ? AND workspace_id = ?').run(now(), id, ctx().workspaceId);
   },
-  remove(id: string) {
+  async remove(id: string) {
     db().prepare('DELETE FROM episodes WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
   },
-  nextNumber(seriesId: string): number {
+  async nextNumber(seriesId: string): Promise<number> {
     const r = db().prepare('SELECT MAX(number) AS n FROM episodes WHERE series_id = ? AND workspace_id = ?').get(seriesId, ctx().workspaceId) as { n: number | null };
     return (r.n ?? 0) + 1;
   },
   /** Episode counts per status, by series (for series cards). */
-  countsBySeries(channelId: string): Map<string, Partial<Record<Episode['status'], number>>> {
+  async countsBySeries(channelId: string): Promise<Map<string, Partial<Record<Episode['status'], number>>>> {
     const rows = db().prepare('SELECT series_id AS s, status, COUNT(*) AS n FROM episodes WHERE channel_id = ? AND workspace_id = ? AND series_id IS NOT NULL GROUP BY series_id, status').all(channelId, ctx().workspaceId) as { s: string; status: Episode['status']; n: number }[];
     const out = new Map<string, Partial<Record<Episode['status'], number>>>();
     for (const r of rows) out.set(r.s, { ...out.get(r.s), [r.status]: r.n });
     return out;
   },
   /** Assign episode numbers atomically (the series/number index is unique, so go through negative numbers). */
-  renumber(assignments: { id: string; number: number }[]) {
-    transaction(() => {
+  async renumber(assignments: { id: string; number: number }[]) {
+    await transaction(async () => {
       const set = db().prepare('UPDATE episodes SET number = ?, updated_at = ? WHERE id = ? AND workspace_id = ?');
       assignments.forEach((a, i) => set.run(-(i + 1), now(), a.id, ctx().workspaceId));
       for (const a of assignments) set.run(a.number, now(), a.id, ctx().workspaceId);
     });
   },
-  renders(episodeId: string): Render[] {
+  async renders(episodeId: string): Promise<Render[]> {
     return (db().prepare('SELECT * FROM renders WHERE episode_id = ? AND workspace_id = ? ORDER BY format').all(episodeId, ctx().workspaceId) as Row[]).map(toRender);
   },
-  replaceRenders(episodeId: string, renders: Omit<Render, 'id' | 'episodeId' | 'createdAt'>[]): Render[] {
-    transaction(() => {
+  async replaceRenders(episodeId: string, renders: Omit<Render, 'id' | 'episodeId' | 'createdAt'>[]): Promise<Render[]> {
+    await transaction(async () => {
       db().prepare('DELETE FROM renders WHERE episode_id = ? AND workspace_id = ?').run(episodeId, ctx().workspaceId);
       const ins = db().prepare('INSERT INTO renders (id, episode_id, format, file_path, thumbnail_path, duration_sec, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const r of renders) ins.run(newId(), episodeId, r.format, r.filePath, r.thumbnailPath, r.durationSec, now(), ctx().workspaceId, ctx().userId);
     });
-    return episodeRepository.renders(episodeId);
+    return await episodeRepository.renders(episodeId);
   },
-  events(episodeId: string): EpisodeEvent[] {
+  async events(episodeId: string): Promise<EpisodeEvent[]> {
     return db().prepare('SELECT at, message FROM episode_events WHERE episode_id = ? AND workspace_id = ? ORDER BY id').all(episodeId, ctx().workspaceId) as unknown as EpisodeEvent[];
   },
-  addEvent(episodeId: string, message: string) {
+  async addEvent(episodeId: string, message: string) {
     db().prepare('INSERT INTO episode_events (episode_id, at, message, workspace_id, user_id) VALUES (?, ?, ?, ?, ?)').run(episodeId, now(), message, ctx().workspaceId, ctx().userId);
-    episodeRepository.touch(episodeId);
+    await episodeRepository.touch(episodeId);
   },
 };

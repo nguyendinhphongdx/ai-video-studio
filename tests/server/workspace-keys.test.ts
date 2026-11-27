@@ -14,7 +14,7 @@ let settings: typeof import('@/server/modules/settings/settings.service');
 let usage: typeof import('@/server/modules/usage/usage.service');
 let ws: typeof import('@/server/modules/workspace/workspace.service');
 let run: <T>(c: Ctx, fn: () => T) => T;
-const fresh = async (email: string) => auth.authService.authenticate((await auth.authService.logIn({ email, password: 'secret-123' })).token)!;
+const fresh = async (email: string) => (await auth.authService.authenticate((await auth.authService.logIn({ email, password: 'secret-123' })).token))!;
 
 beforeAll(async () => {
   fs.rmSync(process.env.AVS_DATA_DIR!, { recursive: true, force: true });
@@ -52,7 +52,7 @@ describe('AI keys per workspace', () => {
   it('uses the shared keys once the admin allows the workspace, and its own key over them', async () => {
     const admin = await fresh('admin@x.vn');
     let khach = await fresh('khach@x.vn');
-    run(admin, () => auth.authService.setSharedKeys(khach.workspaceId, true));
+    await run(admin, () => auth.authService.setSharedKeys(khach.workspaceId, true));
     khach = await fresh('khach@x.vn');
     expect((await run(khach, () => settings.settingsService.llm())).apiKey).toBe('sk-shared-key-123456');
     await run(khach, () => settings.settingsService.saveLlm({ provider: 'gemini', model: 'gemini-x', apiKey: 'own-gemini-key-123456' }));
@@ -74,23 +74,23 @@ describe('AI keys per workspace', () => {
 describe('who may change what', () => {
   it('keeps the shared keys, prices and the shared-key switch to the system admin', async () => {
     const khach = await fresh('khach@x.vn');
-    await expect(run(khach, () => settings.settingsService.shared.saveLlm({ apiKey: 'x' }))).rejects.toThrow(/quản trị hệ thống/);
-    expect(() => run(khach, () => settings.settingsService.shared.publicLlm())).toThrow(/quản trị hệ thống/);
-    expect(() => run(khach, () => usage.usageService.resetPrices())).toThrow(/quản trị hệ thống/);
-    expect(() => run(khach, () => auth.authService.setSharedKeys(khach.workspaceId, true))).toThrow(/quản trị hệ thống/);
-    expect(() => run(khach, () => auth.authService.allWorkspaces())).toThrow(/quản trị hệ thống/);
+    await expect(async () => run(khach, () => settings.settingsService.shared.saveLlm({ apiKey: 'x' }))).rejects.toThrow(/quản trị hệ thống/);
+    await expect(async () => run(khach, () => settings.settingsService.shared.publicLlm())).rejects.toThrow(/quản trị hệ thống/);
+    await expect(async () => run(khach, () => usage.usageService.resetPrices())).rejects.toThrow(/quản trị hệ thống/);
+    await expect(async () => run(khach, () => auth.authService.setSharedKeys(khach.workspaceId, true))).rejects.toThrow(/quản trị hệ thống/);
+    await expect(async () => run(khach, () => auth.authService.allWorkspaces())).rejects.toThrow(/quản trị hệ thống/);
   });
 
   it('keeps a workspace’s keys and budgets to its owner', async () => {
     // Khách invites the admin into their workspace as a plain member.
     const khach = await fresh('khach@x.vn');
-    const link = run(khach, () => ws.workspaceService.createInvite({ email: '', role: 'member' })).token;
+    const link = (await run(khach, () => ws.workspaceService.createInvite({ email: '', role: 'member' }))).token;
     const t = (await auth.authService.logIn({ email: 'admin@x.vn', password: 'secret-123' })).token;
-    run(auth.authService.authenticate(t)!, () => ws.workspaceService.accept(link));
-    const asMember = auth.authService.authenticate(t)!;
+    await run((await auth.authService.authenticate(t))!, () => ws.workspaceService.accept(link));
+    const asMember = (await auth.authService.authenticate(t))!;
     expect(asMember.role).toBe('member');
-    await expect(run(asMember, () => settings.settingsService.saveLlm({ apiKey: 'x' }))).rejects.toThrow(/Chỉ chủ workspace/);
-    expect(() => run(asMember, () => usage.usageService.saveBudget({ scope: 'global', channelId: null, period: 'month', limitUsd: 5, mode: 'warn', alertPct: 80 }))).toThrow(/Chỉ chủ workspace/);
+    await expect(async () => run(asMember, () => settings.settingsService.saveLlm({ apiKey: 'x' }))).rejects.toThrow(/Chỉ chủ workspace/);
+    await expect(async () => run(asMember, () => usage.usageService.saveBudget({ scope: 'global', channelId: null, period: 'month', limitUsd: 5, mode: 'warn', alertPct: 80 }))).rejects.toThrow(/Chỉ chủ workspace/);
     // As a member they still use the workspace's connection (its own key), not their own workspace's.
     expect((await run(asMember, () => settings.settingsService.llm())).apiKey).toBe('own-gemini-key-123456');
   });

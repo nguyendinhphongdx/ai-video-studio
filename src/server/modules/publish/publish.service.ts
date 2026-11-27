@@ -13,8 +13,8 @@ import { loadEpisode } from '@/server/modules/episode/episode.store';
 
 export const publishService = {
   async kitZip(episodeId: string): Promise<{ name: string; data: Uint8Array }> {
-    const episode = loadEpisode(episodeId);
-    const renders = episodeRepository.renders(episodeId);
+    const episode = await loadEpisode(episodeId);
+    const renders = await episodeRepository.renders(episodeId);
     if (!renders.length) throw conflict('Video chưa được dựng');
     const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = { 'dang-bai.md': strToU8(publishMarkdown(episode, renders)) };
     for (const r of renders) {

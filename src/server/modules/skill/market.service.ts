@@ -14,7 +14,7 @@ export interface MarketSkill extends Omit<Skill, 'body'> {
 export const marketService = {
   async list(channelId?: string): Promise<MarketSkill[]> {
     const installed = new Map(
-      (channelId ? channelSkillRepository.list(channelId) : []).filter((r) => r.source.startsWith('market:')).map((r) => [r.source.slice(7), r.skillId] as const),
+      (channelId ? await channelSkillRepository.list(channelId) : []).filter((r) => r.source.startsWith('market:')).map((r) => [r.source.slice(7), r.skillId] as const),
     );
     const out: MarketSkill[] = [];
     for (const id of await marketRepository.ids()) {

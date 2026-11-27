@@ -31,7 +31,7 @@ const ok = (calls: { url: string; body: Record<string, unknown> }[]) =>
   });
 
 describe('Google voices', () => {
-  it('are part of the voice catalog and ready only with a Google key', () => {
+  it('are part of the voice catalog and ready only with a Google key', async () => {
     expect(VOICE_IDS.filter(isGoogleVoice).length).toBeGreaterThanOrEqual(6);
     expect(voiceReady('gemini-Kore', { tts: true, ttsGoogle: false })).toBe(false);
     expect(voiceReady('gemini-Kore', { tts: false, ttsGoogle: true })).toBe(true);

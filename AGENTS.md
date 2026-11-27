@@ -35,17 +35,19 @@ tests/                         vitest: core contracts and tool catalog
 8. UI text is Vietnamese; code, comments and commit messages are English.
 9. **Request context, never parameters.** Who is acting and in which workspace lives in one AsyncLocalStorage, `ctx()` from `src/server/context.ts` (NestJS-style request scope). The auth guard `route()` verifies the session and sets it for every API request; the worker sets it for every job and outbox event (`authService.contextFor` + `runWithContext`). Services and repositories read `ctx().workspaceId`, `ctx().userId`, `ctx().user`, `ctx().role`, and tag paid calls with `withUsage({...})`. Never pass the user, the workspace, the role or the session through function parameters. Only `src/server/modules/auth`, the worker's queue (`jobQueue`) and outbox delivery may read across workspaces.
 10. **Every data table has `workspace_id` and `user_id`; every query filters by `workspace_id`** (and every insert sets both from `ctx()`). A row of another workspace is "not found" (404), never 403. New tables follow the same rule; `tests/server/workspace-isolation.test.ts` covers it.
+11. **The data layer is async.** Every repository function returns a Promise, and every call is awaited (or explicitly `void`ed). `npm run lint` checks this (no floating or misused promises). `transaction(async () => …)` holds only database calls, never network calls.
 
 ## Commands
 
 ```bash
 npm run dev         # Next.js on :3300 + worker
 npm run typecheck
+npm run lint
 npm test
 npm run studio      # Remotion Studio for the blocks
 ```
 
-Verify before reporting done: `npm run typecheck` and `npm test` green; for pipeline changes run a real job through the worker.
+Verify before reporting done: `npm run typecheck`, `npm run lint` and `npm test` green; for pipeline changes run a real job through the worker.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

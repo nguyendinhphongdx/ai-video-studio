@@ -36,9 +36,9 @@ export function describeLlmError(e: unknown, llm: LlmSettings): string {
 }
 
 /** Writes the call to the cost ledger; when the provider reported no usage, estimates it from the text and says so. */
-function track(settings: LlmSettings, usage: LlmUsage | undefined, text: { in: string; out: string }, purpose: string | undefined, started: number) {
+async function track(settings: LlmSettings, usage: LlmUsage | undefined, text: { in: string; out: string }, purpose: string | undefined, started: number) {
   const reported = usage ?? { input: estimateTokens(text.in), output: estimateTokens(text.out), cached: 0 };
-  usageService.record({
+  await usageService.record({
     kind: 'llm', provider: settings.provider, model: settings.model, purpose, durationMs: Date.now() - started, estimated: !usage,
     usage: { inputTokens: reported.input, outputTokens: reported.output, cachedTokens: reported.cached, units: 0 },
   });
@@ -51,11 +51,11 @@ export const llm: LlmPort = {
   async chat(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key.');
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
     try {
       const { usage, ...out } = await clientFor(settings).chat(input);
-      track(settings, usage, { in: input.system + JSON.stringify(input.messages), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
+      await track(settings, usage, { in: input.system + JSON.stringify(input.messages), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
       return { ...out, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;
@@ -65,11 +65,11 @@ export const llm: LlmPort = {
   async generateObject(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key, hoặc dùng chế độ dán kịch bản.');
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
     try {
       const { object, usage } = await clientFor(settings).generateObject(input);
-      track(settings, usage, { in: input.system + input.user, out: JSON.stringify(object) }, input.purpose, started);
+      await track(settings, usage, { in: input.system + input.user, out: JSON.stringify(object) }, input.purpose, started);
       return { object, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;

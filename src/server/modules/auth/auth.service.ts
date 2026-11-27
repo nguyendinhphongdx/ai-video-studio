@@ -30,10 +30,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 /** Starts a session in the user's chosen (or first) workspace; returns the raw token for the cookie. */
-function startSession(userId: string, workspaceId: string | null): string {
+async function startSession(userId: string, workspaceId: string | null): Promise<string> {
   const token = crypto.randomBytes(32).toString('base64url');
   const now = new Date();
-  authRepository.insertSession({ tokenHash: sha256(token), userId, workspaceId, createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + SESSION_DAYS * 86_400_000).toISOString() });
+  await authRepository.insertSession({ tokenHash: sha256(token), userId, workspaceId, createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + SESSION_DAYS * 86_400_000).toISOString() });
   return token;
 }
 
@@ -45,39 +45,39 @@ export const authService = {
    * admin; its workspace may use the shared AI keys (which are the admin's own).
    */
   async signUp(input: SignUpInput): Promise<{ token: string; user: User }> {
-    if (authRepository.userByEmail(input.email)) throw new ApiError(409, 'conflict', 'Email này đã có tài khoản. Hãy đăng nhập.');
+    if (await authRepository.userByEmail(input.email)) throw new ApiError(409, 'conflict', 'Email này đã có tài khoản. Hãy đăng nhập.');
     const now = new Date().toISOString();
-    const first = authRepository.userCount() === 0;
+    const first = await authRepository.userCount() === 0;
     const user: User = { id: newId(), email: input.email, name: input.name, isAdmin: first, createdAt: now };
     const workspace: Workspace = { id: newId(), name: input.workspaceName || (first ? 'Studio chính' : `Workspace của ${input.name}`), usesSharedKeys: first, userId: user.id, createdAt: now };
-    authRepository.insertUser({ ...user, passwordHash: await hashPassword(input.password) });
-    authRepository.insertWorkspace(workspace);
-    authRepository.insertMembership({ workspaceId: workspace.id, userId: user.id, role: 'owner', createdAt: now });
-    if (first) authRepository.adoptOrphans(workspace.id, user.id);
-    return { token: startSession(user.id, workspace.id), user };
+    await authRepository.insertUser({ ...user, passwordHash: await hashPassword(input.password) });
+    await authRepository.insertWorkspace(workspace);
+    await authRepository.insertMembership({ workspaceId: workspace.id, userId: user.id, role: 'owner', createdAt: now });
+    if (first) await authRepository.adoptOrphans(workspace.id, user.id);
+    return { token: await startSession(user.id, workspace.id), user };
   },
 
   async logIn(input: LogInInput): Promise<{ token: string; user: User }> {
-    const u = authRepository.userByEmail(input.email);
+    const u = await authRepository.userByEmail(input.email);
     // Same message whether the email exists or not, and a hash is always computed (no timing hint).
     const ok = await verifyPassword(input.password, u?.passwordHash ?? 'scrypt$00$00');
     if (!u || !ok) throw new ApiError(401, 'invalid_credentials', 'Email hoặc mật khẩu không đúng.');
-    authRepository.deleteExpiredSessions(new Date().toISOString());
-    return { token: startSession(u.id, authRepository.workspacesOf(u.id)[0]?.id ?? null), user: publicUser(u) };
+    await authRepository.deleteExpiredSessions(new Date().toISOString());
+    return { token: await startSession(u.id, (await authRepository.workspacesOf(u.id))[0]?.id ?? null), user: publicUser(u) };
   },
 
-  logOut(token: string | undefined) {
-    if (token) authRepository.deleteSession(sha256(token));
+  async logOut(token: string | undefined) {
+    if (token) await authRepository.deleteSession(sha256(token));
   },
 
   /** The guard's check: the context of a session token, or null when it is missing, unknown or expired. */
-  authenticate(token: string | undefined): RequestContext | null {
+  async authenticate(token: string | undefined): Promise<RequestContext | null> {
     if (!token) return null;
-    const s = authRepository.session(sha256(token));
+    const s = await authRepository.session(sha256(token));
     if (!s || s.expires_at <= new Date().toISOString()) return null;
-    const user = authRepository.userById(s.user_id);
+    const user = await authRepository.userById(s.user_id);
     if (!user) return null;
-    const all = authRepository.workspacesOf(user.id);
+    const all = await authRepository.workspacesOf(user.id);
     // The session's workspace if the person still belongs to it, else their first one.
     const current = all.find((w) => w.id === s.workspace_id) ?? all[0];
     if (!current) return null;
@@ -89,40 +89,40 @@ export const authService = {
    * The context a worker job (or outbox event) runs in: its workspace, acting as the person who started it (or the
    * workspace's first owner when that person is gone). Null when the workspace no longer exists.
    */
-  contextFor(workspaceId: string | null, userId: string | null): RequestContext | null {
-    const workspace = workspaceId ? authRepository.workspaceById(workspaceId) : null;
+  async contextFor(workspaceId: string | null, userId: string | null): Promise<RequestContext | null> {
+    const workspace = workspaceId ? await authRepository.workspaceById(workspaceId) : null;
     if (!workspace) return null;
-    const actor = (userId && authRepository.roleIn(workspace.id, userId) ? userId : null) ?? authRepository.ownerOf(workspace.id);
-    const user = actor ? authRepository.userById(actor) : null;
+    const actor = (userId && await authRepository.roleIn(workspace.id, userId) ? userId : null) ?? await authRepository.ownerOf(workspace.id);
+    const user = actor ? await authRepository.userById(actor) : null;
     if (!user) return null;
-    return makeContext(publicUser(user), workspace, authRepository.roleIn(workspace.id, user.id) ?? 'member');
+    return makeContext(publicUser(user), workspace, await authRepository.roleIn(workspace.id, user.id) ?? 'member');
   },
 
   /** The signed-in person, their current workspace and every workspace they belong to. */
-  me(): MeView {
+  async me(): Promise<MeView> {
     const { user, workspace, role } = ctx();
-    return { user, workspace, role, workspaces: authRepository.workspacesOf(user.id) };
+    return { user, workspace, role, workspaces: await authRepository.workspacesOf(user.id) };
   },
 
   /** The system admin's list of every workspace. */
-  allWorkspaces() {
+  async allWorkspaces() {
     requireAdmin();
-    return authRepository.allWorkspaces();
+    return await authRepository.allWorkspaces();
   },
 
   /** The system admin lets a workspace fall back to the shared AI keys, or stops it. */
-  setSharedKeys(workspaceId: string, allowed: boolean) {
+  async setSharedKeys(workspaceId: string, allowed: boolean) {
     requireAdmin();
-    if (!authRepository.setSharedKeys(workspaceId, allowed)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
-    return authRepository.allWorkspaces();
+    if (!await authRepository.setSharedKeys(workspaceId, allowed)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
+    return await authRepository.allWorkspaces();
   },
 
   /** Moves the current session to another workspace the person belongs to. */
-  switchWorkspace(workspaceId: string): MeView {
+  async switchWorkspace(workspaceId: string): Promise<MeView> {
     const { user, sessionToken } = ctx();
-    if (!sessionToken || !authRepository.workspacesOf(user.id).some((w) => w.id === workspaceId)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
-    authRepository.setSessionWorkspace(sha256(sessionToken), workspaceId);
-    const next = authService.authenticate(sessionToken)!;
+    if (!sessionToken || !(await authRepository.workspacesOf(user.id)).some((w) => w.id === workspaceId)) throw new ApiError(404, 'not_found', 'Không tìm thấy workspace');
+    await authRepository.setSessionWorkspace(sha256(sessionToken), workspaceId);
+    const next = (await authService.authenticate(sessionToken))!;
     return runWithContext(next, () => authService.me());
   },
 };

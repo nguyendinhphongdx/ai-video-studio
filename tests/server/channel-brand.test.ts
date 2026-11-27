@@ -55,13 +55,13 @@ describe('channel-owned intro and outro', () => {
     expect((await svc.channelService.list()).find((c) => c.name === 'Kid Plazza')?.introDesign).toBeNull();
   });
 
-  it('rejects a design the schema cannot draw', () => {
-    expect(() => input({ introDesign: { ...aiDesign('x'), layers: [{ kind: 'sparkle' } as never] } })).toThrow();
+  it('rejects a design the schema cannot draw', async () => {
+    await expect(async () => input({ introDesign: { ...aiDesign('x'), layers: [{ kind: 'sparkle' } as never] } })).rejects.toThrow();
     expect(SceneDesignSchema.safeParse(fallbackDesign('intro', ['#4F46E5'])).success).toBe(true);
     expect(SceneDesignSchema.safeParse(fallbackDesign('outro', [])).success).toBe(true);
   });
 
-  it('normalises AI output into drawable values', () => {
+  it('normalises AI output into drawable values', async () => {
     const d = normalizeDesign(aiDesign('Xin chào'), ['#112233', '#FFC53D']);
     expect(d.background).toMatchObject({ colors: ['#112233', '#112233'], angle: 360 });
     expect(d.seconds).toBe(7);
@@ -78,16 +78,16 @@ describe('channel avatar and art', () => {
     expect(c.avatarUrl).toBeNull();
     const png = new File([Buffer.from('89504e470d0a1a0a', 'hex')], 'a.png', { type: 'image/png' });
     expect((await svc.channelService.setAvatar(c.id, png)).avatarUrl).toMatch(/\/api\/v1\/media\/channels\/.+\/avatar\//);
-    await expect(svc.channelService.setAvatar(c.id, new File(['x'], 'a.gif', { type: 'image/gif' }))).rejects.toMatchObject({ status: 400 });
+    await expect(async () => svc.channelService.setAvatar(c.id, new File(['x'], 'a.gif', { type: 'image/gif' }))).rejects.toMatchObject({ status: 400 });
     expect((await svc.channelService.removeAvatar(c.id)).avatarUrl).toBeNull();
   });
 
   it('makes background art in the channel image style and saves it on the channel', async () => {
     const c = await svc.channelService.create(input({ introDesign: aiDesign('{title}'), imageStyle: 'flat vector, pastel' }));
     ready.imageReady = false;
-    await expect(svc.channelService.requestArt(c.id, 'intro', '')).rejects.toThrow(/Chưa cài đặt tạo ảnh/);
+    await expect(async () => svc.channelService.requestArt(c.id, 'intro', '')).rejects.toThrow(/Chưa cài đặt tạo ảnh/);
     ready.imageReady = true;
-    await expect(svc.channelService.requestArt((await svc.channelService.create(input())).id, 'intro', '')).rejects.toThrow(/Chưa có mô tả ảnh nền/);
+    await expect(async () => svc.channelService.requestArt((await svc.channelService.create(input())).id, 'intro', '')).rejects.toThrow(/Chưa có mô tả ảnh nền/);
     const job = await svc.channelService.requestArt(c.id, 'intro', 'a night skyline with bokeh');
     expect(job).toMatchObject({ kind: 'generate_art', episodeId: null });
     const withArt = await svc.channelService.generateArt(c.id, 'intro', 'a night skyline with bokeh');

@@ -5,8 +5,8 @@ import type { usageService } from '@/server/modules/usage/usage.service';
 import type { BudgetInputType } from '@/server/modules/usage/usage.types';
 
 export type { PriceRow, UsageRange };
-export type UsageSummary = ReturnType<typeof usageService.summary>;
-export type UsageEventView = ReturnType<typeof usageService.events>[number];
+export type UsageSummary = Awaited<ReturnType<typeof usageService.summary>>;
+export type UsageEventView = Awaited<ReturnType<typeof usageService.events>>[number];
 export type BudgetStatus = UsageSummary['budgets'][number];
 export type BudgetInput = BudgetInputType;
 export type Estimate = Awaited<ReturnType<typeof usageService.estimate>>;

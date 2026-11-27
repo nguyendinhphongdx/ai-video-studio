@@ -54,18 +54,18 @@ beforeAll(async () => {
 
 /** Run the queued assistant turn the way the worker would, and mark it done. */
 async function work(threadId: string) {
-  const job = s.jobs.jobRepository.activeAssistant(threadId);
+  const job = await s.jobs.jobRepository.activeAssistant(threadId);
   if (!job) throw new Error('no turn queued');
   await s.assistant.assistantService.runTurn(threadId);
-  s.jobs.jobRepository.finish(job.id);
-  return s.assistant.assistantService.get(threadId);
+  await s.jobs.jobRepository.finish(job.id);
+  return await s.assistant.assistantService.get(threadId);
 }
-const drainOthers = () => {
-  for (let c = s.jobs.jobQueue.claimNext(); c; c = s.jobs.jobQueue.claimNext()) s.jobs.jobRepository.finish(c.job.id);
+const drainOthers = async () => {
+  for (let c = await s.jobs.jobQueue.claimNext(); c; c = await s.jobs.jobQueue.claimNext()) await s.jobs.jobRepository.finish(c.job.id);
 };
 const say = async (threadId: string, text: string, focus = {}) => {
   await s.assistant.assistantService.send(threadId, text, focus);
-  return work(threadId);
+  return await work(threadId);
 };
 
 const design = (text: string): SceneDesign => ({
@@ -129,7 +129,7 @@ describe('permission modes and approval', () => {
     expect(v.awaiting).toBeNull();
     expect((await s.episodes.episodeService.get(ep.episode.id)).job).toMatchObject({ kind: 'write_script', state: 'queued' });
     expect(v.messages.at(-1)).toMatchObject({ role: 'assistant', content: 'Đã giao viết kịch bản.' });
-    drainOthers();
+    await drainOthers();
   });
 
   it('drops a pending request when the person writes something else, and refuses to overlap turns', async () => {
@@ -138,7 +138,7 @@ describe('permission modes and approval', () => {
     const v = await say(t.thread.id, 'Sửa mô tả');
     expect(v.awaiting).not.toBeNull();
     await s.assistant.assistantService.send(t.thread.id, 'Thôi, không sửa nữa', {});
-    await expect(s.assistant.assistantService.send(t.thread.id, 'gửi chồng', {})).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.assistant.assistantService.send(t.thread.id, 'gửi chồng', {})).rejects.toMatchObject({ status: 409 });
     env.script.push({ text: 'Ok, giữ nguyên.' });
     const after = await work(t.thread.id);
     expect(after.messages.find((m) => m.toolName === 'update_channel')).toMatchObject({ status: 'rejected' });
@@ -148,7 +148,7 @@ describe('permission modes and approval', () => {
   it('changes the mode of a conversation', async () => {
     const t = await s.assistant.assistantService.create(channelId, 'auto');
     expect((await s.assistant.assistantService.setMode(t.thread.id, 'bypass')).thread.mode).toBe('bypass');
-    await expect(s.assistant.assistantService.setMode(t.thread.id, 'nope' as never)).rejects.toThrow();
+    await expect(async () => s.assistant.assistantService.setMode(t.thread.id, 'nope' as never)).rejects.toThrow();
   });
 
   it('never touches data of another channel', async () => {
@@ -169,7 +169,7 @@ describe('scene and series tools', () => {
   it('edits one scene, keeps the others untouched, and withdraws only that approval', async () => {
     const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Thử cảnh', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     const id = made.episode.id;
-    s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [scene('sa1', 'a market', 'Một.'), scene('sb1', 'a boat', 'Hai.')] });
+    await s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [scene('sa1', 'a market', 'Một.'), scene('sb1', 'a boat', 'Hai.')] });
     const t = await s.assistant.assistantService.create(channelId, 'auto');
     env.script.push({ calls: [{ name: 'edit_scene', args: { episodeId: id, sceneId: 'sb1', narration: 'Hai, đã sửa.' } }] }, { text: 'Đã sửa cảnh 2.' });
     const v = await say(t.thread.id, 'Sửa lời đọc cảnh 2', { route: `/episodes/${id}`, episodeId: id, sceneId: 'sb1' });
@@ -183,7 +183,7 @@ describe('scene and series tools', () => {
     const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Báo giá', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     const id = made.episode.id;
     const bare = { ...scene('sq1', 'a market', 'Một cảnh chưa có gì.'), approved: false, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
-    s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [bare] });
+    await s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [bare] });
     const t = await s.assistant.assistantService.create(channelId, 'ask');
     env.script.push({ calls: [{ name: 'estimate_cost', args: { episodeId: id } }] }, { text: 'Ước tính xong.' });
     const v = await say(t.thread.id, 'Tạo hết ảnh và giọng giúp tôi', { episodeId: id });
@@ -195,7 +195,7 @@ describe('scene and series tools', () => {
   it('changes the type of one scene to another block the skill allows, starting from that block\'s defaults', async () => {
     const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Đổi loại cảnh', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     const id = made.episode.id;
-    s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [scene('sc1', 'a market', 'Một.'), scene('sd1', 'a boat', 'Hai.')] });
+    await s.repo.episodeRepository.update(id, { status: 'script_review', title: 'T', scenes: [scene('sc1', 'a market', 'Một.'), scene('sd1', 'a boat', 'Hai.')] });
     const t = await s.assistant.assistantService.create(channelId, 'auto');
     env.script.push({ calls: [{ name: 'edit_scene', args: { episodeId: id, sceneId: 'sd1', block: 'remotion/counter', props: { value: '25', unit: 'cm' } } }, { name: 'edit_scene', args: { episodeId: id, sceneId: 'sc1', block: 'remotion/nope' } }] }, { text: 'Xong.' });
     const v = await say(t.thread.id, 'Đổi cảnh 2 thành con số', { route: `/episodes/${id}`, episodeId: id, sceneId: 'sd1' });

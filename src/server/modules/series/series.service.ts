@@ -47,14 +47,14 @@ function statsOf(counts: Partial<Record<EpisodeStatus, number>> | undefined): Se
   return stats;
 }
 
-function load(id: string): Series {
-  const s = seriesRepository.find(id);
+async function load(id: string): Promise<Series> {
+  const s = await seriesRepository.find(id);
   if (!s) throw notFound('series');
   return s;
 }
 
-function view(s: Series, counts?: Partial<Record<EpisodeStatus, number>>): SeriesView {
-  return { ...s, rules: seriesRepository.version(s.id, s.currentVersion)!, stats: statsOf(counts ?? episodeRepository.countsBySeries(s.channelId).get(s.id)) };
+async function view(s: Series, counts?: Partial<Record<EpisodeStatus, number>>): Promise<SeriesView> {
+  return { ...s, rules: (await seriesRepository.version(s.id, s.currentVersion))!, stats: statsOf(counts ?? (await episodeRepository.countsBySeries(s.channelId)).get(s.id)) };
 }
 
 export interface SeriesMemoryView {
@@ -64,12 +64,12 @@ export interface SeriesMemoryView {
 
 export const seriesService = {
   async list(channelId: string): Promise<SeriesView[]> {
-    const counts = episodeRepository.countsBySeries(channelId);
-    return seriesRepository.list(channelId).map((s) => view(s, counts.get(s.id) ?? {}));
+    const counts = await episodeRepository.countsBySeries(channelId);
+    return Promise.all((await seriesRepository.list(channelId)).map((s) => view(s, counts.get(s.id) ?? {})));
   },
 
   async get(id: string): Promise<SeriesView> {
-    return view(load(id));
+    return await view(await load(id));
   },
 
   /** Creates the series (version 1) together with its planned episodes. */
@@ -78,53 +78,53 @@ export const seriesService = {
     await validateRules(input.channelId, input);
     const ts = now();
     const series: Series = { id: newId(), channelId: input.channelId, name: input.name, status: 'active', currentVersion: 1, createdAt: ts, updatedAt: ts };
-    transaction(() => {
-      seriesRepository.insert(series);
-      seriesRepository.insertVersion({ seriesId: series.id, version: 1, skillId: input.skillId, bible: input.bible, format: input.format, publish: input.publish, createdAt: ts });
-      input.roadmap.forEach((item, i) => {
+    await transaction(async () => {
+      await seriesRepository.insert(series);
+      await seriesRepository.insertVersion({ seriesId: series.id, version: 1, skillId: input.skillId, bible: input.bible, format: input.format, publish: input.publish, createdAt: ts });
+      for (const [i, item] of input.roadmap.entries()) {
         const id = newId();
-        episodeRepository.insert({
+        await episodeRepository.insert({
           id, channelId: channel.id, seriesId: series.id, seriesVersion: null, number: i + 1, topic: item.topic, goal: item.goal, notes: '', skillId: input.skillId, status: 'planned',
           formats: ['landscape'], voice: channel.voice, music: true, sceneCount: null, createdAt: ts, updatedAt: ts,
         });
-        episodeRepository.addEvent(id, `Thêm tập vào lộ trình series ${series.name}`);
-      });
+        await episodeRepository.addEvent(id, `Thêm tập vào lộ trình series ${series.name}`);
+      }
     });
-    return seriesService.get(series.id);
+    return await seriesService.get(series.id);
   },
 
   async update(id: string, patch: SeriesPatch): Promise<SeriesView> {
-    const s = load(id);
-    seriesRepository.update({ ...s, name: patch.name ?? s.name, status: patch.status ?? s.status, updatedAt: now() });
-    return seriesService.get(id);
+    const s = await load(id);
+    await seriesRepository.update({ ...s, name: patch.name ?? s.name, status: patch.status ?? s.status, updatedAt: now() });
+    return await seriesService.get(id);
   },
 
   /** Rules are immutable per version: saving creates version N+1; episodes keep the version they were written with. */
   async saveRules(id: string, rules: SeriesRulesInput): Promise<SeriesView> {
-    const s = load(id);
+    const s = await load(id);
     await validateRules(s.channelId, rules);
     const ts = now();
     const version = s.currentVersion + 1;
-    transaction(() => {
-      seriesRepository.insertVersion({ seriesId: id, version, ...rules, createdAt: ts });
-      seriesRepository.update({ ...s, currentVersion: version, updatedAt: ts });
+    await transaction(async () => {
+      await seriesRepository.insertVersion({ seriesId: id, version, ...rules, createdAt: ts });
+      await seriesRepository.update({ ...s, currentVersion: version, updatedAt: ts });
     });
-    return seriesService.get(id);
+    return await seriesService.get(id);
   },
 
   async versions(id: string): Promise<SeriesVersion[]> {
-    load(id);
-    return seriesRepository.versions(id);
+    await load(id);
+    return await seriesRepository.versions(id);
   },
 
   async exportFile(id: string): Promise<SeriesFile> {
     const s = await seriesService.get(id);
-    const roadmap = episodeRepository.list({ seriesId: id }).map((e) => ({ topic: e.topic, goal: e.goal }));
+    const roadmap = (await episodeRepository.list({ seriesId: id })).map((e) => ({ topic: e.topic, goal: e.goal }));
     return { kind: 'ai-video-studio/series', schema: 1, name: s.name, skillId: s.rules.skillId, bible: s.rules.bible, format: s.rules.format, publish: s.rules.publish, roadmap };
   },
 
   async importFile(channelId: string, file: SeriesFile): Promise<SeriesView> {
-    return seriesService.create({ channelId, name: file.name, skillId: file.skillId, bible: file.bible, format: file.format, publish: file.publish, roadmap: file.roadmap });
+    return await seriesService.create({ channelId, name: file.name, skillId: file.skillId, bible: file.bible, format: file.format, publish: file.publish, roadmap: file.roadmap });
   },
 
   /** A blank proposal (format from the skill, empty bible) for people who write the series themselves. */
@@ -142,44 +142,44 @@ export const seriesService = {
   },
 
   async memory(id: string): Promise<SeriesMemoryView> {
-    load(id);
+    await load(id);
     const season = await memoryStore.season(id);
-    return { season, episodes: memoryRepository.list(id).reverse() };
+    return { season, episodes: (await memoryRepository.list(id)).reverse() };
   },
 
   async saveEpisodeMemory(id: string, episodeId: string, patch: EpisodeMemoryPatch): Promise<SeriesMemoryView> {
-    load(id);
-    const current = memoryRepository.list(id).find((m) => m.episodeId === episodeId);
+    await load(id);
+    const current = (await memoryRepository.list(id)).find((m) => m.episodeId === episodeId);
     if (!current) throw notFound('episode memory');
     await memoryStore.save({ ...current, ...patch });
-    return seriesService.memory(id);
+    return await seriesService.memory(id);
   },
 
   async saveSeason(id: string, summary: string): Promise<SeriesMemoryView> {
-    load(id);
-    memoryRepository.setSeason(id, summary);
-    return seriesService.memory(id);
+    await load(id);
+    await memoryRepository.setSeason(id, summary);
+    return await seriesService.memory(id);
   },
 
   /** Reorders planned episodes among the numbers they already hold; started episodes keep their number. */
   async reorder(id: string, episodeIds: string[]): Promise<SeriesView> {
-    load(id);
-    const all = episodeRepository.list({ seriesId: id });
+    await load(id);
+    const all = await episodeRepository.list({ seriesId: id });
     const picked = episodeIds.map((eid) => all.find((e) => e.id === eid));
     if (picked.some((e) => !e) || new Set(episodeIds).size !== episodeIds.length) throw new ApiError(400, 'validation_error', 'Danh sách tập không hợp lệ');
     if (picked.some((e) => e!.status !== 'planned')) throw conflict('Chỉ đổi được thứ tự các tập còn trong lộ trình.');
     const numbers = picked.map((e) => e!.number!).sort((a, b) => a - b);
-    episodeRepository.renumber(episodeIds.map((eid, i) => ({ id: eid, number: numbers[i]! })));
-    return seriesService.get(id);
+    await episodeRepository.renumber(episodeIds.map((eid, i) => ({ id: eid, number: numbers[i]! })));
+    return await seriesService.get(id);
   },
 };
 
 export const seriesStore: SeriesStore = {
   async get(id) {
-    return load(id);
+    return await load(id);
   },
   async version(seriesId, version) {
-    const v = seriesRepository.version(seriesId, version);
+    const v = await seriesRepository.version(seriesId, version);
     if (!v) throw notFound(`series v${version}`);
     return v;
   },

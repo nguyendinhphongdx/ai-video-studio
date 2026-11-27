@@ -90,7 +90,7 @@ export const characterSpriteService = {
     resolveMedia(req.reference);
     if (!spriteCount(req)) throw new UserFacingError('Đã có đủ ảnh, không cần tạo thêm.');
     if (!(await images.isReady())) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, nhập API key ở mục Tạo ảnh AI.');
-    return jobRepository.insert(null, 'generate_sprites', req);
+    return await jobRepository.insert(null, 'generate_sprites', req);
   },
 
   /** Runs in the worker. */

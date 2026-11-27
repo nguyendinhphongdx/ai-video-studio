@@ -5,6 +5,6 @@ import { SaveScriptInput } from '@/server/modules/episode/episode.types';
 
 type P = { id: string };
 /** Save the person's edits. */
-export const PUT = route<P>(async (req, { id }) => episodeService.saveScript(id, await parseJsonBody(req, SaveScriptInput)));
+export const PUT = route<P>(async (req, { id }) => await episodeService.saveScript(id, await parseJsonBody(req, SaveScriptInput)));
 /** Ask the AI to write the script. */
-export const POST = route<P>((_req, { id }) => episodeService.requestScript(id));
+export const POST = route<P>(async (_req, { id }) => await episodeService.requestScript(id));

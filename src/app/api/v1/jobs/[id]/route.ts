@@ -4,7 +4,7 @@ import { jobRepository } from '@/server/modules/job/job.repository';
 
 /** Any job by id (series-level jobs return their result here). */
 export const GET = route<{ id: string }>(async (_req, { id }) => {
-  const job = jobRepository.find(id);
+  const job = await jobRepository.find(id);
   if (!job) throw notFound('job');
   return job;
 });

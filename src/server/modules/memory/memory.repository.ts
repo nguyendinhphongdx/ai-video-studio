@@ -19,10 +19,10 @@ const toMemory = (r: Row): EpisodeMemory => ({
 });
 
 export const memoryRepository = {
-  list(seriesId: string): EpisodeMemory[] {
+  async list(seriesId: string): Promise<EpisodeMemory[]> {
     return (db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND workspace_id = ? ORDER BY number DESC, created_at DESC').all(seriesId, ctx().workspaceId) as Row[]).map(toMemory);
   },
-  setSeason(seriesId: string, summary: string) {
+  async setSeason(seriesId: string, summary: string) {
     db().prepare('INSERT INTO series_memory (series_id, season_summary, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(series_id) DO UPDATE SET season_summary = excluded.season_summary, updated_at = excluded.updated_at WHERE series_memory.workspace_id = excluded.workspace_id').run(seriesId, summary, now(), ctx().workspaceId, ctx().userId);
   },
 };
@@ -41,10 +41,10 @@ export const memoryStore: MemoryStore = {
     return r?.season_summary ?? null;
   },
   async setSeason(seriesId, summary) {
-    memoryRepository.setSeason(seriesId, summary);
+    await memoryRepository.setSeason(seriesId, summary);
   },
   async all(seriesId) {
-    return memoryRepository.list(seriesId).reverse();
+    return (await memoryRepository.list(seriesId)).reverse();
   },
   async save(m) {
     db()

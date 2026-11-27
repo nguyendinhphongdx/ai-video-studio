@@ -25,29 +25,29 @@ const toVersion = (r: Row): SeriesVersion => ({
 });
 
 export const seriesRepository = {
-  list(channelId: string): Series[] {
+  async list(channelId: string): Promise<Series[]> {
     return (db().prepare('SELECT * FROM series WHERE channel_id = ? AND workspace_id = ? ORDER BY created_at').all(channelId, ctx().workspaceId) as Row[]).map(toSeries);
   },
-  find(id: string): Series | null {
+  async find(id: string): Promise<Series | null> {
     const r = db().prepare('SELECT * FROM series WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
     return r ? toSeries(r) : null;
   },
-  version(seriesId: string, version: number): SeriesVersion | null {
+  async version(seriesId: string, version: number): Promise<SeriesVersion | null> {
     const r = db().prepare('SELECT * FROM series_versions WHERE series_id = ? AND version = ? AND workspace_id = ?').get(seriesId, version, ctx().workspaceId) as Row | undefined;
     return r ? toVersion(r) : null;
   },
-  versions(seriesId: string): SeriesVersion[] {
+  async versions(seriesId: string): Promise<SeriesVersion[]> {
     return (db().prepare('SELECT * FROM series_versions WHERE series_id = ? AND workspace_id = ? ORDER BY version DESC').all(seriesId, ctx().workspaceId) as Row[]).map(toVersion);
   },
-  insert(s: Series) {
+  async insert(s: Series) {
     db()
       .prepare('INSERT INTO series (id, channel_id, name, status, current_version, created_at, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(s.id, s.channelId, s.name, s.status, s.currentVersion, s.createdAt, s.updatedAt, ctx().workspaceId, ctx().userId);
   },
-  update(s: Series) {
+  async update(s: Series) {
     db().prepare('UPDATE series SET name = ?, status = ?, current_version = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(s.name, s.status, s.currentVersion, s.updatedAt, s.id, ctx().workspaceId);
   },
-  insertVersion(v: SeriesVersion) {
+  async insertVersion(v: SeriesVersion) {
     db()
       .prepare('INSERT INTO series_versions (series_id, version, skill_id, bible, format, publish, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(v.seriesId, v.version, v.skillId, JSON.stringify(v.bible), JSON.stringify(v.format), JSON.stringify(v.publish), v.createdAt, ctx().workspaceId, ctx().userId);

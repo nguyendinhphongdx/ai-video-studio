@@ -6,7 +6,7 @@ export const GET = route(async (req) => {
   const q = new URL(req.url).searchParams;
   const range = q.get('range') as UsageRange | null;
   const kind = q.get('kind');
-  return usageService.events({
+  return await usageService.events({
     range: range && RANGES.includes(range) ? range : undefined,
     before: q.get('before') ?? undefined,
     kind: kind === 'llm' || kind === 'image' || kind === 'tts' ? kind : undefined,

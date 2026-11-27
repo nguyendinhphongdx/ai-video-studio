@@ -477,17 +477,28 @@ export function db(): DatabaseSync {
   return g.__avsDb;
 }
 
-export function transaction<T>(fn: () => T): T {
-  const d = db();
-  d.exec('BEGIN IMMEDIATE');
-  try {
-    const out = fn();
-    d.exec('COMMIT');
-    return out;
-  } catch (e) {
-    d.exec('ROLLBACK');
-    throw e;
-  }
+/**
+ * Runs `fn` in one write transaction. The data layer is async (so it can move to a networked database), but SQLite
+ * has one connection per process: transactions in this process take turns, and `fn` should only touch the database
+ * (no network calls), so other requests' statements rarely land inside it.
+ */
+let txQueue: Promise<unknown> = Promise.resolve();
+export function transaction<T>(fn: () => Promise<T>): Promise<T> {
+  const run = async () => {
+    const d = db();
+    d.exec('BEGIN IMMEDIATE');
+    try {
+      const out = await fn();
+      d.exec('COMMIT');
+      return out;
+    } catch (e) {
+      d.exec('ROLLBACK');
+      throw e;
+    }
+  };
+  const next = txQueue.then(run, run);
+  txQueue = next.catch(() => undefined);
+  return next;
 }
 
 export const now = () => new Date().toISOString();

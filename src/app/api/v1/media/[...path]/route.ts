@@ -11,7 +11,7 @@ export const GET = route<{ path: string[] }>(async (req, { path }) => {
   const rel = path.map(decodeURIComponent).join('/');
   const file = resolveMedia(rel);
   // Another workspace's file is "not found", the same as a missing one.
-  if (!canReadMedia(rel)) throw notFound('tệp');
+  if (!await canReadMedia(rel)) throw notFound('tệp');
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw notFound('tệp');
   const size = fs.statSync(file).size;
   const type = mimeOf(file);

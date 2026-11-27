@@ -4,4 +4,4 @@ import { usageService } from '@/server/modules/usage/usage.service';
 import { EstimateInput } from '@/server/modules/usage/usage.types';
 
 /** What a batch of pictures and voices is expected to cost (nothing is called). */
-export const POST = route(async (req) => usageService.estimate(await parseJsonBody(req, EstimateInput)));
+export const POST = route(async (req) => await usageService.estimate(await parseJsonBody(req, EstimateInput)));

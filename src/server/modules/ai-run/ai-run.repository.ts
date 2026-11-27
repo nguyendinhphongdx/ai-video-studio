@@ -22,7 +22,7 @@ const toRun = (r: Row): AiRun => ({
 });
 
 export const aiRunRepository = {
-  forEpisode(episodeId: string, limit = 20): AiRun[] {
+  async forEpisode(episodeId: string, limit = 20): Promise<AiRun[]> {
     return (db().prepare('SELECT * FROM ai_runs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT ?').all(episodeId, ctx().workspaceId, limit) as Row[]).map(toRun);
   },
 };

@@ -12,11 +12,11 @@ export interface OutboxItem {
 
 export const outboxRepository = {
   /** Undelivered events of every workspace (the worker serves them all), each with the scope it was published in. */
-  pending(limit = 20): OutboxItem[] {
+  async pending(limit = 20): Promise<OutboxItem[]> {
     const rows = db().prepare('SELECT id, payload, workspace_id, user_id FROM outbox WHERE handled_at IS NULL ORDER BY id LIMIT ?').all(limit) as { id: number; payload: string; workspace_id: string | null; user_id: string | null }[];
     return rows.map((r) => ({ id: r.id, event: json<DomainEvent>(r.payload, null as never), workspaceId: r.workspace_id, userId: r.user_id }));
   },
-  done(id: number, error: string | null) {
+  async done(id: number, error: string | null) {
     db().prepare('UPDATE outbox SET handled_at = ?, error = ? WHERE id = ?').run(now(), error, id);
   },
 };

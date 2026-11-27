@@ -15,7 +15,7 @@ type Ctx<P> = { params: Promise<P> };
 export function route<P = Record<string, never>>(handler: (req: NextRequest, params: P) => Promise<unknown>) {
   return async (req: NextRequest, ctx: Ctx<P>) => {
     try {
-      const context = authService.authenticate(req.cookies.get(SESSION_COOKIE)?.value);
+      const context = await authService.authenticate(req.cookies.get(SESSION_COOKIE)?.value);
       if (!context) throw new ApiError(401, 'unauthorized', 'Bạn cần đăng nhập.');
       const result = await runWithContext(context, async () => handler(req, await ctx.params));
       return result instanceof Response ? result : NextResponse.json(result ?? { ok: true });

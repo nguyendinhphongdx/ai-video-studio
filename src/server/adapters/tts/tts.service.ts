@@ -103,13 +103,13 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
 async function speak(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<void> {
   if (!VOICES[voice]) throw new UserFacingError('Giọng đọc không hợp lệ');
   if (isGoogleVoice(voice)) {
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
     const reported = await speakGoogle(text, voice, outFile);
     const seconds = await probeDuration(outFile);
     // Audio comes back as tokens; if the response carried no count, estimate it from the text and the audio length.
     const usage: Usage = { inputTokens: reported?.promptTokenCount ?? estimateTokens(text), outputTokens: reported?.candidatesTokenCount ?? Math.round(seconds * TTS_TOKENS_PER_SECOND), cachedTokens: 0, units: seconds };
-    usageService.record({ kind: 'tts', provider: 'gemini', model: GEMINI_TTS_MODEL(), purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage, estimated: !reported });
+    await usageService.record({ kind: 'tts', provider: 'gemini', model: GEMINI_TTS_MODEL(), purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage, estimated: !reported });
     return;
   }
   await fs.mkdir(path.dirname(outFile), { recursive: true });
@@ -120,7 +120,7 @@ async function speak(text: string, voice: VoiceId, outFile: string, meta?: Usage
     try {
       const started = Date.now();
       await run(bin(), ['--voice', voice, `--rate=${RATE}`, '--text', text, '--write-media', outFile]);
-      usageService.record({ kind: 'tts', provider: 'edge', model: voice, purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: await probeDuration(outFile).catch(() => 0) } });
+      await usageService.record({ kind: 'tts', provider: 'edge', model: voice, purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: await probeDuration(outFile).catch(() => 0) } });
       return;
     } catch (e) {
       const err = e as Error & { stderr?: string };

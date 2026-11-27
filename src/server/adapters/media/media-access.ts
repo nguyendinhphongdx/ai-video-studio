@@ -11,11 +11,11 @@ import { episodeRepository } from '@/server/modules/episode/episode.repository';
  * - series-characters/<file> (made before workspaces): a series of this workspace uses the file;
  * - tts-preview/…: shared voice samples of fixed text, open to anyone signed in.
  */
-export function canReadMedia(rel: string): boolean {
+export async function canReadMedia(rel: string): Promise<boolean> {
   const [top, owner, rest] = rel.split('/');
   if (!top || !owner) return false;
-  if (top === 'episodes') return episodeRepository.find(owner) !== null;
-  if (top === 'channels') return channelRepository.find(owner) !== null;
+  if (top === 'episodes') return await episodeRepository.find(owner) !== null;
+  if (top === 'channels') return await channelRepository.find(owner) !== null;
   if (top === 'tts-preview') return true;
   if (top === 'series-characters') {
     if (rest) return owner === ctx().workspaceId;

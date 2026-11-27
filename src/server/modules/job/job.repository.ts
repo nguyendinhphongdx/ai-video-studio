@@ -21,40 +21,40 @@ const toJob = (r: Row): Job => ({
 });
 
 export const jobRepository = {
-  insert(episodeId: string | null, kind: JobKind, payload: Record<string, unknown>): Job {
+  async insert(episodeId: string | null, kind: JobKind, payload: Record<string, unknown>): Promise<Job> {
     const id = newId();
     db()
       .prepare(`INSERT INTO jobs (id, episode_id, kind, payload, state, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`)
       .run(id, episodeId, kind, JSON.stringify(payload), now(), ctx().workspaceId, ctx().userId);
-    return jobRepository.find(id)!;
+    return (await jobRepository.find(id))!;
   },
-  find(id: string): Job | null {
+  async find(id: string): Promise<Job | null> {
     const r = db().prepare('SELECT * FROM jobs WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
-  active(episodeId: string): Job | null {
+  async active(episodeId: string): Promise<Job | null> {
     const r = db().prepare(`SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(episodeId, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
-  latest(episodeId: string): Job | null {
+  async latest(episodeId: string): Promise<Job | null> {
     const r = db().prepare('SELECT * FROM jobs WHERE episode_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 1').get(episodeId, ctx().workspaceId) as Row | undefined;
     return r ? toJob(r) : null;
   },
   /** The running or queued assistant turn of a conversation, if any. */
-  activeAssistant(threadId: string): Job | null {
+  async activeAssistant(threadId: string): Promise<Job | null> {
     const r = db().prepare(`SELECT * FROM jobs WHERE kind = 'assistant_turn' AND workspace_id = ? AND state IN ('queued', 'running') AND payload LIKE ? ORDER BY created_at DESC LIMIT 1`).get(ctx().workspaceId, `%"threadId":"${threadId}"%`) as Row | undefined;
     return r ? toJob(r) : null;
   },
-  listActive(): Job[] {
+  async listActive(): Promise<Job[]> {
     return (db().prepare(`SELECT * FROM jobs WHERE workspace_id = ? AND state IN ('queued', 'running') ORDER BY created_at`).all(ctx().workspaceId) as Row[]).map(toJob);
   },
-  progress(id: string, progress: number, phase: string | null) {
+  async progress(id: string, progress: number, phase: string | null) {
     db().prepare('UPDATE jobs SET progress = ?, phase = COALESCE(?, phase) WHERE id = ? AND workspace_id = ?').run(Math.max(0, Math.min(1, progress)), phase, id, ctx().workspaceId);
   },
-  finish(id: string, result?: unknown) {
+  async finish(id: string, result?: unknown) {
     db().prepare(`UPDATE jobs SET state = 'done', progress = 1, result = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(result === undefined ? null : JSON.stringify(result), now(), id, ctx().workspaceId);
   },
-  fail(id: string, error: string) {
+  async fail(id: string, error: string) {
     db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ? AND workspace_id = ?`).run(error, now(), id, ctx().workspaceId);
   },
 };
@@ -65,8 +65,8 @@ export const jobRepository = {
  */
 export const jobQueue = {
   /** Atomically take the oldest queued job, with the workspace and person it runs for. */
-  claimNext(): { job: Job; workspaceId: string | null; userId: string | null } | null {
-    return transaction(() => {
+  async claimNext(): Promise<{ job: Job; workspaceId: string | null; userId: string | null } | null> {
+    return await transaction(async () => {
       const r = db().prepare(`SELECT * FROM jobs WHERE state = 'queued' ORDER BY created_at LIMIT 1`).get() as Row | undefined;
       if (!r) return null;
       db().prepare(`UPDATE jobs SET state = 'running', started_at = ? WHERE id = ?`).run(now(), String(r.id));
@@ -74,13 +74,13 @@ export const jobQueue = {
     });
   },
   /** Jobs left 'running' by a worker that died, with their workspace and person, so each episode can be reset in its scope. */
-  failInterrupted(message: string): { job: Job; workspaceId: string | null; userId: string | null }[] {
+  async failInterrupted(message: string): Promise<{ job: Job; workspaceId: string | null; userId: string | null }[]> {
     const rows = db().prepare(`SELECT * FROM jobs WHERE state = 'running'`).all() as Row[];
     db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE state = 'running'`).run(message, now());
     return rows.map((r) => ({ job: toJob(r), workspaceId: (r.workspace_id as string | null) ?? null, userId: (r.user_id as string | null) ?? null }));
   },
   /** A job that cannot run (its workspace is gone): fail it without a scope. */
-  failUnscoped(id: string, error: string) {
+  async failUnscoped(id: string, error: string) {
     db().prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ?`).run(error, now(), id);
   },
 };

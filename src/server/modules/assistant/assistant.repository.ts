@@ -29,37 +29,37 @@ const toMessage = (r: Row): AssistantMessage => ({
 });
 
 export const assistantRepository = {
-  threads(channelId: string): AssistantThread[] {
+  async threads(channelId: string): Promise<AssistantThread[]> {
     return (db().prepare('SELECT * FROM assistant_threads WHERE channel_id = ? AND workspace_id = ? ORDER BY updated_at DESC').all(channelId, ctx().workspaceId) as Row[]).map(toThread);
   },
-  find(id: string): AssistantThread | null {
+  async find(id: string): Promise<AssistantThread | null> {
     const r = db().prepare('SELECT * FROM assistant_threads WHERE id = ? AND workspace_id = ?').get(id, ctx().workspaceId) as Row | undefined;
     return r ? toThread(r) : null;
   },
-  insertThread(channelId: string, mode: AssistantThread['mode']): AssistantThread {
+  async insertThread(channelId: string, mode: AssistantThread['mode']): Promise<AssistantThread> {
     const id = newId();
     const ts = now();
     db().prepare('INSERT INTO assistant_threads (id, channel_id, title, mode, created_at, updated_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, channelId, '', mode, ts, ts, ctx().workspaceId, ctx().userId);
-    return assistantRepository.find(id)!;
+    return (await assistantRepository.find(id))!;
   },
-  updateThread(id: string, patch: Partial<Pick<AssistantThread, 'title' | 'mode'>>) {
+  async updateThread(id: string, patch: Partial<Pick<AssistantThread, 'title' | 'mode'>>) {
     if (patch.title !== undefined) db().prepare('UPDATE assistant_threads SET title = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.title, now(), id, ctx().workspaceId);
     if (patch.mode !== undefined) db().prepare('UPDATE assistant_threads SET mode = ?, updated_at = ? WHERE id = ? AND workspace_id = ?').run(patch.mode, now(), id, ctx().workspaceId);
   },
-  removeThread(id: string) {
+  async removeThread(id: string) {
     db().prepare('DELETE FROM assistant_threads WHERE id = ? AND workspace_id = ?').run(id, ctx().workspaceId);
   },
-  messages(threadId: string): AssistantMessage[] {
+  async messages(threadId: string): Promise<AssistantMessage[]> {
     return (db().prepare('SELECT * FROM assistant_messages WHERE thread_id = ? AND workspace_id = ? ORDER BY id').all(threadId, ctx().workspaceId) as Row[]).map(toMessage);
   },
-  append(threadId: string, m: Omit<AssistantMessage, 'id' | 'threadId' | 'createdAt'>): AssistantMessage {
+  async append(threadId: string, m: Omit<AssistantMessage, 'id' | 'threadId' | 'createdAt'>): Promise<AssistantMessage> {
     const r = db()
       .prepare('INSERT INTO assistant_messages (thread_id, role, content, tool_calls, tool_call_id, tool_name, status, summary, data, focus, created_at, workspace_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(threadId, m.role, m.content, JSON.stringify(m.toolCalls), m.toolCallId, m.toolName, m.status, m.summary, m.data === null || m.data === undefined ? null : JSON.stringify(m.data), m.focus ? JSON.stringify(m.focus) : null, now(), ctx().workspaceId, ctx().userId);
     db().prepare('UPDATE assistant_threads SET updated_at = ? WHERE id = ? AND workspace_id = ?').run(now(), threadId, ctx().workspaceId);
     return toMessage(db().prepare('SELECT * FROM assistant_messages WHERE id = ? AND workspace_id = ?').get(Number(r.lastInsertRowid), ctx().workspaceId) as Row);
   },
-  update(id: number, patch: Partial<Pick<AssistantMessage, 'content' | 'status' | 'summary' | 'data'>>) {
+  async update(id: number, patch: Partial<Pick<AssistantMessage, 'content' | 'status' | 'summary' | 'data'>>) {
     if (patch.content !== undefined) db().prepare('UPDATE assistant_messages SET content = ? WHERE id = ? AND workspace_id = ?').run(patch.content, id, ctx().workspaceId);
     if (patch.status !== undefined) db().prepare('UPDATE assistant_messages SET status = ? WHERE id = ? AND workspace_id = ?').run(patch.status, id, ctx().workspaceId);
     if (patch.summary !== undefined) db().prepare('UPDATE assistant_messages SET summary = ? WHERE id = ? AND workspace_id = ?').run(patch.summary, id, ctx().workspaceId);
@@ -69,17 +69,17 @@ export const assistantRepository = {
 
 export const assistantStore: AssistantStore = {
   async thread(id) {
-    const t = assistantRepository.find(id);
+    const t = await assistantRepository.find(id);
     if (!t) throw notFound('cuộc trò chuyện');
     return t;
   },
   async messages(threadId) {
-    return assistantRepository.messages(threadId);
+    return await assistantRepository.messages(threadId);
   },
   async append(threadId, m) {
-    return assistantRepository.append(threadId, m);
+    return await assistantRepository.append(threadId, m);
   },
   async update(id, patch) {
-    assistantRepository.update(id, patch);
+    await assistantRepository.update(id, patch);
   },
 };

@@ -4,4 +4,4 @@ import { workspaceService } from '@/server/modules/workspace/workspace.service';
 import { RenameWorkspaceInput } from '@/server/modules/workspace/workspace.types';
 
 /** Rename the current workspace (owner). */
-export const PATCH = route(async (req) => workspaceService.rename((await parseJsonBody(req, RenameWorkspaceInput)).name));
+export const PATCH = route(async (req) => await workspaceService.rename((await parseJsonBody(req, RenameWorkspaceInput)).name));

@@ -18,9 +18,9 @@ describe('system health', () => {
 
   it('says the worker is not running until it has beaten, and not running again once the beat is old', async () => {
     expect((await config.configService.get()).worker.alive).toBe(false);
-    prefs.prefsService.workerBeat();
+    await prefs.prefsService.workerBeat();
     expect((await config.configService.get()).worker.alive).toBe(true);
-    expect(prefs.prefsService.workerSeenAt()).toBeGreaterThan(Date.now() - 5000);
+    expect(await prefs.prefsService.workerSeenAt()).toBeGreaterThan(Date.now() - 5000);
   });
 
   it('knows whether ffmpeg is installed', async () => {

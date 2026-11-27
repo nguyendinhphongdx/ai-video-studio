@@ -1,6 +1,6 @@
 # Plan: Drizzle ORM, then Postgres
 
-Status: step 1 done (async data layer); steps 2–6 not started.
+Status: steps 1–2 done (async data layer, Drizzle schema); steps 3–6 not started.
 
 ## Why
 
@@ -53,13 +53,18 @@ The step most likely to break things, so it goes first and alone.
   `await`.
 - Size: the largest step. About 3–4 days.
 
-### 2. Drizzle schema matching today's tables
+### 2. Drizzle schema matching today's tables — done
 
-- `src/server/db/schema.ts` with all 29 tables as they are now (`sqliteTable`). Column names stay snake_case;
-  fields become camelCase.
-- `drizzle-kit` introspects the current `app.db` so the schema matches it exactly. Existing databases are marked as
-  already at the first Drizzle migration. The old `MIGRATIONS` array is frozen.
-- About 1 day.
+- `src/server/schema.ts`: all 29 tables as they are now (`sqliteTable`), generated from a database built by the
+  current migrations. Column names stay snake_case in SQL; fields are camelCase.
+- `src/server/orm.ts`: `orm()`, Drizzle on the same node:sqlite connection through Drizzle's `sqlite-proxy` driver
+  (Drizzle has no node:sqlite driver, and `drizzle-kit pull` would need better-sqlite3).
+- Node 22's node:sqlite returns rows as objects, so two result columns with the same name would collapse. `orm()`
+  checks each query's column count (from `EXPLAIN`) and throws instead; such joins alias one column. This goes away
+  with the Postgres driver.
+- Changed from the first plan: the SQL `MIGRATIONS` in `db.ts` stay the source of truth until step 4. A Drizzle
+  migration baseline for SQLite would be thrown away when Postgres gets its own. `tests/server/schema.test.ts` keeps
+  the two in step (tables, columns, types, NOT NULL, primary keys, indexes).
 
 ### 3. Move repositories to Drizzle, one module at a time
 

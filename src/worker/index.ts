@@ -80,10 +80,19 @@ async function runJob(): Promise<boolean> {
 }
 
 async function runScopedJob(job: Job): Promise<void> {
-  logger.info(`start ${job.kind}`, { job: job.id, episode: job.episodeId });
+  logger.info(`start ${job.kind}`, { job: job.id, episode: job.episodeId, waited: `${Math.round((Date.now() - new Date(job.createdAt).getTime()) / 1000)}s` });
   const started = Date.now();
   let lastWrite = 0;
+  let loggedPhase: string | undefined;
+  let loggedStep = -1;
   const progress = async (fraction: number, phase?: string) => {
+    // One line when the step changes and at each tenth, so a long job reads as a trail instead of silence.
+    const step = Math.floor(Math.min(1, Math.max(0, fraction)) * 10);
+    if (phase !== loggedPhase || step > loggedStep) {
+      logger.info(`${job.kind} ${Math.round(fraction * 100)}%${phase ? ` · ${phase}` : ''} (${Math.round((Date.now() - started) / 1000)}s)`, { job: job.id });
+      loggedPhase = phase;
+      loggedStep = step;
+    }
     if (Date.now() - lastWrite < 500 && fraction < 1) return;
     lastWrite = Date.now();
     await jobRepository.progress(job.id, fraction, phase ?? null);

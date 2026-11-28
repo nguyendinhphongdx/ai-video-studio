@@ -588,3 +588,13 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 
 .v2 .logo-draft { display: flex; align-items: center; gap: var(--sp-3); margin-top: 6px; }
 .v2 .logo-draft img { width: 88px; height: 88px; object-fit: contain; border: 1px solid #e3e2dd; border-radius: 12px; background: #fff; flex: none; }
+
+/* Skill market */
+.skillbar { display: flex; align-items: center; gap: var(--sp-3); }
+.skillbar .input { max-width: 360px; }
+.skillgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-4); }
+.skillcard { display: flex; flex-direction: column; gap: 10px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.skillcard-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.skillcard .clamp3 { flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 4.5em; }
+.skillcard-foot { margin-top: auto; }
+.skillcard button.chip { cursor: pointer; border: 0; }

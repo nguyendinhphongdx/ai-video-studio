@@ -11,6 +11,7 @@ import { downloadUrl, episodeApi, type EpisodeView } from '@/features/episode/se
 import { currentStep, EPISODE_STEPS, episodeHref, stepIndex, type EpisodeStep } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
 import { sceneHref } from './SceneDirectorView';
+import { LockedScenes, scenesLocked } from './LockedScenes';
 import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const narrationOf = (v: EpisodeView) => v.episode.scenes.map((s) => s.narration).join(' ');
@@ -153,23 +154,25 @@ export function ScriptStep({ episodeId }: { episodeId: string }) {
 /** 08 Storyboard: every scene's picture and voice, generated and approved scene by scene. */
 export function StoryboardStep({ projectId, episodeId }: { projectId: string; episodeId: string }) {
   const v = useEpisode(episodeId).data!;
-  const gen = useEpisodeAction(episodeId, (sceneIds: string[] | null) => episodeApi.assets(episodeId, { sceneIds, image: true, voice: true }), 'Đã giao việc tạo ảnh và giọng');
-  const approve = useEpisodeAction(episodeId, (sceneIds: string[] | null) => episodeApi.approvals(episodeId, { sceneIds, approved: true }));
+  const gen = useEpisodeAction(episodeId, (req: { sceneIds: string[]; force?: boolean }) => episodeApi.assets(episodeId, { image: true, voice: true, ...req }), 'Đã giao việc tạo ảnh và giọng');
+  const approve = useEpisodeAction(episodeId, (req: { sceneIds: string[] | null; approved: boolean }) => episodeApi.approvals(episodeId, req));
+  const locked = scenesLocked(v);
   const busy = isBusy(v);
   const scenes = v.episode.scenes;
   const missing = scenes.filter((s) => v.assets[s.id]?.needsImage || v.assets[s.id]?.needsVoice);
 
   return (
     <>
+      <LockedScenes view={v} />
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="cap">
           {scenes.filter((s) => s.approved).length} / {scenes.length} cảnh đã duyệt · {missing.length} cảnh thiếu ảnh hoặc giọng
         </span>
         <div className="row">
-          <button className="btn" disabled={busy || missing.length === 0 || gen.isPending} onClick={() => gen.mutate(missing.map((s) => s.id))}>
+          <button className="btn" disabled={locked || busy || missing.length === 0 || gen.isPending} onClick={() => gen.mutate({ sceneIds: missing.map((s) => s.id) })}>
             Tạo ảnh và giọng còn thiếu
           </button>
-          <button className="btn dark" disabled={busy || approve.isPending} onClick={() => approve.mutate(null)}>
+          <button className="btn dark" disabled={locked || busy || approve.isPending} onClick={() => approve.mutate({ sceneIds: null, approved: true })}>
             Duyệt tất cả cảnh sẵn sàng
           </button>
         </div>
@@ -180,7 +183,7 @@ export function StoryboardStep({ projectId, episodeId }: { projectId: string; ep
           return (
             <div key={s.id} className={`card flat${s.approved ? ' sel' : ''}`}>
               <div className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
-                {!a?.imageUrl && <span className="hint">{a?.needsImage === false ? 'Không cần ảnh' : 'Chưa có ảnh'}</span>}
+                {!a?.imageUrl && <span className="hint">{a?.needsImage !== false ? 'Chưa có ảnh' : s.locked ? 'Nền của kênh' : 'Chỉ có chữ'}</span>}
                 <span>{String(i + 1).padStart(2, '0')}</span>
               </div>
               <p className="cap" style={{ minHeight: 36 }}>
@@ -197,12 +200,17 @@ export function StoryboardStep({ projectId, episodeId }: { projectId: string; ep
                 <Link className="btn sm dark" href={sceneHref(projectId, episodeId, s.id)}>
                   Đạo diễn cảnh
                 </Link>
-                <button className="btn sm" disabled={busy || gen.isPending} onClick={() => gen.mutate([s.id])}>
-                  {a?.imageUrl ? 'Tạo lại' : 'Tạo ảnh và giọng'}
+                <button className="btn sm" disabled={locked || busy || gen.isPending} onClick={() => gen.mutate({ sceneIds: [s.id], force: Boolean(a?.imageUrl || a?.voiceUrl) })}>
+                  {a?.needsImage === false ? (a.voiceUrl ? 'Tạo lại giọng' : 'Tạo giọng') : a?.imageUrl ? 'Tạo lại' : 'Tạo ảnh và giọng'}
                 </button>
                 {!s.approved && a?.ready && (
-                  <button className="btn sm dark" disabled={approve.isPending} onClick={() => approve.mutate([s.id])}>
+                  <button className="btn sm dark" disabled={locked || busy || approve.isPending} onClick={() => approve.mutate({ sceneIds: [s.id], approved: true })}>
                     Duyệt
+                  </button>
+                )}
+                {s.approved && !locked && (
+                  <button className="btn sm ghost" disabled={busy || approve.isPending} onClick={() => approve.mutate({ sceneIds: [s.id], approved: false })}>
+                    Bỏ duyệt
                   </button>
                 )}
               </div>

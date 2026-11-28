@@ -2,6 +2,7 @@
 // carries it, whatever the skill says, so it does not depend on a skill remembering it.
 export const VISUAL_BRIEF = `Luật hình ảnh (bắt buộc, ưu tiên hơn mọi hướng dẫn khác về chọn khối và tả ảnh):
 - Hình khớp lời: người xem phải THẤY đúng điều đang nghe, đúng lúc đó: đúng người, đúng việc, đúng vật. Câu kể một người sinh ra vật lạ thì hình có người đó, người đỡ và vật lạ; không thay bằng phòng trống, con số hay nhân vật khác.
+- Video kể chuyện hoặc series có nhân vật vẽ: MỌI cảnh đều có hình vẽ (tranh hoặc nhân vật diễn), kể cả câu đúc kết hay bài học; không dùng cảnh chỉ có chữ trên nền trơn.
 - Mỗi khoảnh khắc một cảnh: một biến đổi hay chuỗi hành động (vật xuất hiện, bay lên, hoá thành người) tách thành nhiều cảnh liền nhau, lời đọc chia đúng theo các khoảnh khắc ấy.
 - Nhân vật chỉ xuất hiện khi câu chuyện đang có họ, đúng tuổi và hình dạng lúc đó: chưa ra đời thì chưa có trong hình, lúc còn là em bé thì vẽ em bé.
 - Chọn cách dựng cho từng cảnh, cân nhắc kỹ. Nhân vật rời (diễn trên phông nền) chỉ khi: người cần thấy đều đã có ảnh trong dàn nhân vật, và câu là lời nói, cảm xúc hay động tác đơn giản (đứng, đi, chỉ, vẫy, cúi, ngồi). Tranh vẽ liền khi: người chạm vào nhau hay vào đồ vật (bế, đỡ, ôm, trao, che chở, giao đấu), biến đổi, tư thế nằm hay quỳ, đám đông, toàn cảnh, hoặc có người chưa có ảnh. Không chắc nhân vật rời diễn được đúng câu thì dùng tranh.

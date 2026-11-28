@@ -171,5 +171,18 @@ const picturePrompts: QualityCheck = {
   },
 };
 
+/** A drawn show (one with a character library) shows a picture in every scene: no words on a plain background. */
+const drawnScenes: QualityCheck = {
+  id: 'drawn-scenes',
+  name: 'Cảnh nào cũng có hình',
+  stages: ['script'],
+  run: ({ bible, scenes, tools }) => {
+    if (!bible?.characterAssets.length || !tools) return [];
+    return scenes
+      .filter((s) => !s.locked && tools.block(s.block) && !tools.block(s.block)!.image)
+      .map((s) => ({ check: 'drawn-scenes', level: 'error' as const, message: 'Cảnh không có hình vẽ: đổi sang cảnh tranh hoặc nhân vật diễn', sceneId: s.id }));
+  },
+};
+
 /** Registered checks. Add a check here. */
-export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken, castRefs, picturePrompts, avHealth];
+export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken, castRefs, picturePrompts, drawnScenes, avHealth];

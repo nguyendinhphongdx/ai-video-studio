@@ -326,7 +326,7 @@ export const episodeService = {
     const e = await loadEpisode(id);
     if (e.status !== 'video_review' && e.status !== 'published') throw conflict('Video chưa được dựng');
     await episodeRepository.update(id, { status: 'script_review' });
-    await episodeRepository.addEvent(id, `Video bị trả lại: ${feedback}`);
+    await episodeRepository.addEvent(id, feedback.trim() ? `Video bị trả lại: ${feedback}` : 'Đã mở lại video để sửa cảnh');
     await appDeps.events.publish({ type: 'episode.rejected', episodeId: id, feedback });
     if (feedback.trim() && (await llm.isReady())) await enqueue(id, 'revise_script', { feedback });
     return await episodeService.get(id);

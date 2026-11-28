@@ -43,13 +43,13 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
   const bible = withLibrary?.rules.bible;
   const toDraw = (bible?.library ?? []).filter((i) => (i.kind === 'hero' ? !bible!.characterAssets.length : !bible!.characterCast[i.id]));
   const c = project.data;
-  const needsArt = Boolean(c && !c.introArtUrl && bible?.brandIdeas?.introArt);
-  const images = Math.max(toDraw.length, needsArt ? 1 : 0);
+  const missingArt = (['intro', 'outro'] as const).filter((k) => c && bible?.brandIdeas?.introArt && !(k === 'intro' ? c.introArtUrl : c.outroArtUrl));
+  const images = Math.max(toDraw.length, missingArt.length);
   const estimate = useQuery({ queryKey: ['setup-estimate', images], queryFn: () => usageApi.estimate({ images: 1, texts: [], voice: '' }), enabled: images > 0 });
   const price = (n: number) => (estimate.data?.usd == null ? 'chưa có đơn giá' : `ước tính ${usd(estimate.data.usd * n)}`);
 
   const draw = useMutation({
-    mutationFn: (what: 'library' | 'intro') => (what === 'library' ? setupApi.drawLibrary(withLibrary!.id) : channelApi.generateArt(projectId, 'intro', bible!.brandIdeas!.introArt)),
+    mutationFn: (what: 'library' | 'intro' | 'outro') => (what === 'library' ? setupApi.drawLibrary(withLibrary!.id) : channelApi.generateArt(projectId, what, bible!.brandIdeas!.introArt)),
     onSuccess: (j) => setJobId(j.id),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -65,6 +65,7 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
     { label: toDraw.length ? `Thư viện nhân vật (còn ${toDraw.length} ảnh)` : 'Thư viện nhân vật', done: series.data.some((s) => s.rules.bible.characterAssets.length) && !toDraw.length, href: library },
     { label: 'Logo', done: Boolean(c.logoUrl), href: `/channels/${projectId}` },
     { label: 'Tranh nền intro', done: Boolean(c.introArtUrl), href: `/channels/${projectId}` },
+    { label: 'Tranh nền outro', done: Boolean(c.outroArtUrl), href: `/channels/${projectId}` },
   ];
   const left = items.filter((i) => !i.done).length;
   if (!left) return null;
@@ -89,18 +90,18 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
           </Link>
         ))}
       </div>
-      {(toDraw.length > 0 || needsArt) && (
+      {(toDraw.length > 0 || missingArt.length > 0) && (
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
           {toDraw.length > 0 && (
             <button className="btn pri" disabled={busy} onClick={() => draw.mutate('library')}>
               Vẽ {toDraw.length} ảnh thư viện ({price(toDraw.length)})
             </button>
           )}
-          {needsArt && (
-            <button className="btn" disabled={busy} onClick={() => draw.mutate('intro')}>
-              Vẽ tranh intro (1 ảnh, {price(1)})
+          {missingArt.map((k) => (
+            <button key={k} className="btn" disabled={busy} onClick={() => draw.mutate(k)}>
+              Vẽ tranh {k} (1 ảnh, {price(1)})
             </button>
-          )}
+          ))}
           {jobId && (
             <span className="cap">
               {job.data?.phase ?? 'Đang chờ vẽ'} · {Math.round((job.data?.progress ?? 0) * 100)}%

@@ -19,3 +19,13 @@ describe('automatic script checks', () => {
     expect(issues.map((i) => i.sceneId)).toEqual(['1', '2']);
   });
 });
+
+describe('drawn shows', () => {
+  it('rejects a text-only scene, but leaves shows without a character library alone', () => {
+    const tools = { block: (ref: string) => (ref === 'remotion/picture' ? { image: {} } : {}) };
+    const scenes = [{ id: '1', block: 'remotion/picture', locked: false }, { id: '2', block: 'remotion/kinetic', locked: false }, { id: '3', block: 'remotion/outro', locked: true }];
+    const run = (characterAssets: string[]) => check('drawn-scenes').run({ scenes, tools, bible: { characterAssets } } as unknown as QualityInput);
+    expect(run(['hero.png']).map((i) => i.sceneId)).toEqual(['2']);
+    expect(run([])).toEqual([]);
+  });
+});

@@ -16,6 +16,7 @@ import { episodeApi, type EpisodeView } from '@/features/episode/services/episod
 import { usageApi } from '@/features/usage/services/usage.api';
 
 import { episodeHref, usd } from '../model';
+import { LockedScenes, scenesLocked } from './LockedScenes';
 import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/direct/${projectId}/${episodeId}/${sceneId}`;
@@ -72,7 +73,8 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const index = scenes.findIndex((s) => s.id === sceneId);
   const assets = v.assets[sceneId];
   const busy = isBusy(v);
-  const readOnly = draft.locked || v.episode.status === 'published';
+  const closed = scenesLocked(v);
+  const readOnly = draft.locked || closed;
   const setProp = (key: string, value: unknown) => setDraft({ ...draft, props: { ...draft.props, [key]: value } });
   const byKey = new Map(fields.map((f) => [f.key, f]));
   const sentence = SENTENCE.filter((s) => byKey.get(s.key)?.kind === 'choice' && (!byKey.get(s.key)?.advanced || advanced));
@@ -115,7 +117,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
         </button>
         <button
           className="btn pri"
-          disabled={dirty || busy || gen.isPending || readOnly}
+          disabled={dirty || busy || gen.isPending || closed}
           title={dirty ? 'Lưu cảnh trước khi tạo' : undefined}
           onClick={() => gen.mutate({ image: wantsImage, voice: true })}
         >
@@ -125,6 +127,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
 
       <div className="edbody" style={{ flex: 1 }}>
         <main className="edcenter" style={{ padding: '16px 20px', gap: 12 }}>
+          <LockedScenes view={v} />
           {busy && (
             <div className="alert">
               <span>Đang chạy: {v.job?.phase ?? v.job?.kind} · {Math.round((v.job?.progress ?? 0) * 100)}%</span>
@@ -224,11 +227,11 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           </div>
           <div className="row" style={{ gap: 6 }}>
             {draft.approved ? (
-              <button className="btn sm" disabled={dirty || approve.isPending} onClick={() => approve.mutate(false)}>
+              <button className="btn sm" disabled={dirty || busy || closed || approve.isPending} onClick={() => approve.mutate(false)}>
                 Bỏ duyệt
               </button>
             ) : (
-              <button className="btn sm dark" disabled={dirty || !assets?.ready || approve.isPending} onClick={() => approve.mutate(true)}>
+              <button className="btn sm dark" disabled={dirty || busy || closed || !assets?.ready || approve.isPending} onClick={() => approve.mutate(true)}>
                 Duyệt cảnh
               </button>
             )}

@@ -1,0 +1,1 @@
+ALTER TABLE "episodes" ADD COLUMN "music_volume" real DEFAULT 0.12 NOT NULL;

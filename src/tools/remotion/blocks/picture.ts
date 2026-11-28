@@ -1,3 +1,4 @@
+import { tuneOf } from '@/core/domain/tune';
 import { z } from 'zod';
 
 import type { SfxCue } from '@/core/audio/sfx';
@@ -29,9 +30,13 @@ export function pictureCues({ props, ordinal }: { props: Record<string, unknown>
   const rhythm = !props.rhythm || props.rhythm === 'auto' ? cutFor(ordinal) : String(props.rhythm);
   const cues: SfxCue[] = [...(rhythm !== 'none' ? cutCue(rhythm) : moveCue(move))];
   if (String(props.caption ?? '').trim()) {
-    const look = captionLookFor(ordinal);
-    if (look === 'chip') cues.push({ kind: 'pop', at: 0.45 });
-    else if (look === 'ribbon') cues.push({ kind: 'whoosh-soft', at: 0.4, volume: 0.22 });
+    const tune = tuneOf(props);
+    const look = tune.captionLook ?? captionLookFor(ordinal);
+    // The sound follows the words to wherever they were moved on the timeline.
+    const shift = tune.captionTime ? tune.captionTime.from - 0.4 : 0;
+    if (tune.captionPlace === 'off') return cues;
+    if (look === 'chip') cues.push({ kind: 'pop', at: 0.45 + shift });
+    else if (look === 'ribbon') cues.push({ kind: 'whoosh-soft', at: 0.4 + shift, volume: 0.22 });
   }
   return cues;
 }

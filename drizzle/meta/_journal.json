@@ -15,6 +15,13 @@
       "when": 1795778331285,
       "tag": "0001_column_types",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795833252545,
+      "tag": "0002_heavy_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }

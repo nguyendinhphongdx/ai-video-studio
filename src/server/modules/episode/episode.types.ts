@@ -33,10 +33,26 @@ export const SaveScriptInput = z.object({
 });
 export type SaveScriptInput = z.infer<typeof SaveScriptInput>;
 
+export interface ScenePicture {
+  name: string;
+  url: string;
+  current: boolean;
+}
+export const UsePictureInput = z.object({ name: z.string().min(1).max(120) });
+
+export const SceneFixInput = z.object({
+  request: z.string().trim().max(600).default(''),
+  /** The unsaved draft, when the person is in the middle of editing. */
+  narration: z.string().max(600).optional(),
+  props: z.record(z.string(), z.unknown()).optional(),
+});
+export type SceneFixInput = z.infer<typeof SceneFixInput>;
+
 export const EpisodeOptionsInput = z.object({
   formats: formats.optional(),
   voice: voice.optional(),
   music: z.boolean().optional(),
+  musicVolume: z.number().min(0).max(0.6).optional(),
   /** Topic, goal and notes can change until production starts (roadmap editing). */
   topic: z.string().trim().min(3, 'Chủ đề tập quá ngắn').max(300).optional(),
   goal: z.string().trim().max(300).optional(),

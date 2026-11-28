@@ -3,6 +3,7 @@
 import { FPS, MEDIA_MUSIC_PREFIX } from '@/core/domain/catalog';
 import { fallbackDesign } from '@/core/domain/design';
 import type { Scene } from '@/core/domain/episode';
+import { tuneOf } from '@/core/domain/tune';
 import { estimateSpeechSec, sceneDuration } from '@/core/timeline';
 import type { ChannelView } from '@/features/app';
 import type { SceneBrand } from '@video/primitives';
@@ -46,14 +47,15 @@ export interface VoiceLine {
 
 export function sceneSeconds(scene: Scene, blocks: Map<string, BlockInfo>, voice?: Map<string, VoiceLine>): number {
   const spoken = voice?.get(scene.id)?.seconds ?? estimateSpeechSec(scene.narration);
-  return sceneDuration(blocks.get(scene.block)?.minSeconds ?? 3, spoken);
+  const { holdSec, voiceDelay = 0 } = tuneOf(scene.props);
+  return sceneDuration(blocks.get(scene.block)?.minSeconds ?? 3, spoken > 0 ? spoken + voiceDelay : spoken, holdSec);
 }
 
 export function storyboardProps(
   scenes: Scene[],
   blocks: Map<string, BlockInfo>,
   brand: SceneBrand,
-  opts: { voice?: Map<string, VoiceLine>; images?: Map<string, string>; sprites?: Record<string, string>; cast?: Record<string, string>; music: string | null },
+  opts: { voice?: Map<string, VoiceLine>; images?: Map<string, string>; sprites?: Record<string, string>; cast?: Record<string, string>; music: string | null; musicVolume?: number },
 ): { props: StoryboardProps; durationInFrames: number; starts: number[] } {
   const sbScenes: StoryboardScene[] = [];
   const starts: number[] = [];
@@ -71,5 +73,5 @@ export function storyboardProps(
       narrationSrc: opts.voice?.get(s.id)?.url ?? null,
     });
   });
-  return { props: { scenes: sbScenes, brand, music: opts.music }, durationInFrames: Math.max(1, frames), starts };
+  return { props: { scenes: sbScenes, brand, music: opts.music, musicVolume: opts.musicVolume }, durationInFrames: Math.max(1, frames), starts };
 }

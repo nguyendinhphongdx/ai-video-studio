@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { castForScene, spritesForScene } from '../../character/expressions';
+import { castForScene, castIdsOf, spritesForScene } from '../../character/expressions';
 import { FORMATS } from '../../domain/catalog';
 import { UserFacingError } from '../../domain/errors';
 import { buildTimeline } from '../../timeline';
@@ -11,7 +11,7 @@ import type { ImagesOutput, ProductionContext, RenderOutput, VoiceOutput } from 
  * Bump when the scene drawing changes in a way old clips should not survive (the puppet rig, sprite sizing): the
  * cached clips of every episode are then drawn again on its next production instead of being reused.
  */
-export const RENDER_VERSION = 5;
+export const RENDER_VERSION = 6;
 
 const pick = (all: Record<string, string>, keys: string[]) => Object.fromEntries(keys.flatMap((k) => (all[k] ? [[k, all[k]!]] : [])));
 
@@ -47,7 +47,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
         const file = deps.media.absolute(rel);
         if (await deps.media.exists(file)) sprites[expr] = await deps.media.dataUri(file);
       }
-      for (const id of new Set(scenes.filter((s) => s.block === 'remotion/puppet').flatMap((s) => [s.props.lead, s.props.companion, s.props.item]).filter((v): v is string => typeof v === 'string' && v !== ''))) {
+      for (const id of new Set(scenes.filter((s) => s.block === 'remotion/puppet').flatMap((s) => castIdsOf(s.props)))) {
         const rel = bible?.characterCast?.[id];
         if (!rel) throw new UserFacingError(`Cảnh "Nhân vật diễn" gọi "${id}" nhưng series chưa có ảnh này trong dàn nhân vật phụ.`);
         cast[id] = await deps.media.dataUri(deps.media.absolute(rel));

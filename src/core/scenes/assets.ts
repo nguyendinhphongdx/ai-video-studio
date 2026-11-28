@@ -3,6 +3,7 @@
 import { DEFAULT_IMAGE_STYLE } from '../domain/catalog';
 import { UserFacingError } from '../domain/errors';
 import type { Scene, SceneAssets } from '../domain/episode';
+import { deliveryOf, parseTune, TUNE_KEY, type VoiceDelivery } from '../domain/tune';
 import { hashOf } from '../pipeline/step';
 import { cleanProps } from '../tools/tool';
 import type { ToolCatalog } from '../tools/catalog';
@@ -55,7 +56,9 @@ export function imageSpec(scene: Scene, tools: ToolCatalog, channelStyle: string
   return { prompt, hash: hashOf(prompt) };
 }
 
-export const voiceHashOf = (voice: string, narration: string): string => hashOf({ voice, text: narration.trim() });
+/** A plain delivery leaves the hash as it always was, so voices made before this setting existed stay valid. */
+export const voiceHashOf = (voice: string, narration: string, delivery: VoiceDelivery = {}): string => hashOf({ voice, text: narration.trim(), ...(delivery.style || delivery.speed ? { delivery } : {}) });
+export const sceneVoiceHash = (voice: string, scene: Pick<Scene, 'narration' | 'props'>): string => voiceHashOf(voice, scene.narration, deliveryOf(scene.props));
 export const needsVoice = (scene: Scene): boolean => scene.narration.trim().length > 0;
 
 export interface SceneReadiness {
@@ -78,7 +81,7 @@ export function readiness(scene: Scene, ctx: { tools: ToolCatalog; channelStyle:
   const imageNeeded = Boolean(ctx.tools.block(scene.block)?.image);
   const imageFresh = imageNeeded ? Boolean(spec && scene.assets.imagePath && scene.assets.imageHash === spec.hash) : true;
   const voiceNeeded = needsVoice(scene);
-  const voiceFresh = voiceNeeded ? Boolean(scene.assets.voicePath && scene.assets.voiceHash === voiceHashOf(ctx.voice, scene.narration)) : true;
+  const voiceFresh = voiceNeeded ? Boolean(scene.assets.voicePath && scene.assets.voiceHash === sceneVoiceHash(ctx.voice, scene)) : true;
   return { needsImage: imageNeeded, imageFresh, needsVoice: voiceNeeded, voiceFresh, ready: imageFresh && voiceFresh };
 }
 
@@ -107,7 +110,12 @@ export function carryOver(previous: Scene[], next: Scene[], ctx: { tools: ToolCa
     const i = unused.findIndex(pred);
     return i >= 0 ? unused.splice(i, 1)[0]! : null;
   };
-  return next.map((scene) => {
+  // A rewrite knows nothing about hand adjustments: a scene that still says the same thing keeps them.
+  const retune = (scene: Scene): Scene => {
+    const tune = parseTune(previous.find((p) => p.slotId === scene.slotId && p.block === scene.block && p.narration === scene.narration)?.props[TUNE_KEY]);
+    return tune && !(TUNE_KEY in scene.props) ? { ...scene, props: { ...scene.props, [TUNE_KEY]: tune } } : scene;
+  };
+  return next.map(retune).map((scene) => {
     const same = take((p) => sameContent(p, scene, ctx.tools));
     if (same) return { ...scene, id: same.id, approved: same.approved, assets: same.assets };
     const assets: SceneAssets = { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null };
@@ -123,7 +131,7 @@ export function carryOver(previous: Scene[], next: Scene[], ctx: { tools: ToolCa
       if (donor) Object.assign(assets, { imagePath: donor.assets.imagePath, imageHash: donor.assets.imageHash });
     }
     if (needsVoice(scene)) {
-      const h = voiceHashOf(ctx.voice, scene.narration);
+      const h = sceneVoiceHash(ctx.voice, scene);
       const donor = previous.find((p) => p.assets.voiceHash === h && p.assets.voicePath);
       if (donor) Object.assign(assets, { voicePath: donor.assets.voicePath, voiceSeconds: donor.assets.voiceSeconds, voiceHash: donor.assets.voiceHash });
     }

@@ -1,41 +1,42 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
+import { FPS } from '@/core/domain/catalog';
 import type { Scene } from '@/core/domain/episode';
-import type { ToolField } from '@/core/tools/tool';
 import { useFollowChannel } from '@/features/app';
 import { useChannel } from '@/features/channel/hooks/use-channels';
-import { ScenePlayer } from '@/features/episode/components/preview';
-import { isBusy, useEpisode, useEpisodeAction, useSkills, useTools } from '@/features/episode/hooks/use-episode';
+import { StagePlayer, type StageApi } from '@/features/episode/components/preview';
+import { isBusy, useEpisode, useEpisodeAction, useTools } from '@/features/episode/hooks/use-episode';
 import { blockIndex, brandOf, sceneSeconds } from '@/features/episode/lib/preview';
-import { episodeApi } from '@/features/episode/services/episode.api';
+import { episodeApi, type SaveScriptInput } from '@/features/episode/services/episode.api';
+import { seriesKeys } from '@/features/series/hooks/use-series';
+import { seriesApi } from '@/features/series/services/series.api';
 import { usageApi } from '@/features/usage/services/usage.api';
+import { errorMessage } from '@/lib/api/client';
 
-import { episodeHref, usd } from '../model';
-import { LockedScenes, scenesLocked } from './LockedScenes';
+import { episodeHref } from '../model';
+import { AiBox } from './director/AiBox';
+import { retype, SceneList, sceneOps } from './director/SceneList';
+import { DragLayer } from './director/Stage';
+import { AudioTab, CameraTab, CastTab, PictureTab, SceneTab, TextTab, tabsOf, type TabProps } from './director/Tabs';
+import { Timeline, type TabId } from './director/Timeline';
+import { useDraft } from './director/useDraft';
 import { toSaveInput } from './episode/save';
+import { LockedScenes, scenesLocked } from './LockedScenes';
 import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/direct/${projectId}/${episodeId}/${sceneId}`;
 export { sceneHref };
 
-/** Field keys read as part of the "what happens" sentence, in sentence order, with the words between them. */
-const SENTENCE: { key: string; before: string }[] = [
-  { key: 'action', before: 'Nhân vật' },
-  { key: 'side', before: 'ở' },
-  { key: 'emotion', before: ', mặt' },
-  { key: 'mood', before: '. Không khí' },
-  { key: 'transition', before: '. Mở cảnh bằng' },
-];
-
 /**
- * 08b Scene director. Stage first (live preview of the draft), shots below, and on the right the scene written as a
- * sentence of choices built from the block's own fields; free-text fields and advanced ones follow. Edits stay a
- * draft until saved; saving withdraws the scene's approval and marks its picture/voice stale (server rules).
+ * 08b Scene director: scenes on the left, the live picture with its layers underneath, and the selected layer's
+ * settings on the right. Edits stay a draft (with undo) until saved; saving withdraws the scene's approval and marks
+ * its picture or voice stale (server rules). Only the buttons with a price on them cost money.
  */
 export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId: string; episodeId: string; sceneId: string }) {
   const router = useRouter();
@@ -43,92 +44,172 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const tools = useTools();
   const project = useChannel(projectId);
   useFollowChannel(projectId);
-  const skills = useSkills(projectId);
   const blocks = useMemo(() => blockIndex(tools.data), [tools.data]);
   const v = q.data;
-
-  const [draft, setDraft] = useState<Scene | null>(null);
-  const [advanced, setAdvanced] = useState(false);
+  const seriesId = v?.episode.seriesId ?? '';
+  const series = useQuery({ queryKey: seriesKeys.one(seriesId), queryFn: () => seriesApi.get(seriesId), enabled: Boolean(seriesId) });
   const saved = v?.episode.scenes.find((s) => s.id === sceneId) ?? null;
-  // A new scene (or fresh data after a save) resets the draft.
-  useEffect(() => setDraft(saved ? structuredClone(saved) : null), [saved]);
-  const dirty = Boolean(draft && saved && JSON.stringify(draft) !== JSON.stringify(saved));
+  const draft = useDraft(saved);
+  const { dirty, undo, redo: redoEdit } = draft;
+  const s = draft.value;
+
+  const [tab, setTab] = useState<TabId>('scene');
+  const [frame, setFrame] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const player = useRef<StageApi | null>(null);
 
   const save = useEpisodeAction(episodeId, (scene: Scene) => episodeApi.saveScript(episodeId, toSaveInput(v!, { scene })), 'Đã lưu cảnh');
-  const gen = useEpisodeAction(episodeId, (what: { image: boolean; voice: boolean }) => episodeApi.assets(episodeId, { sceneIds: [sceneId], ...what, force: true }), 'Đã giao việc tạo lại');
+  const rewrite = useEpisodeAction(episodeId, (x: { input: SaveScriptInput; show: string }) => episodeApi.saveScript(episodeId, x.input));
+  const gen = useEpisodeAction(episodeId, (what: { image: boolean; voice: boolean }) => episodeApi.assets(episodeId, { sceneIds: [sceneId], ...what, force: true }), 'Đã giao việc, xem tiến độ ở đầu màn hình');
   const approve = useEpisodeAction(episodeId, (approved: boolean) => episodeApi.approvals(episodeId, { sceneIds: [sceneId], approved }));
-
-  const block = draft ? blocks.get(draft.block) : undefined;
-  const fields = block?.fields ?? [];
-  const wantsImage = fields.some((f) => f.key === 'imagePrompt');
-  const estimate = useQuery({
-    queryKey: ['estimate', 'scene', episodeId, sceneId, draft?.narration, wantsImage],
-    queryFn: () => usageApi.estimate({ images: wantsImage ? 1 : 0, texts: [draft?.narration ?? ''], voice: v?.episode.voice ?? '' }),
-    enabled: Boolean(draft && v),
-    staleTime: 60_000,
+  const writePicture = useMutation({
+    mutationFn: (scene: Scene) => episodeApi.suggestSceneFix(episodeId, scene.id, { request: '', narration: scene.narration, props: scene.props }).then((r) => ({ ...r, id: scene.id })),
+    onSuccess: (r) => {
+      draft.change((x) => (x.id === r.id ? { ...x, props: r.props } : x));
+      toast.success(r.note || 'Đã viết lại mô tả ảnh');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
   });
 
-  if (!v || !draft || !block) return <div className="ed" style={{ minHeight: '100dvh', padding: 24 }}>{q.error ? 'Không tải được cảnh này.' : 'Đang tải…'}</div>;
+  const estimate = (what: 'image' | 'voice') => ({
+    queryKey: ['estimate', 'scene', what, what === 'voice' ? s?.narration : '', v?.episode.voice],
+    queryFn: () => usageApi.estimate({ images: what === 'image' ? 1 : 0, texts: what === 'voice' ? [s?.narration ?? ''] : [], voice: v?.episode.voice ?? '' }),
+    enabled: Boolean(s && v),
+    staleTime: 60_000,
+  });
+  const imagePrice = useQuery(estimate('image'));
+  const voicePrice = useQuery(estimate('voice'));
 
-  const scenes = v.episode.scenes;
-  const index = scenes.findIndex((s) => s.id === sceneId);
+  const closed = v ? scenesLocked(v) : true;
+  const readOnly = closed || Boolean(s?.locked);
+  const busy = v ? isBusy(v) : false;
+  const saveNow = useCallback(() => {
+    if (s && dirty && !readOnly && !busy && !save.isPending) save.mutate(s);
+  }, [s, dirty, readOnly, busy, save]);
+
+  const ids = v?.episode.scenes.map((x) => x.id) ?? [];
+  const index = ids.indexOf(sceneId);
+  const go = useCallback(
+    (id: string) => {
+      if (id === sceneId) return;
+      if (dirty && !confirm('Cảnh này còn thay đổi chưa lưu. Bỏ thay đổi?')) return;
+      router.push(sceneHref(projectId, episodeId, id));
+    },
+    [dirty, router, projectId, episodeId, sceneId],
+  );
+
+  const prevId = ids[index - 1];
+  const nextId = ids[index + 1];
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const typing = e.target instanceof HTMLElement && Boolean(e.target.closest('input, textarea, select, [contenteditable]'));
+      if (mod && e.key.toLowerCase() === 's') return (e.preventDefault(), saveNow());
+      // Inside a text box the browser's own undo is the expected one.
+      if (typing) return;
+      if (mod && e.key.toLowerCase() === 'z') return (e.preventDefault(), e.shiftKey ? redoEdit() : undo());
+      if (mod || e.altKey) return;
+      if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) return (e.preventDefault(), player.current?.toggle());
+      if (e.key === 'ArrowUp' && prevId) return (e.preventDefault(), go(prevId));
+      if (e.key === 'ArrowDown' && nextId) return (e.preventDefault(), go(nextId));
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [saveNow, undo, redoEdit, go, prevId, nextId]);
+
+  // Leaving the page with a draft asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  const items = useMemo(() => new Set<string>((series.data?.rules.bible.library ?? []).filter((x) => x.kind === 'item').map((x) => x.id)), [series.data]);
+  const block = s ? blocks.get(s.block) : undefined;
+
+  if (!v || !s || !block) {
+    const gone = v && !saved;
+    return (
+      <div className="ed" style={{ minHeight: '100dvh', padding: 24 }}>
+        {q.error ? 'Không tải được cảnh này.' : gone ? <Link href={episodeHref(projectId, episodeId, 'script')}>Cảnh này không còn nữa. Về danh sách cảnh</Link> : 'Đang tải…'}
+      </div>
+    );
+  }
+
   const assets = v.assets[sceneId];
-  const busy = isBusy(v);
-  const closed = scenesLocked(v);
-  const readOnly = draft.locked || closed;
-  const setProp = (key: string, value: unknown) => setDraft({ ...draft, props: { ...draft.props, [key]: value } });
-  const byKey = new Map(fields.map((f) => [f.key, f]));
-  const sentence = SENTENCE.filter((s) => byKey.get(s.key)?.kind === 'choice' && (!byKey.get(s.key)?.advanced || advanced));
-  const inSentence = new Set(sentence.map((s) => s.key));
-  const rest = fields.filter((f) => !inSentence.has(f.key) && (advanced || !f.advanced));
-  const skill = skills.data?.find((s) => s.id === v.episode.skillId);
+  const tabs = tabsOf(block);
+  const active = tabs.some((t) => t.id === tab) ? tab : 'scene';
   const voiceLine = assets?.voiceSeconds ? new Map([[sceneId, { url: '', seconds: assets.voiceSeconds }]]) : undefined;
-  const seconds = sceneSeconds(draft, blocks, voiceLine);
-  const previewProps = {
-    ...draft.props,
-    ...(assets?.imageUrl ? { image: assets.imageUrl } : {}),
-    ...(draft.block === 'remotion/puppet' ? { sprites: v.sprites, cast: v.cast } : {}),
+  const seconds = sceneSeconds(s, blocks, voiceLine);
+  // The old voice would not match edited words or delivery.
+  const voiceUrl = dirty && saved && (s.narration !== saved.narration || JSON.stringify(s.props._tune) !== JSON.stringify(saved.props._tune)) ? null : (assets?.voiceUrl ?? null);
+  const previewProps = { ...s.props, ...(assets?.imageUrl ? { image: assets.imageUrl } : {}), ...(s.block === 'remotion/puppet' ? { sprites: v.sprites, cast: v.cast } : {}) };
+  const ordinal = v.episode.scenes.slice(0, index + 1).filter((x) => x.block === s.block).length;
+
+  const ops = sceneOps(v, blocks, sceneId);
+  // People and things share one cast list. The setup list says which is which; so does how scenes already use them.
+  const castIds = Object.keys(v.cast).filter((k) => !k.includes(':'));
+  const used = (...keys: string[]) => new Set(v.episode.scenes.flatMap((x) => keys.map((k) => String(x.props[k] ?? ''))));
+  const asPerson = used('lead', 'companion');
+  const asItem = used('item');
+  const isItem = (id: string) => items.has(id) || (asItem.has(id) && !asPerson.has(id));
+  const people = castIds.filter((id) => !isItem(id));
+  const known = castIds.filter(isItem);
+  const things = known.length ? known : castIds.filter((id) => !asPerson.has(id));
+  const apply = (x: { input: SaveScriptInput; show: string }) =>
+    rewrite.mutate(x, { onSuccess: () => x.show && x.show !== sceneId && router.push(sceneHref(projectId, episodeId, x.show)) });
+  const opsDisabled = dirty || busy || closed || rewrite.isPending;
+
+  const regenerate = async (what: { image: boolean; voice: boolean }) => {
+    try {
+      if (dirty) await save.mutateAsync(s);
+      gen.mutate(what);
+    } catch {
+      // The save already said what went wrong.
+    }
   };
-  const go = (id: string) => {
-    if (dirty && !confirm('Cảnh này còn thay đổi chưa lưu. Bỏ thay đổi?')) return;
-    router.push(sceneHref(projectId, episodeId, id));
+  const tabProps: TabProps = { view: v, draft, block, projectId, readOnly, busy: busy || gen.isPending || save.isPending, redo: (what) => void regenerate(what), price: { image: imagePrice.data?.usd, voice: voicePrice.data?.usd } };
+  const replay = () => {
+    player.current?.seek(0);
+    if (!playing) player.current?.toggle();
   };
-  const cost = estimate.data?.usd;
 
   return (
-    <div className="ed" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+    <div className="ed director">
       <header className="edtop">
         <Link className="btn sm ghost" href={episodeHref(projectId, episodeId, 'script')}>
           ← Các cảnh
         </Link>
-        <div className="col" style={{ gap: 0, flex: '1 1 auto' }}>
+        <div className="col" style={{ gap: 0, flex: '1 1 160px', minWidth: 0 }}>
           <span className="cap">
-            {v.episode.title || v.episode.topic} · Cảnh {String(index + 1).padStart(2, '0')} / {scenes.length}
+            {v.episode.title || v.episode.topic} · Cảnh {index + 1} / {ids.length}
           </span>
-          <b>{String(draft.props.caption ?? draft.props.heading ?? draft.props.title ?? block.name)}</b>
+          <b className="oneline">{String(s.props.caption || s.props.heading || s.props.title || block.name)}</b>
         </div>
+        <button className="btn sm ghost" disabled={!draft.canUndo || readOnly} onClick={undo} title="Hoàn tác (⌘Z)">
+          ↶ Hoàn tác
+        </button>
+        <button className="btn sm ghost" disabled={!draft.canRedo || readOnly} onClick={redoEdit} title="Làm lại (⇧⌘Z)">
+          ↷
+        </button>
         {dirty && <span className="chip warn">Chưa lưu</span>}
         {dirty && (
-          <button className="btn sm ghost" onClick={() => setDraft(structuredClone(saved!))}>
+          <button className="btn sm ghost" onClick={draft.reset}>
             Bỏ thay đổi
           </button>
         )}
-        <button className="btn sm" disabled={!dirty || save.isPending || busy || readOnly} onClick={() => save.mutate(draft)}>
+        <button className={`btn${dirty ? ' pri' : ''}`} disabled={!dirty || save.isPending || busy || readOnly} onClick={saveNow} title="⌘S">
           Lưu cảnh
-        </button>
-        <button
-          className="btn pri"
-          disabled={dirty || busy || gen.isPending || closed}
-          title={dirty ? 'Lưu cảnh trước khi tạo' : undefined}
-          onClick={() => gen.mutate({ image: wantsImage, voice: true })}
-        >
-          Tạo lại cảnh · {cost == null ? 'chưa rõ giá' : usd(cost)}
         </button>
       </header>
 
-      <div className="edbody" style={{ flex: 1 }}>
-        <main className="edcenter" style={{ padding: '16px 20px', gap: 12 }}>
+      <div className="edbody">
+        <SceneList view={v} sceneId={sceneId} blocks={blocks} canAdd={ops.canAdd} disabled={opsDisabled} onOpen={go} onAdd={() => apply(ops.add())} />
+
+        <main className="edcenter">
           <LockedScenes view={v} />
+          {s.locked && <div className="alert">Cảnh này khoá theo series, chỉ xem được.</div>}
           {busy && (
             <div className="alert">
               <span>Đang chạy: {v.job?.phase ?? v.job?.kind} · {Math.round((v.job?.progress ?? 0) * 100)}%</span>
@@ -136,169 +217,56 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           )}
           {v.job?.state === 'failed' && <div className="alert bad">{v.job.error ?? 'Việc vừa chạy bị lỗi.'}</div>}
           {!dirty && <SeriesUpdateBanner view={v} />}
-          <div style={{ width: '100%', maxWidth: 1000, alignSelf: 'center' }}>
-            <ScenePlayer key={`${sceneId}-${assets?.imageUrl ?? ''}`} block={draft.block} props={previewProps} ordinal={index + 1} brand={brandOf(project.data ?? null)} durationSec={seconds} narrationSrc={dirty ? null : (assets?.voiceUrl ?? null)} />
+          <div className="dstage">
+            <StagePlayer key={`${sceneId}-${s.block}-${assets?.imageUrl ?? ''}`} block={s.block} props={previewProps} ordinal={ordinal} brand={brandOf(project.data ?? null)} durationSec={seconds} narrationSrc={voiceUrl} apiRef={player} onFrame={setFrame} onPlaying={setPlaying} />
+            {active === 'cast' && !readOnly && !playing && <DragLayer draft={draft} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
           </div>
-          <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
-            <span className="cap">
-              {block.name} · {seconds.toFixed(1)} giây{dirty ? ' · xem trước bản nháp, giọng cũ tắt' : ''}
+          <div className="transport">
+            <button className="btn sm" onClick={() => player.current?.toggle()} title="Phím cách">
+              {playing ? '❚❚ Dừng' : '▶ Phát'}
+            </button>
+            <button className="btn sm ghost" onClick={() => player.current?.seek(0)}>
+              ⏮
+            </button>
+            <span className="cap mono">
+              {(frame / FPS).toFixed(1)} / {seconds.toFixed(1)}s
             </span>
-            <div className="row" style={{ gap: 6 }}>
-              {assets?.imageStale && <span className="chip warn">Ảnh không còn khớp mô tả</span>}
-              {assets?.voiceStale && <span className="chip warn">Giọng không còn khớp lời</span>}
-            </div>
+            <span style={{ flex: 1 }} />
+            {assets?.imageStale && <span className="chip warn">Ảnh cần vẽ lại</span>}
+            {assets?.voiceStale && <span className="chip warn">Giọng cần đọc lại</span>}
           </div>
-          <div className="shotstrip" style={{ overflowX: 'auto', paddingBottom: 4 }}>
-            {scenes.map((s, i) => {
-              const a = v.assets[s.id];
-              return (
-                <button key={s.id} className={`shot${s.id === sceneId ? ' on' : ''}`} onClick={() => go(s.id)} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left' }}>
-                  <div className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
-                    {!a?.imageUrl && <span className="hint">{a?.needsImage === false ? 'Không cần ảnh' : 'Chưa có ảnh'}</span>}
-                    <span>{String(i + 1).padStart(2, '0')}</span>
-                  </div>
-                  <span className="cap">
-                    {blocks.get(s.block)?.name ?? s.block}
-                    {s.approved ? ' · ✓' : ''}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} tab={active} readOnly={readOnly} onTab={setTab} onSeek={(f) => player.current?.seek(f)} />
+          <span className="cap">Phím tắt: cách = phát/dừng · ↑↓ = đổi cảnh · ⌘Z = hoàn tác · ⌘S = lưu</span>
         </main>
 
-        <aside className="edright" style={{ flexBasis: 400, gap: 14, overflowY: 'auto' }}>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <b>Chuyện gì xảy ra</b>
-            {draft.locked && <span className="chip">Khoá theo series</span>}
-          </div>
-
-          {sentence.length > 0 && (
-            <div className="beats">
-              <div className="beat on">
-                <span className="n">1</span>
-                <p style={{ lineHeight: 2.2 }}>
-                  {sentence.map((s) => (
-                    <span key={s.key}>
-                      {s.before}{' '}
-                      <OptSelect field={byKey.get(s.key)!} value={draft.props[s.key]} disabled={readOnly} onChange={(x) => setProp(s.key, x)} />{' '}
-                    </span>
-                  ))}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="field">
-            <label htmlFor="sd-line">Lời đọc</label>
-            <textarea id="sd-line" className="area" maxLength={600} readOnly={readOnly} value={draft.narration} onChange={(e) => setDraft({ ...draft, narration: e.target.value })} />
-            <span className="hint">{draft.narration.length} / 600 ký tự. Đổi lời thì phải tạo lại giọng.</span>
-          </div>
-
-          {rest.map((f) => (
-            <FieldEditor key={f.key} field={f} value={draft.props[f.key]} disabled={readOnly} onChange={(x) => setProp(f.key, x)} cast={v.cast} />
-          ))}
-
-          {fields.some((f) => f.advanced) && (
-            <button className="btn sm ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setAdvanced(!advanced)}>
-              {advanced ? 'Ẩn tuỳ chọn nâng cao' : 'Tuỳ chọn nâng cao'}
-            </button>
-          )}
-
-          <hr className="sep" />
-          <div className="col" style={{ gap: 8 }}>
-            <span className="eyebrow">Đang áp dụng</span>
-            <div className="row" style={{ gap: 6 }}>
-              {project.data?.imageStyle && <span className="chip">Phong cách: {project.data.imageStyle.slice(0, 32)}</span>}
-              {skill && <span className="chip">Skill: {skill.name}</span>}
-            </div>
-            <span className="cap">
-              Đổi ở{' '}
-              <Link href={`/projects/${projectId}/style`} style={{ color: 'inherit' }}>
-                Phong cách và skill
-              </Link>
-              .
-            </span>
-          </div>
-
-          <hr className="sep" />
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="eyebrow">Duyệt cảnh</span>
-            {draft.approved ? <span className="chip ok">Đã duyệt</span> : assets?.ready ? <span className="chip info">Sẵn sàng</span> : <span className="chip">Chưa đủ ảnh hoặc giọng</span>}
-          </div>
-          <div className="row" style={{ gap: 6 }}>
-            {draft.approved ? (
-              <button className="btn sm" disabled={dirty || busy || closed || approve.isPending} onClick={() => approve.mutate(false)}>
-                Bỏ duyệt
+        <aside className="edright">
+          <AiBox episodeId={episodeId} draft={draft} disabled={readOnly || busy} />
+          <div className="dtabs" role="tablist">
+            {tabs.map((t) => (
+              <button key={t.id} role="tab" aria-selected={active === t.id} className={active === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+                {t.label}
               </button>
-            ) : (
-              <button className="btn sm dark" disabled={dirty || busy || closed || !assets?.ready || approve.isPending} onClick={() => approve.mutate(true)}>
-                Duyệt cảnh
-              </button>
+            ))}
+          </div>
+          <div className="dpanel">
+            {active === 'scene' && (
+              <SceneTab
+                p={tabProps}
+                types={ops.types}
+                onType={(to) => draft.change((x) => retype(x, to))}
+                ops={{ canEdit: ops.canEdit, canMove: ops.canMove, disabled: opsDisabled, duplicate: () => apply(ops.duplicate()), remove: () => apply(ops.remove()), move: (d) => apply(ops.move(d)) }}
+                approve={{ run: (x) => approve.mutate(x), disabled: dirty || busy || closed || approve.isPending }}
+                goNext={nextId ? () => go(nextId) : null}
+              />
             )}
-            {index < scenes.length - 1 && (
-              <button className="btn sm ghost" onClick={() => go(scenes[index + 1]!.id)}>
-                Cảnh sau →
-              </button>
-            )}
+            {active === 'picture' && <PictureTab p={tabProps} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} />}
+            {active === 'cast' && <CastTab p={tabProps} people={people} things={things} />}
+            {active === 'camera' && <CameraTab p={tabProps} onReplay={replay} />}
+            {active === 'text' && <TextTab p={tabProps} />}
+            {active === 'audio' && <AudioTab p={tabProps} voiceUrl={voiceUrl} />}
           </div>
         </aside>
       </div>
-    </div>
-  );
-}
-
-function OptSelect({ field, value, disabled, onChange }: { field: ToolField; value: unknown; disabled: boolean; onChange: (v: string) => void }) {
-  return (
-    <select className="opt" aria-label={field.label} disabled={disabled} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} style={{ font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
-      {(field.options ?? []).map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label.toLowerCase()}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function FieldEditor({ field: f, value, disabled, onChange, cast }: { field: ToolField; value: unknown; disabled: boolean; onChange: (v: unknown) => void; cast: Record<string, string> }) {
-  const id = `sd-${f.key}`;
-  // Id fields that name a cast member get a picker of the series cast instead of a free-text box.
-  const castIds = Object.keys(cast);
-  const pick = f.kind === 'text' && (f.key === 'companion' || f.key === 'item') && castIds.length > 0;
-  return (
-    <div className="field">
-      <label htmlFor={id}>{f.label}</label>
-      {f.kind === 'choice' ? (
-        <select id={id} className="select" disabled={disabled} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)}>
-          {(f.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      ) : pick ? (
-        <div className="row" style={{ gap: 6 }}>
-          <button type="button" className={`btn sm ${!value ? 'dark' : ''}`} disabled={disabled} onClick={() => onChange('')}>
-            Không
-          </button>
-          {castIds.map((c) => (
-            <button key={c} type="button" className={`btn sm ${value === c ? 'dark' : ''}`} disabled={disabled} onClick={() => onChange(c)} title={c}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cast[c]} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-              {c}
-            </button>
-          ))}
-        </div>
-      ) : f.kind === 'textarea' ? (
-        <textarea id={id} className="area" maxLength={f.maxLength} readOnly={disabled} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      ) : f.kind === 'count' ? (
-        <input id={id} className="input" type="number" min={f.min} max={f.max} readOnly={disabled} value={Number(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} />
-      ) : f.kind === 'color' ? (
-        <input id={id} className="input" type="color" disabled={disabled} value={String(value ?? '#000000')} onChange={(e) => onChange(e.target.value)} style={{ padding: 2, width: 64 }} />
-      ) : (
-        <input id={id} className="input" maxLength={f.maxLength} readOnly={disabled} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      )}
-      {f.hint && <span className="hint">{f.hint}</span>}
     </div>
   );
 }

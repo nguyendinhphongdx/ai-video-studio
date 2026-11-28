@@ -1,6 +1,8 @@
 // What the sprite generator asks the picture model for: one prompt per expression of the puppet character.
 // Pure text, no I/O, so the wording is testable and the server only decides where files go.
 // Keep the lists in step with EXPRESSIONS and POSES in remotion/puppet/rig.ts (a test checks it).
+import { parseTune } from '../domain/tune';
+
 export const EXPRESSIONS = ['neutral', 'talk', 'blink', 'happy', 'angry', 'sad', 'surprised'] as const;
 export type Expression = (typeof EXPRESSIONS)[number];
 /** Body poses: walk cycle frames (drawn walking towards the right; the rig mirrors them), wave frames, held poses and jump frames. */
@@ -116,7 +118,12 @@ export function spritesForScene(props: { action?: unknown; emotion?: unknown; po
 }
 
 /** The supporting-cast pictures one puppet scene can show: its lead and companion (with their poses) and its item. */
-export function castForScene(props: { lead?: unknown; companion?: unknown; item?: unknown }, cast: Record<string, string>): string[] {
-  const ids = [props.lead, props.companion, props.item].filter((v): v is string => typeof v === 'string' && v !== '');
+export function castIdsOf(props: { lead?: unknown; companion?: unknown; item?: unknown; _tune?: unknown }): string[] {
+  const extras = parseTune(props._tune)?.extras?.map((e) => e.id) ?? [];
+  return [...new Set([props.lead, props.companion, props.item, ...extras].filter((v): v is string => typeof v === 'string' && v !== ''))];
+}
+
+export function castForScene(props: { lead?: unknown; companion?: unknown; item?: unknown; _tune?: unknown }, cast: Record<string, string>): string[] {
+  const ids = castIdsOf(props);
   return Object.keys(cast).filter((k) => ids.some((id) => k === id || k.startsWith(`${id}:`)));
 }

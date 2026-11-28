@@ -1,4 +1,5 @@
 // What the core needs from the outside world. The server/worker provide implementations (adapters).
+import type { VoiceDelivery } from './domain/tune';
 import type { SfxPort } from './audio/sfx';
 import type { z } from 'zod';
 
@@ -97,7 +98,7 @@ export interface LlmPort {
 
 export interface TtsPort {
   /** Writes an mp3 and returns its length in seconds. */
-  synthesize(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<number>;
+  synthesize(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta, delivery?: VoiceDelivery): Promise<number>;
 }
 
 export interface MediaPort {

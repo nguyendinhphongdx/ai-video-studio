@@ -16,8 +16,10 @@ export function useFocus(): Focus {
   const sceneId = useAssistantStore((s) => s.sceneId);
   return useMemo(() => {
     const m = (re: RegExp) => re.exec(pathname)?.[1] ?? null;
-    const episodeId = m(/^\/episodes\/([^/]+)/);
-    return { route: pathname, episodeId, seriesId: m(/^\/series\/([^/]+)/), sceneId: episodeId ? sceneId : null, skillId: m(/^\/skills\/([^/]+)/) };
+    // /episodes/<id>, /projects/<p>/episodes/<id>/..., /direct/<p>/<episode>/<scene>
+    const direct = /^\/direct\/[^/]+\/([^/]+)\/([^/]+)/.exec(pathname);
+    const episodeId = direct?.[1] ?? m(/\/episodes\/([^/]+)/);
+    return { route: pathname, episodeId, seriesId: m(/\/series\/([^/]+)/), sceneId: direct?.[2] ?? (episodeId ? sceneId : null), skillId: m(/\/skills\/([^/]+)/) };
   }, [pathname, sceneId]);
 }
 

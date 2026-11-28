@@ -1,7 +1,7 @@
 // The database tables. Postgres; drizzle-kit generates the migrations in drizzle/ from this file
 // (`npm run db:generate`), and the app applies them when it starts.
 import { sql } from 'drizzle-orm';
-import { type AnyPgColumn, boolean, customType, doublePrecision, index, integer, pgTable, primaryKey, serial, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, boolean, customType, doublePrecision, index, integer, pgTable, primaryKey, real, serial, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /**
  * A `timestamptz` that the code reads and writes as an ISO string ("2026-11-27T10:43:09.650Z"), as it always has:
@@ -112,6 +112,8 @@ export const episodes = pgTable(
     formats: jsonText('formats').notNull(),
     voice: text('voice').notNull(),
     music: boolean('music').notNull(),
+    /** Level of the background music under the voice, 0-1. */
+    musicVolume: real('music_volume').notNull().default(0.12),
     sceneCount: integer('scene_count'),
     title: text('title').notNull().default(''),
     publish: jsonText('publish'),

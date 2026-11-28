@@ -34,6 +34,7 @@ const toEpisode = (r: typeof episodes.$inferSelect, sceneList: Scene[]): Episode
   formats: json<Format[]>(r.formats, ['landscape']),
   voice: r.voice as Episode['voice'],
   music: r.music,
+  musicVolume: r.musicVolume,
   autoImages: r.autoImages,
   autoVoice: r.autoVoice,
   sceneCount: r.sceneCount,
@@ -63,7 +64,7 @@ async function scenesOf(episodeIds: string[]): Promise<Map<string, Scene[]>> {
   return out;
 }
 
-export type EpisodeUpdate = EpisodePatch & Partial<Pick<Episode, 'formats' | 'voice' | 'music' | 'topic' | 'goal' | 'notes' | 'skillId' | 'autoImages' | 'autoVoice'>>;
+export type EpisodeUpdate = EpisodePatch & Partial<Pick<Episode, 'formats' | 'voice' | 'music' | 'musicVolume' | 'topic' | 'goal' | 'notes' | 'skillId' | 'autoImages' | 'autoVoice'>>;
 
 const thisEpisode = (id: string) => and(eq(episodes.id, id), scoped(episodes));
 
@@ -86,7 +87,7 @@ export const episodeRepository = {
       .insert(episodes)
       .values({
         id: e.id, channelId: e.channelId, seriesId: e.seriesId, seriesVersion: e.seriesVersion, number: e.number, topic: e.topic, goal: e.goal, notes: e.notes, skillId: e.skillId, status: e.status,
-        formats: JSON.stringify(e.formats), voice: e.voice, music: e.music, sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
+        formats: JSON.stringify(e.formats), voice: e.voice, music: e.music, musicVolume: e.musicVolume ?? 0.12, sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
       });
   },
   async update(id: string, patch: EpisodeUpdate) {
@@ -100,6 +101,7 @@ export const episodeRepository = {
       if (patch.formats !== undefined) set.formats = JSON.stringify(patch.formats);
       if (patch.voice !== undefined) set.voice = patch.voice;
       if (patch.music !== undefined) set.music = patch.music;
+      if (patch.musicVolume !== undefined) set.musicVolume = patch.musicVolume;
       if (patch.topic !== undefined) set.topic = patch.topic;
       if (patch.goal !== undefined) set.goal = patch.goal;
       if (patch.notes !== undefined) set.notes = patch.notes;

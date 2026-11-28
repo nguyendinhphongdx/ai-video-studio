@@ -39,6 +39,8 @@ export function describeEpisode(v: EpisodeView) {
     autoVoice: e.autoVoice,
     job: v.job ? { kind: v.job.kind, state: v.job.state, progress: Math.round(v.job.progress * 100), error: v.job.error } : null,
     knowledge: v.knowledge,
+    /** Ids a scene may name in lead/companion/item. */
+    cast: Object.keys(v.cast).filter((k) => !k.includes(':')),
     approved: `${done}/${e.scenes.length}`,
     issues: v.issues.map((i) => i.message),
     scenes: e.scenes.map((s, i) => {

@@ -7,6 +7,7 @@ import type { z } from 'zod';
 
 import type { Format } from '../domain/catalog';
 import type { SceneDesign } from '../domain/design';
+import { parseTune, TUNE_KEY } from '../domain/tune';
 import type { BlockRef } from '../domain/episode';
 
 export type ToolFieldKind = 'text' | 'textarea' | 'emoji' | 'count' | 'color' | 'choice';
@@ -88,7 +89,10 @@ export function cleanProps(block: BlockDefinition, props: unknown): Record<strin
   const given = props && typeof props === 'object' && !Array.isArray(props) ? (props as Record<string, unknown>) : null;
   const filled = given ? { ...(block.defaults as Record<string, unknown>), ...Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)) } : props;
   const parsed = block.props.parse(filled);
-  return (block.normalize ? block.normalize(parsed) : parsed) as Record<string, unknown>;
+  const clean = (block.normalize ? block.normalize(parsed) : parsed) as Record<string, unknown>;
+  // Hand adjustments are not part of any block's schema; keep them (last, so comparisons stay stable).
+  const tune = parseTune(given?.[TUNE_KEY]);
+  return tune ? { ...clean, [TUNE_KEY]: tune } : clean;
 }
 
 // ---- rendering (server side) ---------------------------------------------------------------

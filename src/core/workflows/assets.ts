@@ -4,7 +4,8 @@ import path from 'node:path';
 
 import { UserFacingError } from '../domain/errors';
 import type { CoreDeps, ProgressFn } from '../ports';
-import { characterRefs, imageSpec, imageStyleOf, needsVoice, readiness, usesCharacters, voiceHashOf } from '../scenes/assets';
+import { deliveryOf } from '../domain/tune';
+import { characterRefs, imageSpec, imageStyleOf, needsVoice, readiness, usesCharacters, sceneVoiceHash } from '../scenes/assets';
 
 import { buildContext } from './context';
 
@@ -53,9 +54,9 @@ export async function generateSceneAssets(deps: CoreDeps, episodeId: string, req
       await deps.episodes.updateScene(episodeId, scene.id, { imagePath: deps.media.relative(file), imageHash: spec.hash, approved: false });
       images++;
     } else if (needsVoice(scene)) {
-      const hash = voiceHashOf(episode.voice, scene.narration);
+      const hash = sceneVoiceHash(episode.voice, scene);
       const file = path.join(dir, 'voice', `${scene.id}-${hash}.mp3`);
-      const seconds = await deps.tts.synthesize(scene.narration, episode.voice, file, { sceneId: scene.id });
+      const seconds = await deps.tts.synthesize(scene.narration, episode.voice, file, { sceneId: scene.id }, deliveryOf(scene.props));
       await deps.episodes.updateScene(episodeId, scene.id, { voicePath: deps.media.relative(file), voiceSeconds: seconds, voiceHash: hash, approved: false });
       voices++;
     }

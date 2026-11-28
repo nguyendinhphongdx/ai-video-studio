@@ -1,5 +1,6 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
+import { spanAt, tuneOf, type Extra, type Placement } from '../../src/core/domain/tune';
 import { useBrand, useFont, useLayout } from '../primitives';
 import { ANCHOR_X, companionFlip, companionSpriteAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
@@ -37,12 +38,20 @@ const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
  * A character (expression and pose sprites from the series bible) acting on an AI-painted empty background:
  * it walks in (walk cycle), talks (mouth sprite and bounce), blinks, shows an emotion, gestures (wave, point, bow…) and walks out.
  */
-export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPose, lead, companion, companionAction, companionEmotion, item, image, sprites: heroSprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
+export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose: ownPose, lead, companion, companionAction, companionEmotion, item, image, sprites: heroSprites, cast }: PuppetSceneProps & { _tune?: unknown; image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
   const frame = useCurrentFrame();
+  const tune = tuneOf({ _tune });
+  const AT: Placement = { dx: 0, dy: 0, scale: 1 };
+  const heroAt = tune.hero ?? AT;
   const { fps, durationInFrames } = useVideoConfig();
   const { u, width, height } = useLayout();
   const brand = useBrand();
   const font = useFont();
+  const now = frame / fps;
+  const heroOn = spanAt(tune.heroTime, now).on;
+  const friend = spanAt(tune.companionTime, now);
+  const thing = spanAt(tune.itemTime, now);
+  const weather = spanAt(tune.effectTime, now);
   const t = frame / fps;
   const duration = durationInFrames / fps;
   // A cast character in the main place acts with its own pictures; the hero's own poses do not apply to it.
@@ -75,18 +84,19 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
   return (
     <AbsoluteFill style={{ background: '#1b1b1b' }}>
       {image ? <Img src={src(image)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `translateX(${drift}px) scale(${bgZoom})` }} /> : null}
-      <Atmosphere mood={mood ?? 'calm'} frame={frame} fps={fps} width={width} height={height} u={u} />
-      {companionSrc ? <Companion src={companionSrc} side={side} t={t} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} flip={companionFlip(companionPose, side)} /> : null}
+      {weather.on ? <Atmosphere mood={mood ?? 'calm'} frame={Math.round(weather.local * fps)} fps={fps} width={width} height={height} u={u} /> : null}
+      {companionSrc && friend.on ? <Companion at={tune.companion ?? AT} height={height} src={companionSrc} side={side} t={friend.local} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} flip={companionFlip(companionPose, side)} /> : null}
+      {(tune.extras ?? []).filter((e) => e.kind === 'person').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       <div
         style={{
           position: 'absolute',
-          left: pose.x * width - (mainH * STAGE_ASPECT) / 2,
-          bottom: ground + (pose.y + bounce.y) * height,
+          left: (pose.x + heroAt.dx) * width - (mainH * STAGE_ASPECT) / 2,
+          bottom: ground + (pose.y + bounce.y - heroAt.dy) * height,
           width: mainH * STAGE_ASPECT,
           height: mainH,
-          opacity: pose.alpha,
+          opacity: heroOn ? pose.alpha : 0,
           transformOrigin: '50% 100%',
-          transform: `rotate(${pose.angle}deg) scale(${pose.scale * pose.squashX}, ${pose.scale * pose.squashY * bounce.squashY})`,
+          transform: `rotate(${pose.angle}deg) scale(${pose.scale * pose.squashX * heroAt.scale}, ${pose.scale * pose.squashY * bounce.squashY * heroAt.scale})`,
         }}
       >
         {sprite ? (
@@ -97,11 +107,12 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
           </div>
         )}
       </div>
-      {itemSrc ? <FloatingItem src={itemSrc} heroX={pose.x} t={t} width={width} stageH={stageH} ground={ground} u={u} /> : null}
-      <div style={{ position: 'absolute', left: pose.x * width - stageH * 0.2, bottom: ground - 14 * u, width: stageH * 0.4, height: 28 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', filter: `blur(${6 * u}px)`, opacity: pose.alpha * (1 - pose.y * 3) }} />
+      {itemSrc && thing.on ? <FloatingItem at={tune.item ?? AT} height={height} src={itemSrc} heroX={pose.x + heroAt.dx} t={thing.local} width={width} stageH={stageH} ground={ground} u={u} /> : null}
+      <div style={{ position: 'absolute', left: (pose.x + heroAt.dx) * width - stageH * 0.2 * heroAt.scale, bottom: ground - 14 * u - heroAt.dy * height, width: stageH * 0.4 * heroAt.scale, height: 28 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', filter: `blur(${6 * u}px)`, opacity: heroOn ? pose.alpha * (1 - pose.y * 3) : 0 }} />
+      {(tune.extras ?? []).filter((e) => e.kind === 'item').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(20,10,5,0.38) 100%)', pointerEvents: 'none' }} />
-      {caption ? (
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 28 * u, display: 'flex', justifyContent: 'center' }}>
+      {caption && tune.captionPlace !== 'off' ? (
+        <div style={{ position: 'absolute', left: 0, right: 0, ...(tune.captionPlace === 'top' ? { top: 28 * u } : { bottom: 28 * u }), display: 'flex', justifyContent: 'center' }}>
           <div style={{ padding: `${12 * u}px ${36 * u}px`, borderRadius: 999, background: 'rgba(255,255,255,0.94)', fontFamily: font, fontWeight: 800, fontSize: 52 * u, color: '#222' }}>{caption}</div>
         </div>
       ) : null}
@@ -109,18 +120,49 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
   );
 }
 
-/** A supporting character on the side opposite the hero: it slides in, then breathes and sways. */
-function Companion({ src: file, side, t, width, stageH, ground, u, talking, flip }: { src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number; talking: boolean; flip: boolean }) {
-  const from = side === 'right' ? 'left' : 'right';
-  const k = smoothstep((t - 0.2) / 0.9);
-  const x = (from === 'left' ? -0.2 : 1.2) + (ANCHOR_X[from === 'left' ? 'left' : 'right'] - (from === 'left' ? -0.2 : 1.2)) * k;
-  const bounce = talkBounce(t + 0.37, talking);
-  const breathe = (1 + Math.sin(t * 2.4 + 1) * 0.014) * bounce.squashY;
-  const h = stageH * 0.86;
+/** One of the added people or things: a person breathes and acts like the companion, a thing hovers. */
+function ExtraFigure({ extra: e, index, cast, posesOf, now, width, height, stageH, ground, u }: { extra: Extra; index: number; cast?: Record<string, string>; posesOf: (id: string) => Record<string, string>; now: number; width: number; height: number; stageH: number; ground: number; u: number }) {
+  const { on, local } = spanAt(e.time, now);
+  if (!on || !cast?.[e.id]) return null;
+  const appear = smoothstep(local / 0.5);
+  if (e.kind === 'item') {
+    const size = stageH * 0.5 * e.scale;
+    return (
+      <div style={{ position: 'absolute', left: e.x * width - size / 2, bottom: ground + e.y * height + Math.sin(now * 2.2 + index) * 0.02 * stageH, width: size, height: size, opacity: appear, transform: `rotate(${Math.sin(now * 1.3 + index) * 9}deg) scale(${0.7 + appear * 0.3})`, filter: `drop-shadow(0 0 ${22 * u}px rgba(255,200,80,0.85))` }}>
+        <Img src={src(cast[e.id]!)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      </div>
+    );
+  }
+  const poses = posesOf(e.id);
+  const pose = companionSpriteAt({ action: e.action, emotion: e.emotion, t: now + index * 0.4, available: Object.keys(poses) });
+  const file = (pose ? poses[pose] : undefined) ?? cast[e.id]!;
+  const h = stageH * 0.86 * e.scale;
+  const bounce = talkBounce(now + index * 0.37, e.action === 'talk');
+  const breathe = (1 + Math.sin(now * 2.4 + index) * 0.014) * bounce.squashY;
+  const bottom = ground + e.y * height;
   return (
     <>
-      <div style={{ position: 'absolute', left: x * width - h * 0.18, bottom: ground - 12 * u, width: h * 0.36, height: 24 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
-      <div style={{ position: 'absolute', left: x * width - (h * STAGE_ASPECT) / 2, bottom: ground + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
+      <div style={{ position: 'absolute', left: e.x * width - h * 0.18, bottom: bottom - 12 * u, width: h * 0.36, height: 24 * u, opacity: appear, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
+      <div style={{ position: 'absolute', left: e.x * width - (h * STAGE_ASPECT) / 2, bottom: bottom + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, opacity: appear, transformOrigin: '50% 100%', transform: `scale(${2 - breathe}, ${breathe})` }}>
+        {/* Those right of the middle turn to face it, as the companion does. */}
+        <Img src={src(file)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: companionFlip(pose, e.x > 0.5 ? 'left' : 'right') ? 'scaleX(-1)' : undefined }} />
+      </div>
+    </>
+  );
+}
+
+/** A supporting character on the side opposite the hero: it slides in, then breathes and sways. */
+function Companion({ at, height, src: file, side, t, width, stageH, ground, u, talking, flip }: { at: Placement; height: number; src: string; side: Side; t: number; width: number; stageH: number; ground: number; u: number; talking: boolean; flip: boolean }) {
+  const from = side === 'right' ? 'left' : 'right';
+  const k = smoothstep((t - 0.2) / 0.9);
+  const x = (from === 'left' ? -0.2 : 1.2) + (ANCHOR_X[from === 'left' ? 'left' : 'right'] + at.dx - (from === 'left' ? -0.2 : 1.2)) * k;
+  const bounce = talkBounce(t + 0.37, talking);
+  const breathe = (1 + Math.sin(t * 2.4 + 1) * 0.014) * bounce.squashY;
+  const h = stageH * 0.86 * at.scale;
+  return (
+    <>
+      <div style={{ position: 'absolute', left: x * width - h * 0.18, bottom: ground - 12 * u - at.dy * height, width: h * 0.36, height: 24 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
+      <div style={{ position: 'absolute', left: x * width - (h * STAGE_ASPECT) / 2, bottom: ground + bounce.y * stageH - at.dy * height, width: h * STAGE_ASPECT, height: h, transformOrigin: '50% 100%', transform: `rotate(${Math.sin(t * 1.7 + 2) * 1.4}deg) scale(${2 - breathe}, ${breathe})` }}>
         <Img src={file} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: flip ? 'scaleX(-1)' : undefined }} />
       </div>
     </>
@@ -128,17 +170,17 @@ function Companion({ src: file, side, t, width, stageH, ground, u, talking, flip
 }
 
 /** A prop (a ribbon, a ring) that hovers beside the hero, bobbing and glowing. */
-function FloatingItem({ src: file, heroX, t, width, stageH, ground, u }: { src: string; heroX: number; t: number; width: number; stageH: number; ground: number; u: number }) {
+function FloatingItem({ at, height, src: file, heroX, t, width, stageH, ground, u }: { at: Placement; height: number; src: string; heroX: number; t: number; width: number; stageH: number; ground: number; u: number }) {
   const dir = heroX > 0.5 ? -1 : 1;
-  const size = stageH * 0.5;
+  const size = stageH * 0.5 * at.scale;
   const bob = Math.sin(t * 2.2) * 0.02;
   const appear = smoothstep((t - 0.5) / 0.6);
   return (
     <div
       style={{
         position: 'absolute',
-        left: (heroX + dir * 0.17) * width - size / 2,
-        bottom: ground + stageH * (0.42 + bob),
+        left: (heroX + dir * 0.17 + at.dx) * width - size / 2,
+        bottom: ground + stageH * (0.42 + bob) - at.dy * height,
         width: size,
         height: size,
         opacity: appear,

@@ -103,7 +103,7 @@ export const reviseScript = defineTool({
 
 export const editScene = defineTool({
   name: 'edit_scene',
-  description: 'Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
+  description: 'Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks) chỉnh tay trong props._tune (hero/companion/item: {dx,dy,scale} theo phần khung hình; holdSec nghỉ cuối cảnh; sfxVolume 0-2; captionPlace top/bottom/off; captionLook bar/pill/chip/ribbon; voiceStyle cheerful/gentle/dramatic/whisper; voiceSpeed slow/fast; captionTime/heroTime/companionTime/itemTime/effectTime: {from,to} giây; extras: danh sách người/vật thêm [{id,kind:person|item,x 0-1,y,scale,action,emotion,time}]) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
   risk: 'write',
   schema: z.object({ episodeId: z.string(), sceneId: z.string(), narration: z.string().max(600).optional(), props: z.record(z.string(), z.unknown()).optional(), block: z.string().optional().describe('Mã khối để đổi loại cảnh, ví dụ "remotion/counter"') }),
   summarize: async (a, ctx) => `Sửa cảnh của video ${await label(ctx, a.episodeId)}: ${[a.block && `đổi loại thành @${a.block}`, a.narration !== undefined && 'lời đọc', a.props && Object.keys(a.props).join(', ')].filter(Boolean).join(' + ')}`,
@@ -118,6 +118,22 @@ export const editScene = defineTool({
     const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, ...(target ? { block: target.ref } : {}), narration: narration ?? s.narration, props: target ? { ...(target.defaults as Record<string, unknown>), ...(props ?? {}) } : { ...s.props, ...(props ?? {}) } } : s));
     const after = await episodeService.saveScript(episodeId, scriptInput(v, scenes));
     return { ok: true, message: `Đã sửa cảnh ${after.episode.scenes.findIndex((s) => s.id === sceneId) + 1}. Cần tạo lại ảnh/giọng nếu nội dung liên quan đã đổi, rồi duyệt lại.` };
+  },
+});
+
+export const aiFixScene = defineTool({
+  name: 'ai_fix_scene',
+  description: 'Nhờ AI chuyên sửa cảnh viết lại MỘT cảnh rồi lưu: để trống request thì viết lại mô tả ảnh, nhân vật, cảm xúc, động tác cho khớp lời đọc; có request thì sửa đúng điều đó (lời đọc, ai đứng đâu, to nhỏ, không khí...). Ưu tiên công cụ này khi người dùng chê hình không khớp lời hoặc muốn ghép lại nhân vật. Sau đó cần tạo lại ảnh/giọng đã lỗi thời (generate_scene_assets, tốn tiền, hỏi trước).',
+  risk: 'write',
+  schema: z.object({ episodeId: z.string(), sceneId: z.string(), request: z.string().max(600).default('') }),
+  summarize: async (a, ctx) => `AI sửa một cảnh của video ${await label(ctx, a.episodeId)}: ${a.request || 'viết hình cho khớp lời đọc'}`,
+  async run({ episodeId, sceneId, request }, ctx) {
+    const v = await ownEpisode(ctx, episodeId);
+    const fix = await episodeService.suggestSceneFix(episodeId, sceneId, { request });
+    const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, narration: fix.narration, props: fix.props } : s));
+    const after = await episodeService.saveScript(episodeId, scriptInput(v, scenes));
+    const a = after.assets[sceneId];
+    return { ok: true, message: `${fix.note} Đã lưu.${a?.imageStale ? ' Ảnh cũ không còn khớp, cần vẽ lại.' : ''}${a?.voiceStale ? ' Giọng cũ không còn khớp, cần đọc lại.' : ''}` };
   },
 });
 
@@ -253,4 +269,4 @@ export const deleteEpisode = defineTool({
   },
 });
 
-export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, addScene, removeScene, setEpisodeOptions, estimateCost, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];
+export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, aiFixScene, addScene, removeScene, setEpisodeOptions, estimateCost, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];

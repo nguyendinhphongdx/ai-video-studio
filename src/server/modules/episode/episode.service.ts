@@ -1,10 +1,15 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import { compileContext } from '@/core/context/layer';
 import { emptyAssets, UserFacingError, type Episode, type JobKind, type Scene } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
 import { parseDraft, extractJson, scriptSchema, slotBlocks } from '@/core/script/script';
 import { emptyPublishKit } from '@/core/script/publish';
 import { cleanProps } from '@/core/tools/tool';
-import { currentProps, imageStyleOf, readiness } from '@/core/scenes/assets';
+import { runTask } from '@/core/agent/runner';
+import { fixSceneTask, type CastMember, type SceneFix } from '@/core/tasks/fix-scene';
+import { currentProps, imageSpec, imageStyleOf, readiness } from '@/core/scenes/assets';
 import { buildContext, templateVars } from '@/core/workflows/context';
 import { suggestTopics } from '@/core/workflows/suggest';
 import { scriptIssues } from '@/core/workflows/quality';
@@ -19,6 +24,7 @@ import { voiceAvailable } from '@/server/adapters/tts/tts.service';
 import { appDeps } from '@/server/core-deps';
 import { now } from '@/server/db';
 import { conflict } from '@/server/http/api-error';
+import type { SeriesBible } from '@/core/domain/series';
 import { aiRunRepository } from '@/server/modules/ai-run/ai-run.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
@@ -29,7 +35,7 @@ import { skillService } from '@/server/modules/skill/skill.service';
 
 import { episodeRepository } from './episode.repository';
 import { loadEpisode } from './episode.store';
-import type { ApprovalInput, CreateEpisodeInput, EpisodeOptionsInput, EpisodeView, SaveScriptInput, SceneAssetView, SceneAssetsInput } from './episode.types';
+import type { ApprovalInput, CreateEpisodeInput, EpisodeOptionsInput, EpisodeView, SaveScriptInput, SceneAssetView, SceneAssetsInput, SceneFixInput, ScenePicture } from './episode.types';
 
 async function visibleJob(episodeId: string) {
   const active = await jobRepository.active(episodeId);
@@ -81,6 +87,17 @@ function sceneAssetViews(e: Episode, channelStyle: string): Record<string, Scene
 }
 
 const editable = (e: Episode) => e.status === 'draft' || e.status === 'script_review';
+
+/** What a scene may name by id: the series' supporting characters, props and the hero's own poses. */
+export function castOf(bible: SeriesBible | undefined): CastMember[] {
+  if (!bible) return [];
+  const planned = new Map((bible.library ?? []).map((x) => [x.id, x]));
+  const cast = Object.keys(bible.characterCast ?? {})
+    .filter((k) => !k.includes(':'))
+    .map((id): CastMember => ({ id, kind: planned.get(id)?.kind === 'item' ? 'item' : 'character', about: planned.get(id) ? `${planned.get(id)!.name}. ${planned.get(id)!.description}` : id }));
+  const poses = Object.entries(bible.customPoses ?? {}).map(([id, about]): CastMember => ({ id, kind: 'pose', about }));
+  return [...cast, ...poses];
+}
 
 export const episodeService = {
   /** Next-video ideas from the channel's identity, knowledge and the videos it already has. */
@@ -143,6 +160,7 @@ export const episodeService = {
       formats: input.formats,
       voice: input.voice ?? channel.voice,
       music: input.music,
+      musicVolume: 0.12,
       sceneCount: input.sceneCount,
       createdAt: ts,
       updatedAt: ts,
@@ -268,6 +286,56 @@ export const episodeService = {
     if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Dùng "Copy prompt" để nhờ Claude sửa.');
     await enqueue(id, 'revise_script', { feedback });
     await episodeRepository.addEvent(id, `Nhờ AI sửa: ${feedback}`);
+    return await episodeService.get(id);
+  },
+
+  /** One AI call proposing a fix for one scene. Nothing is saved: the person reads it, then saves like any edit. */
+  async suggestSceneFix(id: string, sceneId: string, input: SceneFixInput): Promise<SceneFix> {
+    const e = await loadEpisode(id);
+    if (!editable(e)) throw conflict('Kịch bản đã được duyệt. Mở lại để sửa cảnh.');
+    const index = e.scenes.findIndex((s) => s.id === sceneId);
+    // The draft on screen wins over what is saved, so the AI sees the words the person just typed.
+    const saved = e.scenes[index];
+    if (!saved) throw new UserFacingError('Cảnh không thuộc video này');
+    if (saved.locked) throw new UserFacingError('Cảnh này bị khoá theo series, không sửa được.');
+    const block = appDeps.tools.block(saved.block);
+    if (!block) throw new UserFacingError(`Khối @${saved.block} không tồn tại`);
+    if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt.');
+    const scene: Scene = { ...saved, narration: input.narration ?? saved.narration, props: input.props ?? saved.props };
+    const ctx = await buildContext(appDeps, e);
+    return withUsage({ channelId: e.channelId, purpose: 'fix-scene' }, () =>
+      runTask({ llm: appDeps.llm, runs: appDeps.aiRuns, layers: appDeps.layers }, fixSceneTask, { block, scene, before: e.scenes[index - 1]?.narration ?? null, after: e.scenes[index + 1]?.narration ?? null, cast: castOf(ctx.series?.version.bible), request: input.request }, ctx),
+    );
+  },
+
+  /** Every picture ever drawn for a scene that is still on disk, newest first: a redraw never deletes the one before. */
+  async scenePictures(id: string, sceneId: string): Promise<ScenePicture[]> {
+    const e = await loadEpisode(id);
+    const scene = e.scenes.find((s) => s.id === sceneId);
+    if (!scene) throw new UserFacingError('Cảnh không thuộc video này');
+    const dir = path.join(await appDeps.media.episodeDir(id), 'images');
+    const names = (await fs.readdir(dir).catch(() => [] as string[])).filter((n) => n.startsWith(`${sceneId}-`) && n.endsWith('.png'));
+    const dated = await Promise.all(names.map(async (name) => ({ name, at: (await fs.stat(path.join(dir, name))).mtimeMs })));
+    return dated.sort((a, b) => b.at - a.at).map(({ name }) => {
+      const rel = appDeps.media.relative(path.join(dir, name));
+      return { name, url: mediaUrl(rel), current: scene.assets.imagePath === rel };
+    });
+  },
+
+  /** Puts an earlier picture back on the scene. The person picked it, so it counts as matching today's description. */
+  async useScenePicture(id: string, sceneId: string, name: string): Promise<EpisodeView> {
+    const e = await loadEpisode(id);
+    if (!editable(e)) throw conflict('Kịch bản đã được duyệt. Mở lại để sửa cảnh.');
+    if (await jobRepository.active(id)) throw conflict('Video đang có việc chạy, chờ xong rồi đổi ảnh.');
+    const scene = e.scenes.find((s) => s.id === sceneId);
+    // The name must be one we listed: it never becomes a path otherwise.
+    if (!scene || !(await episodeService.scenePictures(id, sceneId)).some((p) => p.name === name)) throw new UserFacingError('Không tìm thấy ảnh này');
+    const ctx = await buildContext(appDeps, e);
+    const spec = imageSpec(scene, appDeps.tools, imageStyleOf(ctx));
+    if (!spec) throw new UserFacingError('Cảnh này không dùng ảnh');
+    const rel = appDeps.media.relative(path.join(await appDeps.media.episodeDir(id), 'images', name));
+    await episodeRepository.updateScene(id, sceneId, { imagePath: rel, imageHash: spec.hash, approved: false });
+    await episodeRepository.addEvent(id, 'Đã chọn lại một bản ảnh cũ');
     return await episodeService.get(id);
   },
 

@@ -10,6 +10,7 @@ import type { CutId } from '../shots/cut-meta';
 import type { FxId } from '../shots/fx-meta';
 import { FxLayer } from '../shots/fx';
 
+import { Overlay } from './figures';
 import { autoMotion, cutFor, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
 
 export interface PictureSceneProps {
@@ -26,18 +27,18 @@ export interface PictureSceneProps {
 
 
 /** A full-frame AI picture with a camera move and a lower-third caption in the channel colours. */
-export function PictureScene({ caption, imagePrompt, motion, fx, rhythm, image, ordinal = 1, _tune }: PictureSceneProps & { _tune?: unknown; image?: string; ordinal?: number }) {
+export function PictureScene({ caption, imagePrompt, motion, fx, rhythm, image, ordinal = 1, _tune, cast }: PictureSceneProps & { _tune?: unknown; image?: string; ordinal?: number; cast?: Record<string, string> }) {
   const fxKind = (!fx || fx === 'auto' ? fxFor(ordinal) : fx) as FxId;
   const cutKind = (!rhythm || rhythm === 'auto' ? cutFor(ordinal) : rhythm) as CutId;
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { u, portrait } = useLayout();
+  const { u, portrait, width, height } = useLayout();
   const brand = useBrand();
   const font = useFont();
   const main = brand.palette[0] ?? '#4F46E5';
   const accent = brand.palette[1] ?? '#FFC53D';
   const src = image ? (/^(data:|https?:|\/)/.test(image) ? image : staticFile(image)) : null;
-  const { captionLook, captionPlace, captionTime, effectTime } = tuneOf({ _tune });
+  const { captionLook, captionPlace, captionTime, effectTime, extras } = tuneOf({ _tune });
   const caps = spanAt(captionTime, frame / fps);
   const light = spanAt(effectTime, frame / fps);
   const look = captionLook ?? captionLookFor(ordinal);
@@ -95,6 +96,7 @@ export function PictureScene({ caption, imagePrompt, motion, fx, rhythm, image, 
           <FxLayer kind={fxKind} accent={accent} />
         </Sequence>
       ) : null}
+      {extras ? <Overlay extras={extras} cast={cast} now={frame / fps} width={width} height={height} u={u} /> : null}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%)' }} />
       {tag}
     </AbsoluteFill>

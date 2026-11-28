@@ -101,6 +101,12 @@ describe('hand adjustments of a scene', () => {
     expect(next.extras![0]!.anim).toBeUndefined();
   });
 
+  it('lays effects over a picture without asking the cast for them', () => {
+    const next = patchTune({}, { extras: [{ id: 'impact', x: 0.6 }, { id: 'can-khon-quyen', kind: 'item' }] })!;
+    expect(next.extras!.map((e) => e.kind)).toEqual(['fx', 'item']);
+    expect(castForScene({ _tune: next }, { 'can-khon-quyen': 'a', impact: 'never' })).toEqual(['can-khon-quyen']);
+  });
+
   it('stays on a scene the AI rewrote without changing what it says', () => {
     const base = { id: 'a', slotId: 'body', block: puppet.id, locked: false, narration: 'Một lời', approved: true, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
     const previous = [{ ...base, block: 'remotion/puppet' as const, props: { ...(puppet.defaults as object), _tune: { holdSec: 1 } } }];

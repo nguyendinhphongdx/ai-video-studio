@@ -151,10 +151,11 @@ export const ITEM_MOTIONS = ['float', 'still', 'spin'] as const;
 export const EXTRA_ACTIONS = ['idle', 'talk', 'wave', 'point'] as const;
 export const EXTRA_EMOTIONS = ['neutral', 'happy', 'angry', 'sad', 'surprised'] as const;
 
-/** One more person or thing on a drawn-figure scene, beyond the hero, companion and item. */
+/** One more person, thing or effect laid over a drawn-figure or painted-picture scene, beyond the hero, companion and item. */
 const extra = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]{0,23}$/),
-  kind: z.enum(['person', 'item']).catch('person'),
+  /** `fx` is a burst or twinkle at a point; its id is one of ARRIVE_EFFECTS and needs no picture. */
+  kind: z.enum(['person', 'item', 'fx']).catch('person'),
   /** Centre of the feet (or of the thing) as a share of the width, and height above its resting line. */
   x: clamped(-0.1, 1.1, 0.5),
   y: clamped(-0.2, 0.8, 0),
@@ -221,9 +222,12 @@ export const tuneOf = (props: Record<string, unknown>): SceneTune => parseTune(p
 /** Where a newly added figure stands: the first gap in this order, so additions do not pile up. */
 const EXTRA_SPOTS = [0.1, 0.9, 0.36, 0.64, 0.22, 0.78, 0.04, 0.96];
 
-export function newExtra(id: string, kind: Extra['kind'], existing: Extra[]): Extra {
+export const isEffectId = (id: string) => (ARRIVE_EFFECTS as readonly string[]).includes(id);
+
+export function newExtra(id: string, asked: Extra['kind'], existing: Extra[]): Extra {
+  const kind = isEffectId(id) ? 'fx' : asked;
   const same = existing.filter((e) => e.kind === kind).length;
-  return { id, kind, x: EXTRA_SPOTS[same % EXTRA_SPOTS.length]!, y: kind === 'item' ? 0.3 : 0, scale: 1, action: 'idle', emotion: 'neutral', flip: false, front: false, enter: 'fade', motion: 'float', glow: true };
+  return { id, kind, x: EXTRA_SPOTS[same % EXTRA_SPOTS.length]!, y: kind === 'person' ? 0 : 0.3, scale: 1, action: 'idle', emotion: 'neutral', flip: false, front: false, enter: 'fade', motion: 'float', glow: true };
 }
 
 // What an AI may change, spelled out so a model sees every knob with its range. One shape for the in-screen fix and the
@@ -253,7 +257,7 @@ const aiMoves = z
 const aiPlace = z.object({ moves: aiMoves, anim: aiAnim,  dx: z.number().describe('-0.8..0.8, phần chiều rộng khung, phải là dương'), dy: z.number().describe('-0.8..0.8, phần chiều cao khung, xuống là dương'), scale: z.number().describe('0.3..2.2, 1 là cỡ chuẩn') });
 const aiSpan = z.object({ from: z.number().describe('Giây xuất hiện, tính từ đầu cảnh'), to: z.number().nullable().describe('Giây biến mất; null = đến hết cảnh') });
 const aiExtra = z.object({
-  id: z.string().describe('Id người hoặc vật trong dàn đã có ảnh'),
+  id: z.string().describe('Id người hoặc vật trong dàn đã có ảnh; hoặc sparkle, flash, impact = một hiệu ứng đặt tại điểm x, y (không cần ảnh)'),
   x: z.number().nullable().describe('Vị trí ngang: 0 mép trái, 1 mép phải'),
   y: z.number().nullable().describe('Độ cao so với mặt đất, phần chiều cao khung (0 = đứng trên đất; vật phẩm thường 0.3)'),
   scale: z.number().nullable().describe('0.3..2.2, 1 là cỡ chuẩn'),
@@ -274,7 +278,7 @@ export const TunePatchSchema = z.object({
   hero: aiPlace.nullable().describe('Dời, đổi cỡ vai chính'),
   companion: aiPlace.nullable().describe('Dời, đổi cỡ nhân vật phụ (ô companion)'),
   item: aiPlace.nullable().describe('Dời, đổi cỡ vật phẩm (ô item)'),
-  extras: z.array(aiExtra).nullable().describe(`Người, vật THÊM vào khung ngoài ba ô trên (tối đa ${MAX_EXTRAS}, chỉ cảnh nhân vật diễn). Khi đổi thì đưa đủ những ai có mặt (thiếu = bỏ khỏi khung); mục không nói tới của người đã có được giữ`),
+  extras: z.array(aiExtra).nullable().describe(`Người, vật THÊM vào khung ngoài ba ô trên (tối đa ${MAX_EXTRAS}, cảnh nhân vật diễn hoặc cảnh tranh). Ở cảnh tranh đây là lớp phủ lên tranh, nhân vật vẽ sẵn không cử động được nên đừng thêm người đã có trong tranh. Khi đổi thì đưa đủ những ai có mặt (thiếu = bỏ khỏi khung); mục không nói tới của người đã có được giữ`),
   holdSec: z.number().nullable().describe(`Nghỉ cuối cảnh, 0..${MAX_HOLD_SEC} giây`),
   captionTime: aiSpan.nullable().describe('Lúc chữ hiện'),
   heroTime: aiSpan.nullable().describe('Lúc vai chính có mặt'),

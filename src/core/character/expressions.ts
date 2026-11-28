@@ -119,7 +119,7 @@ export function spritesForScene(props: { action?: unknown; emotion?: unknown; po
 
 /** The supporting-cast pictures one puppet scene can show: its lead and companion (with their poses) and its item. */
 export function castIdsOf(props: { lead?: unknown; companion?: unknown; item?: unknown; _tune?: unknown }): string[] {
-  const extras = parseTune(props._tune)?.extras?.map((e) => e.id) ?? [];
+  const extras = parseTune(props._tune)?.extras?.filter((e) => e.kind !== 'fx').map((e) => e.id) ?? [];
   return [...new Set([props.lead, props.companion, props.item, ...extras].filter((v): v is string => typeof v === 'string' && v !== ''))];
 }
 

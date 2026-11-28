@@ -1,9 +1,10 @@
-import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
-import { actingAt, animAt, moveAt, spanAt, tuneOf, type Anim, type Move, type Extra, type Placement } from '../../src/core/domain/tune';
+import { actingAt, spanAt, tuneOf, type Placement } from '../../src/core/domain/tune';
 import { useBrand, useFont, useLayout } from '../primitives';
 import { ANCHOR_X, companionFlip, companionSpriteAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
+import { Arrival, ExtraFigure, moving, posesIn, src, STAGE_ASPECT, walked } from './figures';
 
 export interface PuppetSceneProps {
   caption: string;
@@ -28,77 +29,6 @@ export interface PuppetSceneProps {
   transition: 'auto' | import('../shots/entrance-meta').EntranceId;
 }
 
-/** Width / height of the box a sprite is drawn in (feet at the bottom centre). Wider than any sprite canvas (pose
- * canvases are 1.5 : 1), so every sprite is fitted by its height and the character keeps one size. */
-const STAGE_ASPECT = 1.6;
-
-const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
-
-/** The individual transform properties, so walking and animating add to a figure's own `transform` without
- * rewriting it. `fw`, `fh` are the figure's size (the animation's unit); legs are measured on the frame. */
-function moving(fig: { anim?: Anim; moves?: Move[] }, t: number, fw: number, fh: number, width: number, height: number) {
-  if (!fig.anim && !fig.moves) return {};
-  const at = moveAt(fig.moves, t);
-  const own = animAt(fig.anim, t);
-  const waiting = animAt(at.there?.leg.then ? { type: at.there.leg.then, speed: 1, power: 1 } : undefined, at.there?.for ?? 0);
-  // A small step bob while walking (a spinning thing is flying, not walking).
-  const step = at.going && !at.spin ? Math.abs(Math.sin(t * 9)) * 0.018 * fh : 0;
-  return {
-    translate: `${at.x * width + (own.x + waiting.x) * fw}px ${-(at.y * height + (own.y + waiting.y) * fh + step)}px`,
-    rotate: `${own.rotate + waiting.rotate + at.spin}deg`,
-    scale: `${own.sx * waiting.sx * at.scale} ${own.sy * waiting.sy * at.scale}`,
-  };
-}
-
-/** A shadow follows the walk along the ground but neither jumps nor spins. */
-const walked = (fig: { moves?: Move[] }, t: number, width: number, height: number) => {
-  if (!fig.moves) return {};
-  const at = moveAt(fig.moves, t);
-  return { translate: `${at.x * width}px ${-at.y * height}px`, scale: `${at.scale}` };
-};
-
-/** What happens where a leg ends: stars that twinkle, a flash, or the ring of a blow. Drawn over the figure. */
-function Arrival({ moves, t, u }: { moves?: Move[]; t: number; u: number }) {
-  const { there } = moveAt(moves, t);
-  const kind = there?.leg.effect;
-  if (!there || !kind) return null;
-  const age = there.for;
-  if (kind === 'sparkle') {
-    if (age > 1.8) return null;
-    return (
-      <>
-        {[[8, 18], [82, 10], [92, 62], [18, 84], [50, -4], [60, 94]].map(([x, y], i) => {
-          const shine = Math.max(0, Math.sin(age * 9 + i * 1.7)) * Math.min(1, (1.8 - age) * 2);
-          return (
-            <div key={i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, fontSize: 46 * u, lineHeight: 1, color: '#fff7c2', opacity: shine, transform: `translate(-50%, -50%) scale(${0.5 + shine})`, textShadow: `0 0 ${14 * u}px #ffd24a` }}>
-              ✦
-            </div>
-          );
-        })}
-      </>
-    );
-  }
-  const length = kind === 'flash' ? 0.45 : 0.7;
-  if (age > length) return null;
-  const k = age / length;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: '50%',
-        top: '50%',
-        width: '90%',
-        aspectRatio: '1',
-        borderRadius: '50%',
-        transform: `translate(-50%, -50%) scale(${0.4 + k * (kind === 'flash' ? 1 : 1.8)})`,
-        opacity: 1 - k,
-        background: kind === 'flash' ? 'radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,230,140,0) 70%)' : 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,160,40,0.7) 30%, rgba(255,90,20,0) 62%)',
-        border: kind === 'impact' ? `${10 * u * (1 - k)}px solid rgba(255,255,255,0.9)` : undefined,
-      }}
-    />
-  );
-}
-
 /**
  * A character (expression and pose sprites from the series bible) acting on an AI-painted empty background:
  * it walks in (walk cycle), talks (mouth sprite and bounce), blinks, shows an emotion, gestures (wave, point, bow…) and walks out.
@@ -121,7 +51,7 @@ export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose:
   const t = frame / fps;
   const duration = durationInFrames / fps;
   // A cast character in the main place acts with its own pictures; the hero's own poses do not apply to it.
-  const posesOf = (id: string) => Object.fromEntries(Object.entries(cast ?? {}).filter(([k]) => k.startsWith(`${id}:`)).map(([k, v]) => [k.slice(id.length + 1), v]));
+  const posesOf = posesIn(cast);
   const sprites: Record<string, string> | undefined = lead ? (cast?.[lead] ? { ...posesOf(lead), neutral: cast[lead]! } : {}) : heroSprites;
   const available = Object.keys(sprites ?? {});
   const talkFrom = action === 'enter' ? ENTER_SECONDS : 0.3;
@@ -179,7 +109,7 @@ export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose:
       </div>
       {itemSrc && thing.on ? <FloatingItem at={tune.item ?? AT} height={height} src={itemSrc} heroX={pose.x + heroAt.dx} t={thing.local} width={width} stageH={stageH} ground={ground} u={u} /> : null}
       <div style={{ position: 'absolute', left: (pose.x + heroAt.dx) * width - stageH * 0.2 * heroAt.scale, bottom: ground - 14 * u - heroAt.dy * height, width: stageH * 0.4 * heroAt.scale, height: 28 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', filter: `blur(${6 * u}px)`, opacity: heroOn ? pose.alpha * (1 - pose.y * 3) : 0, ...walked(heroAt, hero.local, width, height) }} />
-      {(tune.extras ?? []).filter((e) => e.kind === 'item').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
+      {(tune.extras ?? []).filter((e) => e.kind !== 'person').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       {(tune.extras ?? []).filter((e) => e.kind === 'person' && e.front).map((e, i) => <ExtraFigure key={`front-${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(20,10,5,0.38) 100%)', pointerEvents: 'none' }} />
       {caption && tune.captionPlace !== 'off' ? (
@@ -188,47 +118,6 @@ export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose:
         </div>
       ) : null}
     </AbsoluteFill>
-  );
-}
-
-/** One of the added people or things: a person breathes and acts like the companion, a thing hovers. */
-function ExtraFigure({ extra: e, index, cast, posesOf, now, width, height, stageH, ground, u }: { extra: Extra; index: number; cast?: Record<string, string>; posesOf: (id: string) => Record<string, string>; now: number; width: number; height: number; stageH: number; ground: number; u: number }) {
-  const { on, local } = spanAt(e.time, now);
-  if (!on || !cast?.[e.id]) return null;
-  const appear = smoothstep(local / 0.5);
-  // Walking in starts just outside that side of the frame; popping overshoots a little.
-  const from = e.enter === 'left' ? -0.25 - e.x : e.enter === 'right' ? 1.25 - e.x : 0;
-  const slide = from * width * (1 - smoothstep(local / 1.1));
-  const pop = e.enter === 'pop' ? appear * (1 + Math.sin(appear * Math.PI) * 0.25) : 1;
-  const shown = from ? 1 : appear;
-  if (e.kind === 'item') {
-    const size = stageH * 0.5 * e.scale;
-    const bob = e.motion === 'float' ? Math.sin(now * 2.2 + index) * 0.02 * stageH : 0;
-    const turn = e.motion === 'spin' ? local * 140 : e.motion === 'float' ? Math.sin(now * 1.3 + index) * 9 : 0;
-    return (
-      <div style={{ position: 'absolute', left: e.x * width - size / 2 + slide, bottom: ground + e.y * height + bob, width: size, height: size, opacity: shown, ...moving(e, local, size, size, width, height), transform: `rotate(${turn}deg) scale(${e.enter === 'pop' ? pop : 0.7 + appear * 0.3}) ${e.flip ? 'scaleX(-1)' : ''}`, filter: e.glow ? `drop-shadow(0 0 ${22 * u}px rgba(255,200,80,0.85))` : undefined }}>
-        <Img src={src(cast[e.id]!)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-        <Arrival moves={e.moves} t={local} u={u} />
-      </div>
-    );
-  }
-  const poses = posesOf(e.id);
-  const acts = actingAt(e.moves, local);
-  const pose = companionSpriteAt({ action: acts.action ?? e.action, emotion: acts.emotion ?? e.emotion, t: now + index * 0.4, available: Object.keys(poses) });
-  const file = (pose ? poses[pose] : undefined) ?? cast[e.id]!;
-  const h = stageH * 0.86 * e.scale;
-  const bounce = talkBounce(now + index * 0.37, (acts.action ?? e.action) === 'talk');
-  const breathe = (1 + Math.sin(now * 2.4 + index) * 0.014) * bounce.squashY;
-  const bottom = ground + e.y * height;
-  return (
-    <>
-      <div style={{ position: 'absolute', left: e.x * width - h * 0.18 + slide, bottom: bottom - 12 * u, width: h * 0.36, height: 24 * u, opacity: shown, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)`, ...walked(e, local, width, height) }} />
-      <div style={{ position: 'absolute', left: e.x * width - (h * STAGE_ASPECT) / 2 + slide, bottom: bottom + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, opacity: shown, transformOrigin: '50% 100%', ...moving(e, local, h * 0.34, h, width, height), transform: `scale(${(2 - breathe) * pop}, ${breathe * pop})` }}>
-        {/* Those right of the middle turn to face it, as the companion does. */}
-        <Img src={src(file)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: companionFlip(pose, e.x > 0.5 ? 'left' : 'right') !== e.flip ? 'scaleX(-1)' : undefined }} />
-        <Arrival moves={e.moves} t={local} u={u} />
-      </div>
-    </>
   );
 }
 

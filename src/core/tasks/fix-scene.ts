@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { defineTask } from '../agent/task';
 import type { Scene } from '../domain/episode';
-import { parseTune, patchTune, TunePatchSchema, TUNE_KEY } from '../domain/tune';
+import { isEffectId, parseTune, patchTune, TunePatchSchema, TUNE_KEY } from '../domain/tune';
 import { cleanProps, type BlockDefinition } from '../tools/tool';
 import { VISUAL_BRIEF } from './story';
 
@@ -88,8 +88,8 @@ ${VISUAL_BRIEF}`;
     }
     // Only people and things that have a picture; their kind comes from the cast, not from the model.
     const extras = out.tune?.extras
-      ?.filter((e) => cast.some((c) => c.id === e.id && c.kind !== 'pose'))
-      .map((e) => ({ ...e, kind: cast.find((c) => c.id === e.id)!.kind === 'item' ? ('item' as const) : ('person' as const) }));
+      ?.filter((e) => isEffectId(e.id) || cast.some((c) => c.id === e.id && c.kind !== 'pose'))
+      .map((e) => ({ ...e, kind: isEffectId(e.id) ? ('fx' as const) : cast.find((c) => c.id === e.id)!.kind === 'item' ? ('item' as const) : ('person' as const) }));
     const old = parseTune(scene.props[TUNE_KEY]) ?? {};
     const tune = out.tune ? patchTune(old, { ...out.tune, extras: extras ?? null }) : parseTune(old);
     const narration = request && out.narration.trim() ? out.narration.trim().slice(0, 600) : scene.narration;

@@ -11,7 +11,7 @@ import type { ImagesOutput, ProductionContext, RenderOutput, VoiceOutput } from 
  * Bump when the scene drawing changes in a way old clips should not survive (the puppet rig, sprite sizing): the
  * cached clips of every episode are then drawn again on its next production instead of being reused.
  */
-export const RENDER_VERSION = 7;
+export const RENDER_VERSION = 8;
 
 const pick = (all: Record<string, string>, keys: string[]) => Object.fromEntries(keys.flatMap((k) => (all[k] ? [[k, all[k]!]] : [])));
 
@@ -42,14 +42,17 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
     // Whole-body sprites of the series' puppet character and its cast, read once; each scene gets only the ones it shows.
     const sprites: Record<string, string> = {};
     const cast: Record<string, string> = {};
-    if (scenes.some((s) => s.block === 'remotion/puppet')) {
+    // Painted pictures may have figures laid over them too.
+    const figured = scenes.filter((s) => s.block === 'remotion/puppet' || (s.block === 'remotion/picture' && castIdsOf(s.props).length > 0));
+    const drawn = scenes.some((s) => s.block === 'remotion/puppet');
+    if (figured.length) {
       for (const [expr, rel] of Object.entries(bible?.characterSprites ?? {})) {
         const file = deps.media.absolute(rel);
         if (await deps.media.exists(file)) sprites[expr] = await deps.media.dataUri(file);
       }
-      for (const id of new Set(scenes.filter((s) => s.block === 'remotion/puppet').flatMap((s) => castIdsOf(s.props)))) {
+      for (const id of new Set(figured.flatMap((s) => castIdsOf(s.props)))) {
         const rel = bible?.characterCast?.[id];
-        if (!rel) throw new UserFacingError(`Cảnh "Nhân vật diễn" gọi "${id}" nhưng series chưa có ảnh này trong dàn nhân vật phụ.`);
+        if (!rel) throw new UserFacingError(`Một cảnh gọi "${id}" nhưng series chưa có ảnh này trong dàn nhân vật phụ.`);
         cast[id] = await deps.media.dataUri(deps.media.absolute(rel));
         // The supporting character's poses (`<id>:talk` …), when the series has them.
         for (const [key, poseRel] of Object.entries(bible?.characterCast ?? {})) {
@@ -58,7 +61,7 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
           if (await deps.media.exists(file)) cast[key] = await deps.media.dataUri(file);
         }
       }
-      if (!sprites.neutral) throw new UserFacingError('Cảnh "Nhân vật diễn" cần ảnh nhân vật Bình thường. Tải ảnh ở phần Nhân vật diễn của series rồi thử lại.');
+      if (drawn && !sprites.neutral) throw new UserFacingError('Cảnh "Nhân vật diễn" cần ảnh nhân vật Bình thường. Tải ảnh ở phần Nhân vật diễn của series rồi thử lại.');
     }
 
     const clips: RenderOutput['clips'] = {};
@@ -76,7 +79,8 @@ export const renderStep: PipelineStep<ProductionContext, RenderOutput> = {
             props: {
               ...scene.props,
               ...(pictures.has(scene.id) ? { image: pictures.get(scene.id) } : {}),
-              ...(scene.block === 'remotion/puppet' ? { sprites: pick(sprites, spritesForScene(scene.props)), cast: pick(cast, castForScene(scene.props, cast)) } : {}) },
+              ...(scene.block === 'remotion/puppet' ? { sprites: pick(sprites, spritesForScene(scene.props)) } : {}),
+              ...(scene.block === 'remotion/puppet' || scene.block === 'remotion/picture' ? { cast: pick(cast, castForScene(scene.props, cast)) } : {}) },
             ordinal: scenes.slice(0, si + 1).filter((x) => x.block === scene.block).length,
             brand,
             format,

@@ -67,7 +67,7 @@ export function storyboardProps(
     sbScenes.push({
       key: s.id,
       block: s.block,
-      props: { ...s.props, ...(opts.images?.has(s.id) ? { image: opts.images.get(s.id) } : {}), ...(s.block === 'remotion/puppet' && opts.sprites ? { sprites: opts.sprites, cast: opts.cast } : {}) },
+      props: { ...s.props, ...(opts.images?.has(s.id) ? { image: opts.images.get(s.id) } : {}), ...(s.block === 'remotion/puppet' && opts.sprites ? { sprites: opts.sprites, cast: opts.cast } : {}), ...(s.block === 'remotion/picture' && opts.cast ? { cast: opts.cast } : {}) },
       ordinal: scenes.slice(0, i + 1).filter((x) => x.block === s.block).length,
       durationSec: sec,
       narrationSrc: opts.voice?.get(s.id)?.url ?? null,

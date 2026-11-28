@@ -1,4 +1,4 @@
-import { patchTune, ToolTuneSchema, TUNE_KEY, tuneOf } from '@/core/domain/tune';
+import { isEffectId, patchTune, ToolTuneSchema, TUNE_KEY, tuneOf } from '@/core/domain/tune';
 import { z } from 'zod';
 
 import { defineTool, type ToolContext } from '@/core/assistant/tool';
@@ -118,7 +118,7 @@ export const editScene = defineTool({
     // Changing the type starts from the new block's own defaults (the old block's props mean nothing to it).
     const target = block && block !== scene.block ? toolCatalog.block(block) : undefined;
     if (block && block !== scene.block && !target) throw new UserFacingError(`Khối @${block} không tồn tại. Xem list_blocks.`);
-    const unknown = tune?.extras?.filter((e) => !v.cast[e.id]).map((e) => e.id);
+    const unknown = tune?.extras?.filter((e) => !v.cast[e.id] && !isEffectId(e.id)).map((e) => e.id);
     if (unknown?.length) throw new UserFacingError(`Chưa có ảnh cho: ${unknown.join(', ')}. Xem cast trong get_episode.`);
     const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, ...(target ? { block: target.ref } : {}), narration: narration ?? s.narration, props: target ? { ...(target.defaults as Record<string, unknown>), ...(props ?? {}) } : { ...s.props, ...(props ?? {}) } } : s));
     if (tune) {

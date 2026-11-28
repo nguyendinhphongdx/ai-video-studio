@@ -84,7 +84,7 @@ export function SettingsView() {
   const tabs = SETTINGS_TABS.filter((t) => t.key !== 'system' || admin);
   return (
     <>
-      <Topbar crumbs={['Cài đặt', SETTINGS_TABS.find((t) => t.key === tab)!.label]} />
+      <Topbar crumbs={[{ label: 'Cài đặt', href: '/settings' }, SETTINGS_TABS.find((t) => t.key === tab)!.label]} />
       <Page width={1180}>
         <div className="tabs" role="tablist">
           {tabs.map((t) => (

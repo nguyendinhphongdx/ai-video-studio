@@ -46,6 +46,16 @@ describe('usage ledger', () => {
     expect(e.costUsd).toBeCloseTo((1000 * 0.3 + 500 * 2.5) / 1e6, 8);
   });
 
+  it('totals what each video of a channel has cost, and treats a channel that is not there as not found', async () => {
+    const { usageRepository } = await import('@/server/modules/usage/usage.repository');
+    const costs = await usageRepository.episodeCosts('ch1');
+    expect(costs).toHaveLength(1);
+    expect(costs[0]).toMatchObject({ episodeId: 'ep1', calls: 1 });
+    expect(costs[0]!.usd).toBeCloseTo((1000 * 0.3 + 500 * 2.5) / 1e6, 8);
+    expect(await usageRepository.episodeCosts('other-channel')).toEqual([]);
+    await expect(s.usage.usageService.episodeCosts('nope')).rejects.toThrow(/kênh/);
+  });
+
   it('splits cached tokens, and estimates (and says so) when the provider reports no usage', async () => {
     await s.scope.withUsage({ channelId: 'ch1', threadId: 't1' }, () => s.llm.llm.chat({ system: 'abc', messages: [], tools: [], purpose: 'assistant' }));
     expect((await s.usage.usageService.events({ limit: 1 }))[0]).toMatchObject({ purpose: 'assistant', threadId: 't1', inputTokens: 2000, cachedTokens: 1000, outputTokens: 100 });
@@ -64,6 +74,19 @@ describe('usage ledger', () => {
     expect(sum.byChannel.find((c) => c.id === 'ch1')!.calls).toBe(2);
     expect(sum.byPurpose.map((p) => p.key)).toContain('assistant');
     expect(sum.daily).toHaveLength(1);
+  });
+
+  it('sums one project on its own and refuses a project that is not in the workspace', async () => {
+    const { usageRepository: repo } = await import('@/server/modules/usage/usage.repository');
+    const from = '2000-01-01T00:00:00.000Z';
+    const all = await repo.totals(from);
+    const one = await repo.totals(from, 'ch1');
+    expect(one.calls).toBe(2);
+    expect(one.calls).toBeLessThan(all.calls);
+    expect((await repo.daily(from, 'ch1')).reduce((n, d) => n + d.usd, 0)).toBeCloseTo(one.usd, 8);
+    expect((await repo.by('purpose', from, 10, 'ch1')).map((g) => g.key)).not.toContain('suggest-topics');
+    expect(await repo.totals(from, 'other-channel')).toMatchObject({ calls: 0, usd: 0 });
+    await expect(s.usage.usageService.summary('today', 'nope')).rejects.toThrow(/kênh/);
   });
 
   it('blocks paid calls once a blocking budget is used up, and only warns for a warning budget', async () => {

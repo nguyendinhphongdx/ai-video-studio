@@ -24,6 +24,9 @@ export const CreateEpisodeInput = z.object({
 });
 export type CreateEpisodeInput = z.infer<typeof CreateEpisodeInput>;
 
+/** The topic the person typed, to be looked at before the episode is created. */
+export const AnalyzeTopicInput = z.object({ topic: z.string().trim().min(3, 'Chủ đề quá ngắn').max(300) });
+
 export const SaveScriptInput = z.object({
   title: z.string().trim().max(80),
   scenes: z

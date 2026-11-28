@@ -1,16 +1,19 @@
 import { api } from '@/lib/api/client';
 import type { AiRun } from '@/core/agent/runner';
+import type { TopicAnalysis } from '@/core/tasks/analyze-topic';
+import type { TopicIdea } from '@/core/tasks/suggest-topics';
 import type { SkillSummary } from '@/server/modules/skill/skill.service';
 import type { ToolInfo, BlockInfo } from '@/server/modules/tool/tool.service';
 import type { CreateEpisodeInput, EpisodeOptionsInput, EpisodeView, SaveScriptInput } from '@/server/modules/episode/episode.types';
 
 export type { SceneAssetView } from '@/server/modules/episode/episode.types';
-export type { AiRun, BlockInfo, CreateEpisodeInput, EpisodeView, SaveScriptInput, SkillSummary, ToolInfo };
+export type { AiRun, BlockInfo, TopicAnalysis, TopicIdea, CreateEpisodeInput, EpisodeView, SaveScriptInput, SkillSummary, ToolInfo };
 
 const ep = (id: string, rest = '') => `/episodes/${id}${rest}`;
 
 export const episodeApi = {
-  topicIdeas: (channelId: string) => api<{ topic: string; why: string }[]>(`/channels/${channelId}/topic-ideas`, { method: 'POST' }),
+  topicIdeas: (channelId: string) => api<TopicIdea[]>(`/channels/${channelId}/topic-ideas`, { method: 'POST' }),
+  analyzeTopic: (channelId: string, topic: string) => api<TopicAnalysis>(`/channels/${channelId}/analyze-topic`, { body: { topic } }),
   list: (channelId: string) => api<EpisodeView[]>(`/episodes?channelId=${encodeURIComponent(channelId)}`),
   get: (id: string) => api<EpisodeView>(ep(id)),
   create: (input: Partial<CreateEpisodeInput> & Pick<CreateEpisodeInput, 'channelId' | 'topic' | 'formats'>) => api<EpisodeView>('/episodes', { body: input }),

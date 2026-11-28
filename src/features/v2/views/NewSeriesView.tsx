@@ -64,7 +64,7 @@ export function NewSeriesView({ projectId }: { projectId: string }) {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const crumbs = [project?.name ?? 'Dự án', 'Series mới'];
+  const crumbs = [{ label: project?.name ?? 'Dự án', href: projectHref(projectId) }, 'Series mới'];
 
   if (!proposal) {
     return (

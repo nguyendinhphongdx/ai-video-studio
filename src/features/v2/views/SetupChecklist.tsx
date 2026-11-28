@@ -1,11 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { queryKeys } from '@/features/app';
+import { AskAiButton } from '@/features/assistant/components/AskAiButton';
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { channelApi } from '@/features/channel/services/channel.api';
 import { seriesApi } from '@/features/series/services/series.api';
@@ -14,9 +16,14 @@ import { usageApi } from '@/features/usage/services/usage.api';
 import { api, errorMessage } from '@/lib/api/client';
 import type { KnowledgeView } from '@/server/modules/knowledge/knowledge.service';
 
+import { setupPrompt, type SetupKey } from '../lib/setup-prompts';
 import { projectHref, usd } from '../model';
 
-/** What the project still lacks, with the way to fill each part. Pictures are only drawn after their price is shown. */
+/**
+ * What the project still lacks, as a checklist: a tick for each finished part, an empty circle for each open one. An open
+ * part has a link to where it is edited and either "AI làm" (a ready request to the assistant, confirmed in its panel) or,
+ * for pictures with a known idea, a draw button that shows its price first. Disappears when everything is done.
+ */
 export function SetupChecklist({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
   const project = useChannel(projectId);
@@ -57,57 +64,77 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
   if (!c || !knowledge.data || !series.data) return null;
   const settings = projectHref(projectId, 'settings');
   const library = projectHref(projectId, 'library');
-  const items = [
-    { label: 'Thông tin chung', done: Boolean(c.description.trim() && c.audience.trim()), href: settings },
-    { label: 'Tri thức', done: Boolean(knowledge.data.current?.markdown.trim()), href: settings },
-    { label: 'Phong cách hình vẽ', done: Boolean(c.imageStyle.trim()), href: `/channels/${projectId}` },
-    { label: 'Skill', done: Boolean(c.defaultSkillId), href: projectHref(projectId, 'style') },
-    { label: toDraw.length ? `Thư viện nhân vật (còn ${toDraw.length} ảnh)` : 'Thư viện nhân vật', done: series.data.some((s) => s.rules.bible.characterAssets.length) && !toDraw.length, href: library },
-    { label: 'Logo', done: Boolean(c.logoUrl), href: `/channels/${projectId}` },
-    { label: 'Tranh nền intro', done: Boolean(c.introArtUrl), href: `/channels/${projectId}` },
-    { label: 'Tranh nền outro', done: Boolean(c.outroArtUrl), href: `/channels/${projectId}` },
+  const facts = { name: c.name, description: c.description, audience: c.audience, imageStyle: c.imageStyle };
+  const channelPage = `/channels/${projectId}`;
+  type Item = { key: string; label: string; done: boolean; hint: string; href: string; ai?: SetupKey; draw?: { what: 'library' | 'intro' | 'outro'; text: string } };
+  const generalMissing = [!c.description.trim() && 'mô tả', !c.audience.trim() && 'khán giả'].filter(Boolean).join(' và ');
+  const items: Item[] = [
+    { key: 'general', label: 'Thông tin chung', done: Boolean(c.description.trim() && c.audience.trim()), hint: `Thiếu ${generalMissing}`, href: settings, ai: 'general' },
+    { key: 'knowledge', label: 'Tri thức', done: Boolean(knowledge.data.current?.markdown.trim()), hint: 'Sự thật và quy tắc mọi video phải bám theo', href: settings, ai: 'knowledge' },
+    { key: 'style', label: 'Phong cách hình vẽ', done: Boolean(c.imageStyle.trim()), hint: 'AI vẽ mọi ảnh cùng một phong cách', href: channelPage, ai: 'style' },
+    { key: 'skill', label: 'Skill', done: Boolean(c.defaultSkillId), hint: 'Cách làm video của dự án', href: projectHref(projectId, 'style'), ai: 'skill' },
+    {
+      key: 'library',
+      label: 'Thư viện nhân vật',
+      done: series.data.some((s) => s.rules.bible.characterAssets.length) && !toDraw.length,
+      hint: toDraw.length ? `Còn ${toDraw.length} ảnh chưa vẽ` : 'Chưa có nhân vật nào',
+      href: library,
+      draw: toDraw.length ? { what: 'library', text: `Vẽ ${toDraw.length} ảnh (${price(toDraw.length)})` } : undefined,
+    },
+    { key: 'logo', label: 'Logo', done: Boolean(c.logoUrl), hint: 'Tải logo lên', href: channelPage },
+    ...(['intro', 'outro'] as const).map((k): Item => {
+      const done = Boolean(k === 'intro' ? c.introArtUrl : c.outroArtUrl);
+      const known = Boolean(bible?.brandIdeas?.introArt);
+      return {
+        key: `${k}Art`,
+        label: `Tranh nền ${k}`,
+        done,
+        hint: known ? 'Đã có ý tưởng, chờ vẽ' : 'Chưa có ý tưởng tranh',
+        href: channelPage,
+        ai: known ? undefined : (`${k}Art` as SetupKey),
+        draw: known ? { what: k, text: `Vẽ 1 ảnh (${price(1)})` } : undefined,
+      };
+    }),
   ];
   const left = items.filter((i) => !i.done).length;
   if (!left) return null;
   const busy = Boolean(jobId) || draw.isPending;
 
   return (
-    <section className="card">
+    <section className="card setup" aria-labelledby="setup-title">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Thiết lập dự án</h2>
+        <h2 id="setup-title">Thiết lập dự án</h2>
         <span className="cap">
           Xong {items.length - left}/{items.length}
         </span>
       </div>
-      <div className="bar">
+      <div className="bar" role="progressbar" aria-label="Tiến độ thiết lập" aria-valuemin={0} aria-valuemax={items.length} aria-valuenow={items.length - left}>
         <i style={{ width: `${((items.length - left) / items.length) * 100}%` }} />
       </div>
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+      <ul className="checks">
         {items.map((i) => (
-          <Link key={i.label} href={i.href} className={`chip ${i.done ? 'ok' : 'warn'}`} style={{ textDecoration: 'none' }}>
-            <i />
-            {i.label}
-          </Link>
-        ))}
-      </div>
-      {(toDraw.length > 0 || missingArt.length > 0) && (
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          {toDraw.length > 0 && (
-            <button className="btn pri" disabled={busy} onClick={() => draw.mutate('library')}>
-              Vẽ {toDraw.length} ảnh thư viện ({price(toDraw.length)})
-            </button>
-          )}
-          {missingArt.map((k) => (
-            <button key={k} className="btn" disabled={busy} onClick={() => draw.mutate(k)}>
-              Vẽ tranh {k} (1 ảnh, {price(1)})
-            </button>
-          ))}
-          {jobId && (
-            <span className="cap">
-              {job.data?.phase ?? 'Đang chờ vẽ'} · {Math.round((job.data?.progress ?? 0) * 100)}%
+          <li key={i.key} className={i.done ? 'done' : undefined}>
+            <span className="tick" aria-hidden>
+              {i.done && <Check size={13} strokeWidth={3} />}
             </span>
-          )}
-        </div>
+            <div className="checks-main">
+              <Link href={i.href}>{i.label}</Link>
+              <span className="sr-only">{i.done ? ' (đã xong)' : ' (chưa xong)'}</span>
+              {!i.done && <span className="cap">{i.hint}</span>}
+            </div>
+            {!i.done && i.draw && (
+              <button type="button" className="btn sm pri" disabled={busy} onClick={() => draw.mutate(i.draw!.what)}>
+                {i.draw.text}
+              </button>
+            )}
+            {!i.done && i.ai && <AskAiButton label="AI làm" {...setupPrompt(i.ai, facts)} />}
+          </li>
+        ))}
+      </ul>
+      {jobId && (
+        <span className="cap" role="status">
+          {job.data?.phase ?? 'Đang chờ vẽ'} · {Math.round((job.data?.progress ?? 0) * 100)}%
+        </span>
       )}
     </section>
   );

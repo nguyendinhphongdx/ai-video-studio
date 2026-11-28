@@ -31,7 +31,7 @@ export function ProjectSetupView() {
   if (draft) return <Review skills={draft.skills} initial={draft.proposal} onBack={() => setDraft(null)} />;
   return (
     <>
-      <Topbar crumbs={['Trang chủ', 'Dự án mới']} />
+      <Topbar crumbs={[{ label: 'Trang chủ', href: '/' }, 'Dự án mới']} />
       <Page width={760}>
         <div className="head">
           <div>
@@ -121,7 +121,7 @@ function Review({ initial, skills, onBack }: { initial: ProjectSetup; skills: Se
 
   return (
     <>
-      <Topbar crumbs={['Trang chủ', 'Dự án mới', 'Xem lại']}>
+      <Topbar crumbs={[{ label: 'Trang chủ', href: '/' }, 'Dự án mới', 'Xem lại']}>
         <button className="btn ghost" onClick={onBack} disabled={create.isPending}>
           Đổi ý tưởng
         </button>

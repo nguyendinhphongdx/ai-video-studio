@@ -16,7 +16,7 @@ const stamp = (v: unknown) => {
 };
 
 /** The channel's own intro and outro, playing live with the design and values being edited. */
-export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtUrl, sampleTitle }: { input: ChannelInput; logoUrl: string | null; avatarUrl: string | null; introArtUrl: string | null; outroArtUrl: string | null; sampleTitle: string }) {
+export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtUrl, sampleTitle, only }: { only?: 'outro'; input: ChannelInput; logoUrl: string | null; avatarUrl: string | null; introArtUrl: string | null; outroArtUrl: string | null; sampleTitle: string }) {
   const brand: SceneBrand = {
     name: input.name || 'Tên kênh',
     font: input.font,
@@ -38,6 +38,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
   const key = stamp([input.font, input.palette, input.name, input.outroText, input.subscribeText, logoUrl, avatarUrl, introArtUrl, outroArtUrl, input.introDesign, input.outroDesign]);
   return (
     <div className="flex flex-col gap-3">
+      {only !== 'outro' && (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Mở đầu của kênh {input.introDesign ? '' : '· chưa thiết kế, đang dùng bản tối giản'}</span>
@@ -45,6 +46,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
         </div>
         <ScenePlayer key={`t-${key}`} block="remotion/title" props={{ title: sampleTitle }} ordinal={1} brand={brand} durationSec={input.introDesign?.seconds ?? 4} />
       </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Kết của kênh {input.outroDesign ? '' : '· chưa thiết kế, đang dùng bản tối giản'}</span>
@@ -52,6 +54,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
         </div>
         <ScenePlayer key={`o-${key}`} block="remotion/outro" props={{}} ordinal={1} brand={brand} durationSec={input.outroDesign?.seconds ?? 5} />
       </div>
+      {only !== 'outro' && (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Một cảnh nội dung · @remotion/cards (màu chính)</span>
@@ -66,6 +69,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
           durationSec={3.5}
         />
       </div>
+      )}
     </div>
   );
 }

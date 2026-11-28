@@ -18,7 +18,7 @@ export function ProjectLibraryView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <Topbar crumbs={[c?.name ?? 'Dự án', 'Thư viện dự án']}>
+      <Topbar crumbs={[{ label: c?.name ?? 'Dự án', href: projectHref(projectId) }, 'Thư viện dự án']}>
         <Link className="btn pri" href={projectHref(projectId, 'series/new')}>
           + Series mới
         </Link>

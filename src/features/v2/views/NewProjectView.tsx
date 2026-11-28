@@ -32,7 +32,7 @@ export function NewProjectView() {
 
   return (
     <>
-      <Topbar crumbs={['Trang chủ', 'Dự án mới']} />
+      <Topbar crumbs={[{ label: 'Trang chủ', href: '/' }, 'Dự án mới']} />
       <Page width={760}>
         <div className="head">
           <div>

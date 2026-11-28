@@ -1,174 +1,129 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
-import { VOICES } from '@/core/domain/catalog';
-import { KnowledgeCard } from '@/features/channel/components/KnowledgeCard';
 import { useChannel, useChannelAction } from '@/features/channel/hooks/use-channels';
 import { channelApi, toInput, type ChannelInput } from '@/features/channel/services/channel.api';
-import { usageApi, usageKeys } from '@/features/usage/services/usage.api';
-import { errorMessage } from '@/lib/api/client';
 
-import { usd } from '../model';
+import { projectHref } from '../model';
 import { Loading, Page, Topbar } from '../Shell';
+import { BrandSection } from './settings/BrandSection';
+import { CostSection } from './settings/CostSection';
+import { GeneralSection } from './settings/GeneralSection';
+import { KnowledgeSection } from './settings/KnowledgeSection';
+import { FIELDS, SECTIONS, type SectionKey } from './settings/sections';
+import { VoiceSection } from './settings/VoiceSection';
 
-const TABS = [
-  { key: 'general', label: 'Chung' },
-  { key: 'voice', label: 'Giọng' },
-  { key: 'knowledge', label: 'Tri thức' },
-  { key: 'budget', label: 'Ngân sách' },
-] as const;
-type Tab = (typeof TABS)[number]['key'];
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const fromHash = (): SectionKey => SECTIONS.find((s) => s.key === window.location.hash.slice(1))?.key ?? 'general';
 
-/** Project settings: what the AI must know about the project, its voice, its knowledge and its spending limit. */
+/**
+ * Project settings: a menu of sections and one section at a time. General, brand and voice edit the project's own fields
+ * and each saves only its own; knowledge saves versions; cost saves the budget. Leaving a section with unsaved changes asks first.
+ */
 export function ProjectSettingsView({ projectId }: { projectId: string }) {
   const project = useChannel(projectId);
-  const [tab, setTab] = useState<Tab>('general');
+  const [section, setSection] = useState<SectionKey>('general');
   const [form, setForm] = useState<ChannelInput | null>(null);
+  const [knowledgeDirty, setKnowledgeDirty] = useState(false);
+  // The section lives in the URL hash: open on it, and follow back/forward and typed links.
+  useEffect(() => {
+    setSection(fromHash());
+    const onHash = () => setSection(fromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   useEffect(() => {
     if (project.data && !form) setForm(toInput(project.data));
   }, [project.data, form]);
   const save = useChannelAction(projectId, (input: ChannelInput) => channelApi.update(projectId, input), 'Đã lưu cài đặt dự án');
-  const dirty = Boolean(form && project.data && JSON.stringify(form) !== JSON.stringify(toInput(project.data)));
-  const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => form && setForm({ ...form, [k]: v });
+
+  const server = project.data ? toInput(project.data) : null;
+  const dirtyFields = (key: SectionKey) => (form && server ? (FIELDS[key] ?? []).filter((f) => !same(form[f], server[f])) : []);
+  const isDirty = (key: SectionKey) => (key === 'knowledge' ? knowledgeDirty : dirtyFields(key).length > 0);
+  const anyDirty = SECTIONS.some((s) => isDirty(s.key));
+
+  // Closing or reloading the tab with unsaved work asks first.
+  useEffect(() => {
+    if (!anyDirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [anyDirty]);
+
+  const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setForm((f) => (f ? { ...f, [k]: v } : f));
+  const discard = (key: SectionKey) => {
+    if (key === 'knowledge') return;
+    setForm((f) => (f && server ? { ...f, ...Object.fromEntries((FIELDS[key] ?? []).map((k) => [k, server[k]])) } : f));
+  };
+  const go = (next: SectionKey) => {
+    if (next === section) return;
+    if (isDirty(section)) {
+      if (!window.confirm('Phần này có thay đổi chưa lưu. Bỏ thay đổi và chuyển sang phần khác?')) return;
+      discard(section);
+      if (section === 'knowledge') setKnowledgeDirty(false);
+    }
+    setSection(next);
+    window.history.replaceState(null, '', `#${next}`);
+  };
+  const saveSection = () => {
+    if (!form || !server || !FIELDS[section]) return;
+    save.mutate({ ...server, ...Object.fromEntries(FIELDS[section]!.map((k) => [k, form[k]])) });
+  };
+  const current = SECTIONS.find((s) => s.key === section)!;
+  const sectionDirty = isDirty(section);
 
   return (
     <>
-      <Topbar crumbs={[project.data?.name ?? 'Dự án', 'Cài đặt dự án']}>
-        {dirty && <span className="chip warn">Chưa lưu</span>}
-        {(tab === 'general' || tab === 'voice') && (
-          <button className="btn pri" disabled={!dirty || save.isPending} onClick={() => form && save.mutate(form)}>
-            Lưu
+      <Topbar crumbs={[{ label: project.data?.name ?? 'Dự án', href: projectHref(projectId) }, 'Cài đặt dự án', current.label]}>
+        {sectionDirty && <span className="chip warn">Chưa lưu</span>}
+        {FIELDS[section] && (
+          <button type="button" className="btn pri" disabled={!sectionDirty || save.isPending} onClick={saveSection}>
+            {save.isPending ? 'Đang lưu…' : 'Lưu phần này'}
           </button>
         )}
       </Topbar>
-      <Page width={960}>
-        <div className="tabs" role="tablist">
-          {TABS.map((t) => (
-            <a key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : undefined} href={`#${t.key}`} onClick={(e) => (e.preventDefault(), setTab(t.key))}>
-              {t.label}
-            </a>
-          ))}
-        </div>
-        {!form ? (
+      <Page width={1180}>
+        {!form || !project.data ? (
           <Loading />
-        ) : tab === 'general' ? (
-          <div className="card">
-            <div className="field">
-              <label htmlFor="ps-name">Tên dự án</label>
-              <input id="ps-name" className="input" maxLength={60} value={form.name} onChange={(e) => set('name', e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="ps-desc">Dự án nói về gì</label>
-              <textarea id="ps-desc" className="area" maxLength={500} value={form.description} onChange={(e) => set('description', e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="ps-aud">Khán giả</label>
-              <input id="ps-aud" className="input" maxLength={300} value={form.audience} onChange={(e) => set('audience', e.target.value)} />
-              <span className="hint">AI viết cho đúng những người này.</span>
-            </div>
-            <div className="field">
-              <label htmlFor="ps-style">Giọng văn</label>
-              <textarea id="ps-style" className="area" maxLength={500} value={form.style} onChange={(e) => set('style', e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="ps-tags">Hashtag</label>
-              <input
-                id="ps-tags"
-                className="input"
-                value={form.hashtags.join(' ')}
-                onChange={(e) => set('hashtags', e.target.value.split(/\s+/).filter(Boolean).slice(0, 10))}
-              />
-              <span className="hint">Cách nhau bằng dấu cách, mỗi cái bắt đầu bằng #.</span>
-            </div>
-          </div>
-        ) : tab === 'voice' ? (
-          <div className="card">
-            <span className="cap">Giọng đọc mặc định cho tập mới. Mỗi tập vẫn đổi được riêng.</span>
-            <div className="col" style={{ gap: 8 }}>
-              {Object.entries(VOICES).map(([id, label]) => (
-                <label key={id} className={`card flat row${form.voice === id ? ' sel' : ''}`} style={{ cursor: 'pointer', gap: 12 }}>
-                  <input type="radio" name="voice" checked={form.voice === id} onChange={() => set('voice', id as ChannelInput['voice'])} />
-                  <span className="grow">{label}</span>
-                  <span className="mono cap">{id}</span>
-                </label>
-              ))}
-            </div>
-            <div className="field">
-              <label htmlFor="ps-outro">Câu kết video</label>
-              <input id="ps-outro" className="input" maxLength={80} value={form.outroText} onChange={(e) => set('outroText', e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="ps-sub">Lời mời đăng ký</label>
-              <input id="ps-sub" className="input" maxLength={40} value={form.subscribeText} onChange={(e) => set('subscribeText', e.target.value)} />
-            </div>
-          </div>
-        ) : tab === 'knowledge' ? (
-          <KnowledgeCard channelId={projectId} />
         ) : (
-          <BudgetTab projectId={projectId} />
+          <div className="setgrid">
+            <nav className="setmenu" aria-label="Các phần của cài đặt">
+              <label className="sr-only" htmlFor="set-select">
+                Chọn phần cài đặt
+              </label>
+              <select id="set-select" className="input setmenu-select" value={section} onChange={(e) => go(e.target.value as SectionKey)}>
+                {SECTIONS.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                    {isDirty(s.key) ? ' (chưa lưu)' : ''}
+                  </option>
+                ))}
+              </select>
+              <ul>
+                {SECTIONS.map((s) => (
+                  <li key={s.key}>
+                    <a href={`#${s.key}`} className={s.key === section ? 'on' : undefined} aria-current={s.key === section ? 'page' : undefined} onClick={(e) => (e.preventDefault(), go(s.key))}>
+                      <span>
+                        <b>{s.label}</b>
+                        <span className="cap">{s.hint}</span>
+                      </span>
+                      {isDirty(s.key) && <i className="unsaved" role="img" aria-label="Chưa lưu" />}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className="setbody">
+              {section === 'general' && <GeneralSection form={form} set={set} />}
+              {section === 'brand' && <BrandSection project={project.data} form={form} set={set} setForm={(fn) => setForm((f) => (f ? fn(f) : f))} />}
+              {section === 'voice' && <VoiceSection project={project.data} form={form} set={set} />}
+              {section === 'knowledge' && <KnowledgeSection project={project.data} onDirty={setKnowledgeDirty} />}
+              {section === 'cost' && <CostSection projectId={projectId} />}
+            </div>
+          </div>
         )}
       </Page>
     </>
-  );
-}
-
-function BudgetTab({ projectId }: { projectId: string }) {
-  const qc = useQueryClient();
-  const summary = useQuery({ queryKey: usageKeys.summary('month'), queryFn: () => usageApi.summary('month') });
-  const budget = summary.data?.budgets.find((b) => b.scope === 'channel' && b.channelId === projectId && b.period === 'month');
-  const spent = summary.data?.byChannel.find((g) => g.id === projectId)?.usd ?? 0;
-  const [limit, setLimit] = useState('');
-  const [mode, setMode] = useState<'warn' | 'block'>('warn');
-  useEffect(() => {
-    if (budget) {
-      setLimit(String(budget.limitUsd));
-      setMode(budget.mode);
-    }
-  }, [budget]);
-  const save = useMutation({
-    mutationFn: () => usageApi.saveBudget({ id: budget?.id, scope: 'channel', channelId: projectId, period: 'month', limitUsd: Number(limit), mode, alertPct: budget?.alertPct ?? 80 }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: usageKeys.all });
-      toast.success('Đã lưu ngân sách');
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
-  const n = Number(limit);
-  return (
-    <div className="card">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Ngân sách tháng của dự án</h2>
-        <span className="mono">
-          Đã dùng {usd(spent)}
-          {budget ? ` / ${usd(budget.limitUsd)}` : ''}
-        </span>
-      </div>
-      {budget && (
-        <div className="bar">
-          <i style={{ width: `${Math.min(100, budget.pct)}%` }} />
-        </div>
-      )}
-      <div className="field">
-        <label htmlFor="bg-limit">Tối đa mỗi tháng (USD)</label>
-        <input id="bg-limit" className="input" type="number" min={0.01} step={0.5} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ maxWidth: 200 }} />
-      </div>
-      <div className="field">
-        <label>Khi vượt hạn mức</label>
-        <div className="seg" style={{ alignSelf: 'flex-start' }}>
-          <button className={mode === 'warn' ? 'on' : undefined} onClick={() => setMode('warn')}>
-            Chỉ cảnh báo
-          </button>
-          <button className={mode === 'block' ? 'on' : undefined} onClick={() => setMode('block')}>
-            Chặn việc tốn tiền
-          </button>
-        </div>
-      </div>
-      <button className="btn pri" style={{ alignSelf: 'flex-start' }} disabled={!(n > 0) || save.isPending} onClick={() => save.mutate()}>
-        Lưu ngân sách
-      </button>
-    </div>
   );
 }

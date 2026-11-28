@@ -5,6 +5,7 @@ import { periodStart, rangeStart, type UsageRange } from '@/core/usage/period';
 import { isGoogleVoice } from '@/core/domain/catalog';
 import { GEMINI_TTS_MODEL } from '@/server/config';
 import { now } from '@/server/db';
+import { notFound } from '@/server/http/api-error';
 import { createLogger } from '@/server/logger';
 import { channelRepository } from '@/server/modules/channel/channel.repository';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
@@ -82,11 +83,13 @@ export const usageService = {
     }
   },
 
-  async summary(range: UsageRange) {
+  /** Spending of the workspace, or of one project when `channelId` is given. */
+  async summary(range: UsageRange, channelId?: string) {
+    if (channelId && !(await channelRepository.find(channelId))) throw notFound('kênh');
     const from = rangeStart(range);
     const names = async (key: string | null, kind: 'channel' | 'episode') => (!key ? null : kind === 'channel' ? ((await channelRepository.find(key))?.name ?? null) : await episodeName(key));
     const daily = new Map<string, { day: string; llm: number; image: number; tts: number }>();
-    for (const r of await usageRepository.daily(from)) {
+    for (const r of await usageRepository.daily(from, channelId)) {
       const d = daily.get(r.day) ?? { day: r.day, llm: 0, image: 0, tts: 0 };
       d[r.kind] += r.usd;
       daily.set(r.day, d);
@@ -96,14 +99,20 @@ export const usageService = {
       range,
       from,
       fxUsdVnd: await fx(),
-      totals: await usageRepository.totals(from),
+      totals: await usageRepository.totals(from, channelId),
       daily: [...daily.values()],
-      byChannel: await Promise.all((await usageRepository.by('channel_id', from)).map((g) => label(g, 'channel'))),
-      byPurpose: await usageRepository.by('purpose', from, 20),
-      byModel: await usageRepository.byModel(from),
-      topEpisodes: await Promise.all((await usageRepository.by('episode_id', from)).filter((g) => g.key).map((g) => label(g, 'episode'))),
-      budgets: await Promise.all((await usageRepository.budgets()).map((b) => statusOf(b))),
+      byChannel: channelId ? [] : await Promise.all((await usageRepository.by('channel_id', from)).map((g) => label(g, 'channel'))),
+      byPurpose: await usageRepository.by('purpose', from, 20, channelId),
+      byModel: await usageRepository.byModel(from, channelId),
+      topEpisodes: await Promise.all((await usageRepository.by('episode_id', from, 10, channelId)).filter((g) => g.key).map((g) => label(g, 'episode'))),
+      budgets: await Promise.all((await usageRepository.budgets()).filter((b) => !channelId || b.scope === 'global' || b.channelId === channelId).map((b) => statusOf(b))),
     };
+  },
+
+  /** What each video of a channel has cost so far (USD), by episode id: for list screens. */
+  async episodeCosts(channelId: string): Promise<Record<string, number>> {
+    if (!(await channelRepository.find(channelId))) throw notFound('kênh');
+    return Object.fromEntries((await usageRepository.episodeCosts(channelId)).map((r) => [r.episodeId, r.usd]));
   },
 
   async events(q: { range?: UsageRange; before?: string; kind?: UsageKind; channelId?: string; episodeId?: string; limit?: number }) {

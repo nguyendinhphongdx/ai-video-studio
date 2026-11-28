@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+
+import { Menu, X } from 'lucide-react';
 
 import { LogoMark } from '@/components/brand/LogoMark';
 import { AccountBox } from '@/features/auth/AccountBox';
@@ -30,19 +32,40 @@ function Nav({ label, items, group }: { label: string; items: NavItem[]; group?:
   );
 }
 
+/** Lets the top bar open the side menu, which is a sheet over the page on narrow screens. */
+const MenuContext = createContext<() => void>(() => undefined);
+
 function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
+  const path = usePathname();
+  const [open, setOpen] = useState(false);
+  // Going somewhere closes the sheet; so does Escape.
+  useEffect(() => setOpen(false), [path]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
   return (
-    <div className="app" style={{ minHeight: '100dvh' }}>
-      <aside className="side">
-        <Link href="/" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
-          <LogoMark />
-          Studio
-        </Link>
-        {nav}
-        <AccountBox />
-      </aside>
-      <div className="main">{children}</div>
-    </div>
+    <MenuContext.Provider value={() => setOpen(true)}>
+      <div className="app" style={{ minHeight: '100dvh' }}>
+        {open && <div className="side-scrim" onClick={() => setOpen(false)} aria-hidden />}
+        <aside className={`side${open ? ' open' : ''}`} id="side-menu" aria-label="Menu">
+          <div className="side-head">
+            <Link href="/" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
+              <LogoMark />
+              Studio
+            </Link>
+            <button type="button" className="icon-btn side-close" aria-label="Đóng menu" onClick={() => setOpen(false)}>
+              <X size={18} aria-hidden />
+            </button>
+          </div>
+          {nav}
+          <AccountBox />
+        </aside>
+        <div className="main">{children}</div>
+      </div>
+    </MenuContext.Provider>
   );
 }
 
@@ -69,17 +92,28 @@ export function ProjectShell({ projectId, name, children }: { projectId: string;
   return <Frame nav={<Nav label="Dự án" items={items} group={{ at: 1, text: name || 'Dự án' }} />}>{children}</Frame>;
 }
 
-export function Topbar({ crumbs, children }: { crumbs: ReactNode[]; children?: ReactNode }) {
+/** A breadcrumb: plain text, or text that goes somewhere (every part but the last should). */
+export type Crumb = string | { label: string; href: string };
+
+export function Topbar({ crumbs, children }: { crumbs: Crumb[]; children?: ReactNode }) {
+  const openMenu = useContext(MenuContext);
   return (
     <header className="top">
-      <div className="crumbs">
-        {crumbs.map((c, i) => (
-          <span key={i} style={{ display: 'contents' }}>
-            {i > 0 && <span>/</span>}
-            {i === crumbs.length - 1 ? <b>{c}</b> : <span>{c}</span>}
-          </span>
-        ))}
-      </div>
+      <button type="button" className="icon-btn menu-btn" aria-label="Mở menu" aria-controls="side-menu" onClick={openMenu}>
+        <Menu size={20} aria-hidden />
+      </button>
+      <nav className="crumbs" aria-label="Vị trí">
+        {crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          const label = typeof c === 'string' ? c : c.label;
+          return (
+            <span key={i} style={{ display: 'contents' }}>
+              {i > 0 && <span aria-hidden>/</span>}
+              {last ? <b aria-current="page">{label}</b> : typeof c === 'object' ? <Link href={c.href}>{label}</Link> : <span>{label}</span>}
+            </span>
+          );
+        })}
+      </nav>
       {children}
     </header>
   );

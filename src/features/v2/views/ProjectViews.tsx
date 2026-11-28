@@ -1,32 +1,32 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useMemo } from 'react';
 
+import { DataTable, type DataColumn } from '@/components/data-table';
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { useEpisodes, useSkills } from '@/features/episode/hooks/use-episode';
-import { episodeApi } from '@/features/episode/services/episode.api';
+import type { SkillSummary } from '@/features/episode/services/episode.api';
+import { usageApi } from '@/features/usage/services/usage.api';
 import { errorMessage } from '@/lib/api/client';
 
-import { currentStep, episodeHref, STATUS_CHIP } from '../model';
-import { Empty, Loading, Page, Topbar } from '../Shell';
+import { currentStep, episodeHref, projectHref, usd } from '../model';
+import { Loading, Page, Topbar } from '../Shell';
+import { episodeColumns, episodeStats, statusFilter } from './episodes/columns';
+import { NewEpisodePanel } from './NewEpisodePanel';
 import { SetupChecklist } from './SetupChecklist';
 
-/** Project home: its episodes, newest first, each opening at the step it is at. */
+/** Project home: where the project stands, how to add the next episode, and every episode in a table that sorts, searches and filters. */
 export function ProjectEpisodesView({ projectId }: { projectId: string }) {
   const router = useRouter();
   const project = useChannel(projectId);
   const episodes = useEpisodes(projectId);
-  const [topic, setTopic] = useState('');
-  const create = useMutation({
-    mutationFn: () => episodeApi.create({ channelId: projectId, topic: topic.trim(), formats: ['landscape'] }),
-    onSuccess: (v) => router.push(episodeHref(projectId, v.episode.id, 'script')),
-    onError: (e) => toast.error(errorMessage(e)),
-  });
-  const list = [...(episodes.data ?? [])].sort((a, b) => b.episode.updatedAt.localeCompare(a.episode.updatedAt));
+  const costs = useQuery({ queryKey: ['episode-costs', projectId], queryFn: () => usageApi.episodeCosts(projectId), staleTime: 30_000 });
+  const columns = useMemo(() => episodeColumns(projectId, costs.data), [projectId, costs.data]);
+  const list = episodes.data ?? [];
+  const stats = episodeStats(list, costs.data);
 
   return (
     <>
@@ -34,71 +34,79 @@ export function ProjectEpisodesView({ projectId }: { projectId: string }) {
       <Page>
         <div className="head">
           <div>
-            <h1>Các tập</h1>
-            <p>{project.data?.description}</p>
+            <span className="eyebrow">Dự án</span>
+            <h1>{project.data?.name ?? 'Các tập'}</h1>
+            {project.data?.description && <p>{project.data.description}</p>}
+          </div>
+          <div className="row">
+            <Link className="btn" href={projectHref(projectId, 'settings')}>
+              Cài đặt dự án
+            </Link>
+            <button
+              type="button"
+              className="btn pri"
+              onClick={() => {
+                const box = document.getElementById('new-topic');
+                box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                box?.focus({ preventScroll: true });
+              }}
+            >
+              + Tập mới
+            </button>
           </div>
         </div>
-        <SetupChecklist projectId={projectId} />
-        <form
-          className="card flat row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (topic.trim()) create.mutate();
-          }}
-        >
-          <div className="field grow">
-            <label htmlFor="new-topic">Tập mới</label>
-            <input id="new-topic" className="input" placeholder="Tập này kể về chuyện gì?" value={topic} onChange={(e) => setTopic(e.target.value)} />
+
+        <div className="stats" aria-label="Tình hình dự án">
+          <div className="stat">
+            <span className="eyebrow">Tổng số tập</span>
+            <b>{stats.total}</b>
+            <span className="cap">{stats.planned} đã lên kế hoạch</span>
           </div>
-          <button className="btn pri" style={{ alignSelf: 'flex-end' }} disabled={!topic.trim() || create.isPending}>
-            Tạo tập
-          </button>
-        </form>
-        {episodes.isLoading ? (
-          <Loading />
-        ) : list.length === 0 ? (
-          <Empty title="Dự án chưa có tập nào">
-            <p className="muted">Gõ chủ đề ở trên để tạo tập đầu tiên.</p>
-          </Empty>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 56 }}>Tập</th>
-                <th>Tiêu đề</th>
-                <th>Cảnh</th>
-                <th>Trạng thái</th>
-                <th>Cập nhật</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((v) => {
-                const e = v.episode;
-                const s = STATUS_CHIP[e.status];
-                const failed = v.job?.state === 'failed';
-                const busy = v.job && (v.job.state === 'queued' || v.job.state === 'running');
-                return (
-                  <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => router.push(episodeHref(projectId, e.id, currentStep(e.status)))}>
-                    <td className="mono">{e.number ?? '-'}</td>
-                    <td>
-                      <Link href={episodeHref(projectId, e.id, currentStep(e.status))} style={{ color: 'inherit', fontWeight: 600, textDecoration: 'none' }}>
-                        {e.title || e.topic}
-                      </Link>
-                    </td>
-                    <td className="mono">{e.scenes.length}</td>
-                    <td>
-                      <span className={`chip ${failed ? 'err' : busy ? 'info' : s.tone}`}>
-                        <i />
-                        {failed ? 'Lỗi' : busy ? `Đang chạy · ${Math.round((v.job?.progress ?? 0) * 100)}%` : s.label}
-                      </span>
-                    </td>
-                    <td className="cap">{new Date(e.updatedAt).toLocaleDateString('vi-VN')}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+          <div className={`stat${stats.waiting ? ' hot' : ''}`}>
+            <span className="eyebrow">Chờ bạn duyệt</span>
+            <b>{stats.waiting}</b>
+            <span className="cap">kịch bản hoặc video</span>
+          </div>
+          <div className="stat">
+            <span className="eyebrow">Đang sản xuất</span>
+            <b>{stats.producing}</b>
+          </div>
+          <div className="stat">
+            <span className="eyebrow">Đã xuất bản</span>
+            <b>{stats.published}</b>
+          </div>
+          <div className="stat">
+            <span className="eyebrow">Chi phí AI</span>
+            <b>{usd(stats.cost)}</b>
+            <Link className="cap" href="/settings">
+              Xem chi tiết
+            </Link>
+          </div>
+        </div>
+
+        <div className="eplayout">
+          <NewEpisodePanel projectId={projectId} episodeCount={episodes.data?.length} />
+          <SetupChecklist projectId={projectId} />
+        </div>
+
+        <DataTable
+          label="Các tập"
+          data={list}
+          columns={columns}
+          rowId={(v) => v.episode.id}
+          loading={episodes.isLoading}
+          error={episodes.error ? errorMessage(episodes.error) : undefined}
+          search={{ placeholder: 'Tìm theo tên hoặc chủ đề', text: (v) => `${v.episode.title} ${v.episode.topic} ${v.episode.number ?? ''}` }}
+          filters={[statusFilter]}
+          initialState={{ sort: { id: 'number', dir: 'asc' } }}
+          onRowClick={(v) => router.push(episodeHref(projectId, v.episode.id, currentStep(v.episode.status)))}
+          empty={
+            <div className="col" style={{ alignItems: 'center' }}>
+              <h3>Dự án chưa có tập nào</h3>
+              <p className="muted">Gõ chủ đề ở ô Tập mới, hoặc bấm Gợi ý chủ đề để AI đề xuất tập mở đầu.</p>
+            </div>
+          }
+        />
       </Page>
     </>
   );
@@ -109,9 +117,10 @@ export function ProjectStyleView({ projectId }: { projectId: string }) {
   const project = useChannel(projectId);
   const skills = useSkills(projectId);
   const c = project.data;
+  const skillCols = useMemo(() => skillColumns(c?.defaultSkillId ?? null), [c?.defaultSkillId]);
   return (
     <>
-      <Topbar crumbs={[c?.name ?? 'Dự án', 'Phong cách và skill']}>
+      <Topbar crumbs={[{ label: c?.name ?? 'Dự án', href: projectHref(projectId) }, 'Phong cách và skill']}>
         <Link className="btn" href={`/channels/${projectId}`}>
           Sửa ở bản cũ
         </Link>
@@ -161,48 +170,48 @@ export function ProjectStyleView({ projectId }: { projectId: string }) {
                   + Thêm từ kho
                 </Link>
               </div>
-              {skills.isLoading ? (
-                <Loading />
-              ) : (skills.data ?? []).length === 0 ? (
-                <span className="cap">Dự án chưa có skill nào. Thêm từ kho để AI biết cách làm từng kiểu video.</span>
-              ) : (
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>Skill</th>
-                      <th>Nguồn</th>
-                      <th>Phiên bản</th>
-                      <th>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(skills.data ?? []).map((s) => (
-                      <tr key={s.id}>
-                        <td>
-                          <b>{s.name}</b>
-                          {s.id === c.defaultSkillId && <span className="chip acc" style={{ marginLeft: 8 }}>Mặc định</span>}
-                          <div className="cap">{s.description}</div>
-                        </td>
-                        <td className="cap">{s.source.startsWith('market:') ? 'Từ kho' : s.source === 'ai' ? 'AI viết' : 'Tự viết'}</td>
-                        <td className="mono">v{s.version}</td>
-                        <td>
-                          {s.issues.some((i) => i.level === 'error') ? (
-                            <span className="chip err">Có lỗi</span>
-                          ) : s.update ? (
-                            <span className="chip warn">Có bản mới</span>
-                          ) : (
-                            <span className="chip ok">Ổn</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              <DataTable
+                label="Skill của dự án"
+                data={skills.data ?? []}
+                columns={skillCols}
+                rowId={(k) => k.id}
+                loading={skills.isLoading}
+                search={{ placeholder: 'Tìm skill', text: (k) => `${k.name} ${k.description}` }}
+                initialState={{ sort: { id: 'name', dir: 'asc' } }}
+                empty={<span className="cap">Dự án chưa có skill nào. Thêm từ kho để AI biết cách làm từng kiểu video.</span>}
+              />
             </div>
           </>
         )}
       </Page>
     </>
   );
+}
+
+const sourceLabel = (k: SkillSummary) => (k.source.startsWith('market:') ? 'Từ kho' : k.source === 'ai' ? 'AI viết' : 'Tự viết');
+const skillHealth = (k: SkillSummary) => (k.issues.some((i) => i.level === 'error') ? 0 : k.update ? 1 : 2);
+
+function skillColumns(defaultSkillId: string | null): DataColumn<SkillSummary>[] {
+  return [
+    {
+      id: 'name',
+      header: 'Skill',
+      sortValue: (k) => k.name,
+      cell: (k) => (
+        <>
+          <b>{k.name}</b>
+          {k.id === defaultSkillId && <span className="chip acc" style={{ marginLeft: 8 }}>Mặc định</span>}
+          <div className="cap">{k.description}</div>
+        </>
+      ),
+    },
+    { id: 'source', header: 'Nguồn', hideBelow: 'sm', sortValue: sourceLabel, cell: (k) => <span className="cap">{sourceLabel(k)}</span> },
+    { id: 'version', header: 'Phiên bản', mono: true, hideBelow: 'sm', sortValue: (k) => k.version, cell: (k) => `v${k.version}` },
+    {
+      id: 'health',
+      header: 'Trạng thái',
+      sortValue: skillHealth,
+      cell: (k) => (skillHealth(k) === 0 ? <span className="chip err">Có lỗi</span> : skillHealth(k) === 1 ? <span className="chip warn">Có bản mới</span> : <span className="chip ok">Ổn</span>),
+    },
+  ];
 }

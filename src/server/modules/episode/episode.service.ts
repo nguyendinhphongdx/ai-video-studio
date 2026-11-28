@@ -11,7 +11,9 @@ import { runTask } from '@/core/agent/runner';
 import { fixSceneTask, type CastMember, type SceneFix } from '@/core/tasks/fix-scene';
 import { currentProps, imageSpec, imageStyleOf, readiness } from '@/core/scenes/assets';
 import { buildContext, templateVars } from '@/core/workflows/context';
-import { suggestTopics } from '@/core/workflows/suggest';
+import type { TopicAnalysis } from '@/core/tasks/analyze-topic';
+import type { RecentVideo, TopicIdea } from '@/core/tasks/suggest-topics';
+import { analyzeTopic, suggestTopics } from '@/core/workflows/suggest';
 import { scriptIssues } from '@/core/workflows/quality';
 import { importScript } from '@/core/workflows/script';
 import { reviseEpisodeTask } from '@/core/tasks/revise-episode';
@@ -99,16 +101,30 @@ export function castOf(bible: SeriesBible | undefined): CastMember[] {
   return [...cast, ...poses];
 }
 
+/** Every episode of a channel as the topic tasks read it, plus the premise of its series. */
+async function storyOf(channelId: string): Promise<{ videos: RecentVideo[]; story: string }> {
+  const seriesList = await seriesRepository.list(channelId);
+  const names = new Map(seriesList.map((x) => [x.id, x.name]));
+  const videos = (await episodeRepository.list({ channelId })).slice(0, 60).map((e) => ({ topic: e.topic, title: e.title, status: e.status, series: e.seriesId ? (names.get(e.seriesId) ?? null) : null, number: e.number, goal: e.goal }));
+  const premises = await Promise.all(seriesList.map(async (x) => (await seriesRepository.version(x.id, x.currentVersion))?.bible.premise.trim() ?? ''));
+  return { videos, story: premises.filter(Boolean).join('\n') };
+}
+
 export const episodeService = {
-  /** Next-video ideas from the channel's identity, knowledge and the videos it already has. */
-  async topicIdeas(channelId: string): Promise<{ topic: string; why: string }[]> {
+  /** Next-video ideas that continue the story: the channel's identity and knowledge, the series premise and every episode in order. */
+  async topicIdeas(channelId: string): Promise<TopicIdea[]> {
     await channelService.get(channelId);
     if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để nhận gợi ý chủ đề.');
-    const recent = await Promise.all((await episodeRepository
-      .list({ channelId }))
-      .slice(0, 30)
-      .map(async (e) => ({ topic: e.topic, title: e.title, status: e.status, series: e.seriesId ? ((await seriesRepository.find(e.seriesId))?.name ?? null) : null })));
-    return withUsage({ channelId, purpose: 'suggest-topics' }, () => suggestTopics(appDeps, channelId, recent, 5));
+    const { videos, story } = await storyOf(channelId);
+    return withUsage({ channelId, purpose: 'suggest-topics' }, () => suggestTopics(appDeps, channelId, videos, 5, story));
+  },
+
+  /** Looks at a typed topic before the episode exists: title, synopsis, place in the story, problems. Creates nothing. */
+  async analyzeTopic(channelId: string, topic: string): Promise<TopicAnalysis> {
+    await channelService.get(channelId);
+    if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để phân tích chủ đề, hoặc cứ tạo tập.');
+    const { videos, story } = await storyOf(channelId);
+    return withUsage({ channelId, purpose: 'analyze-topic' }, () => analyzeTopic(appDeps, channelId, topic, videos, story));
   },
 
   async list(filter: { channelId?: string; seriesId?: string } = {}): Promise<EpisodeView[]> {

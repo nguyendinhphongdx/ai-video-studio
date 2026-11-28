@@ -7,7 +7,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { isBusy, useEpisode } from '@/features/episode/hooks/use-episode';
 import { useAssistantStore } from '@/stores/assistant-store';
 
-import { currentStep, EPISODE_STEPS, episodeHref, stepIndex, type EpisodeStep } from '../../model';
+import { currentStep, EPISODE_STEPS, episodeHref, projectHref, stepIndex, type EpisodeStep } from '../../model';
 import { Loading, Page, Topbar } from '../../Shell';
 import { SeriesUpdateBanner } from '../SeriesUpdateBanner';
 import { NextStepBar } from './NextStepBar';
@@ -35,7 +35,7 @@ export function EpisodeShell({ projectId, episodeId, children }: { projectId: st
 
   return (
     <ReviewerContext.Provider value={{ at, setAt }}>
-      <Topbar crumbs={['Các tập', v ? v.episode.title || v.episode.topic : '…', EPISODE_STEPS.find((s) => s.key === active)?.label ?? '']} />
+      <Topbar crumbs={[{ label: 'Các tập', href: projectHref(projectId) }, v ? v.episode.title || v.episode.topic : '…', EPISODE_STEPS.find((s) => s.key === active)?.label ?? '']} />
       <Page width={1240}>
         <div className="epbar">
           <div className="who">

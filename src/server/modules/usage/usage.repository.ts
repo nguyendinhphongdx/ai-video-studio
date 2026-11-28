@@ -1,5 +1,6 @@
 import { newId } from '@/core/domain/ids';
 import type { PriceRow, UsageKind } from '@/core/usage/cost';
+import { rangeStart } from '@/core/usage/period';
 import { and, asc, desc, eq, gte, isNull, lt, sql, type SQL } from 'drizzle-orm';
 
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -110,21 +111,27 @@ export const usageRepository = {
     return { calls: r.calls, usd: r.usd, inputTokens: r.i, outputTokens: r.o, cachedTokens: r.c, images: r.images, ttsSeconds: r.secs, unpriced: r.unpriced, estimated: r.est };
   },
 
-  async daily(from: string): Promise<{ day: string; kind: UsageKind; usd: number }[]> {
+  async daily(from: string, channelId?: string): Promise<{ day: string; kind: UsageKind; usd: number }[]> {
     // The day in the server's time zone (the connection's TimeZone, set from the process in db.ts).
     const day = sql<string>`to_char(${ev.at}::timestamptz, 'YYYY-MM-DD')`;
-    const rows = await orm().select({ day, kind: ev.kind, usd: total(ev.costUsd) }).from(ev).where(since(from)).groupBy(day, ev.kind).orderBy(day);
+    const rows = await orm().select({ day, kind: ev.kind, usd: total(ev.costUsd) }).from(ev).where(since(from, channelId)).groupBy(day, ev.kind).orderBy(day);
     return rows.map((r) => ({ day: r.day, kind: r.kind as UsageKind, usd: r.usd }));
   },
 
-  async by(column: 'channel_id' | 'purpose' | 'episode_id', from: string, limit = 10): Promise<Group[]> {
+  async by(column: 'channel_id' | 'purpose' | 'episode_id', from: string, limit = 10, channelId?: string): Promise<Group[]> {
     const col = GROUP_COLUMN[column];
-    const rows = await orm().select({ k: col, ...SUMS }).from(ev).where(since(from)).groupBy(col).orderBy(desc(SUMS.usd), desc(SUMS.calls)).limit(limit);
+    const rows = await orm().select({ k: col, ...SUMS }).from(ev).where(since(from, channelId)).groupBy(col).orderBy(desc(SUMS.usd), desc(SUMS.calls)).limit(limit);
     return rows.map((r) => toGroup(r, r.k));
   },
 
-  async byModel(from: string): Promise<Group[]> {
-    const rows = await orm().select({ kind: ev.kind, provider: ev.provider, k: ev.model, ...SUMS }).from(ev).where(since(from)).groupBy(ev.kind, ev.provider, ev.model).orderBy(desc(SUMS.usd), desc(SUMS.calls));
+  /** What each video of a channel has cost so far, all time (videos with no paid call are absent). */
+  async episodeCosts(channelId: string): Promise<{ episodeId: string; usd: number; calls: number }[]> {
+    const rows = await orm().select({ k: ev.episodeId, usd: total(ev.costUsd), calls: SUMS.calls }).from(ev).where(since(rangeStart('all'), channelId)).groupBy(ev.episodeId);
+    return rows.flatMap((r) => (r.k ? [{ episodeId: r.k, usd: r.usd, calls: r.calls }] : []));
+  },
+
+  async byModel(from: string, channelId?: string): Promise<Group[]> {
+    const rows = await orm().select({ kind: ev.kind, provider: ev.provider, k: ev.model, ...SUMS }).from(ev).where(since(from, channelId)).groupBy(ev.kind, ev.provider, ev.model).orderBy(desc(SUMS.usd), desc(SUMS.calls));
     return rows.map((r) => toGroup(r, r.k, r.kind as UsageKind, r.provider));
   },
 

@@ -139,8 +139,7 @@
   }
 }
 
-/* The assistant panel sits beside the page only when there is room for both (sidebar 240 + page + panel 420); on narrower screens it covers the page. */
-@media (min-width: 1280px) {
-  html[data-assistant='open'] main { padding-right: 420px; }
+/* Pages make room for the assistant panel once, on .v2 (v2.css); fixed action bars follow it. */
+@media (min-width: 1100px) {
   html[data-assistant='open'] [data-action-bar] { right: 420px; }
 }

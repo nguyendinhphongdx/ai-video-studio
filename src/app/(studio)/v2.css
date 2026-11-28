@@ -327,7 +327,6 @@ html:has(.v2):hover { scrollbar-color: rgba(20, 19, 15, 0.28) transparent; }
 .slider > b { flex: 0 0 42px; text-align: right; font: 600 12px var(--mono); }
 .director .take { border: 0; padding: 0; background: none; cursor: pointer; }
 .director .take:disabled { cursor: default; }
-html[data-assistant="open"] .director { padding-right: 420px; }
 @media (max-width: 1200px) {
   .director .edleft { flex-basis: 168px; padding: 8px; }
   .director .drow { grid-template-columns: 48px minmax(0, 1fr) auto; }
@@ -339,7 +338,6 @@ html[data-assistant="open"] .director { padding-right: 420px; }
   .director .edleft, .director .edright { flex: 0 0 auto; border: 0; }
   .director .dlist-scroll { max-height: 180px; }
   .dstage { max-width: 100%; }
-  html[data-assistant="open"] .director { padding-right: 0; }
 }
 .dtl .clip.movable { cursor: grab; touch-action: none; }
 .dtl .clip .edge { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; background: rgba(255,255,255,0.45); touch-action: none; }

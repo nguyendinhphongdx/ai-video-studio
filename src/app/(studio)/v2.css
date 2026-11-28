@@ -598,3 +598,16 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 .skillcard .clamp3 { flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 4.5em; }
 .skillcard-foot { margin-top: auto; }
 .skillcard button.chip { cursor: pointer; border: 0; }
+
+/* Publish step */
+.pubgrid { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+.pubmedia, .pubtexts { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.pubfile { display: flex; flex-direction: column; gap: var(--sp-2); padding-bottom: var(--sp-3); border-bottom: 1px solid var(--line); }
+.pubfile:last-child { border-bottom: 0; padding-bottom: 0; }
+.pubvideo { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: #000; }
+.pubfile-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.pubzip { display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }
+.pubtexts .seg { align-self: flex-start; }
+.cap.over { color: var(--err, #B3261E); font-weight: 600; }
+.savebar { position: sticky; bottom: var(--sp-3); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+@media (max-width: 860px) { .pubgrid { grid-template-columns: minmax(0, 1fr); } }

@@ -71,6 +71,16 @@ There is exactly one conversational AI. It sits in a panel on every page, knows 
 - **Quality guidance** for what the assistant writes (design, knowledge, skills, series) is attached to the tool that saves it (`src/core/assistant/guides.ts`).
 - A provider needs tool calling (`LlmPort.chat`): Claude, OpenAI, Gemini work; small local models usually do not.
 
+## Outside AI over MCP
+
+Claude Code, Codex and other MCP clients work in the studio through `/api/mcp` (`server/modules/mcp`). They use the same tools as the assistant: one class per file in `server/assistant/tools`, and `surfaces` on the class says who is offered it. No studio model runs for an MCP call unless the tool itself asks for one.
+
+- **Codes.** Only the workspace owner makes them (Cài đặt › AI bên ngoài). Stored hashed, shown once, may expire, and stop working when revoked or when their creator is no longer the owner. A code reaches every project of its workspace and nothing else.
+- **Levels.** `read`, `edit`, `full`. The level comes from the tool's `risk` (or `minLevel`); a tool above the level is not listed and cannot be called by name. Paid, deleting and video-approval work needs `full`, and is not asked again.
+- **Limits and record.** 120 calls a minute per code; each call is kept (500 per code). Costs of work asked from outside carry `via: 'mcp'` through the job into the ledger.
+- **Files.** Media is never sent through the protocol except small pictures. `view`, `get_video` and `request_upload` hand out random links (hashed in `mcp_uploads`): viewing lasts 60 minutes, an upload link lasts 15 minutes and works once.
+- **Guide.** `get_studio_guide` (`core/assistant/studio-guide.ts`) tells the outside model the concepts, the order of work and the preconditions. A test keeps the tool names in it true.
+
 ## Cost tracking
 
 Every paid call (LLM, picture, Google voice) is a row in `usage_events`, an append-only ledger with no foreign keys (deleting a video keeps what it cost). Adapters write it, not the core: `llm.service`, `image.service` and `tts.service` read the provider's usage (tokens, pictures, audio seconds; estimated and flagged when the provider reports none) and call `usageService.record`, which prices it from the `price_book` at that moment and stores the USD cost, so editing prices later never rewrites history. Who the call belongs to (channel, series, video, job, thread) comes from an `AsyncLocalStorage` scope opened by the worker, the assistant turn and API routes (`usage.scope.ts`); the core only passes a `purpose` (task id) and a `sceneId` through the ports. `budgets` are daily or monthly limits per system or channel; `usageService.assertWithinBudget()` runs before each paid call and stops it when a "block" budget is used up. The Cost screen (`/usage`) reads summaries from `usage.service`; `POST /usage/estimate` prices a batch before it is run (shown on the storyboard buttons). The default price book is a reference that goes stale; model ids with no matching row are counted as "no price" rather than guessed.

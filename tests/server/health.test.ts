@@ -31,12 +31,16 @@ describe('system health', () => {
 describe('episode steps and the scene editor', () => {
   it('opens each episode at its step and locks the steps after it', async () => {
     const { currentStep, stepIndex, EPISODE_STEPS, episodeHref, projectHref } = await import('@/features/v2/model');
-    expect(EPISODE_STEPS.map((s) => s.key)).toEqual(['script', 'storyboard', 'production', 'review', 'publish']);
+    expect(EPISODE_STEPS.map((s) => s.key)).toEqual(['script', 'review', 'publish']);
     expect(currentStep('planned')).toBe('script');
     expect(currentStep('script_review')).toBe('script');
-    expect(currentStep('producing')).toBe('production');
+    expect(currentStep('producing')).toBe('review');
     expect(currentStep('video_review')).toBe('review');
-    expect(stepIndex(currentStep('published'))).toBe(4);
+    expect(stepIndex(currentStep('published'))).toBe(2);
+    const { lacksImage } = await import('@/features/v2/model');
+    // "Needs an image" means the block uses one, not that it is missing.
+    expect(lacksImage({ needsImage: true, imageUrl: '/m/a.png' })).toBe(false);
+    expect(lacksImage({ needsImage: true, imageUrl: null })).toBe(true);
     expect(projectHref('p1')).toBe('/projects/p1');
     expect(episodeHref('p1', 'e1', 'review')).toBe('/projects/p1/episodes/e1/review');
   });

@@ -12,11 +12,12 @@ import { useChannel } from '@/features/channel/hooks/use-channels';
 import { ScenePlayer } from '@/features/episode/components/preview';
 import { isBusy, useEpisode, useEpisodeAction, useSkills, useTools } from '@/features/episode/hooks/use-episode';
 import { blockIndex, brandOf, sceneSeconds } from '@/features/episode/lib/preview';
-import { episodeApi, type EpisodeView } from '@/features/episode/services/episode.api';
+import { episodeApi } from '@/features/episode/services/episode.api';
 import { usageApi } from '@/features/usage/services/usage.api';
 
 import { episodeHref, usd } from '../model';
 import { LockedScenes, scenesLocked } from './LockedScenes';
+import { toSaveInput } from './episode/save';
 import { SeriesUpdateBanner } from './SeriesUpdateBanner';
 
 const sceneHref = (projectId: string, episodeId: string, sceneId: string) => `/direct/${projectId}/${episodeId}/${sceneId}`;
@@ -53,7 +54,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   useEffect(() => setDraft(saved ? structuredClone(saved) : null), [saved]);
   const dirty = Boolean(draft && saved && JSON.stringify(draft) !== JSON.stringify(saved));
 
-  const save = useEpisodeAction(episodeId, (scene: Scene) => episodeApi.saveScript(episodeId, toSaveInput(v!, scene)), 'Đã lưu cảnh');
+  const save = useEpisodeAction(episodeId, (scene: Scene) => episodeApi.saveScript(episodeId, toSaveInput(v!, { scene })), 'Đã lưu cảnh');
   const gen = useEpisodeAction(episodeId, (what: { image: boolean; voice: boolean }) => episodeApi.assets(episodeId, { sceneIds: [sceneId], ...what, force: true }), 'Đã giao việc tạo lại');
   const approve = useEpisodeAction(episodeId, (approved: boolean) => episodeApi.approvals(episodeId, { sceneIds: [sceneId], approved }));
 
@@ -97,8 +98,8 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   return (
     <div className="ed" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <header className="edtop">
-        <Link className="btn sm ghost" href={episodeHref(projectId, episodeId, 'storyboard')}>
-          ← Storyboard
+        <Link className="btn sm ghost" href={episodeHref(projectId, episodeId, 'script')}>
+          ← Các cảnh
         </Link>
         <div className="col" style={{ gap: 0, flex: '1 1 auto' }}>
           <span className="cap">
@@ -300,16 +301,4 @@ function FieldEditor({ field: f, value, disabled, onChange, cast }: { field: Too
       {f.hint && <span className="hint">{f.hint}</span>}
     </div>
   );
-}
-
-/** The script save endpoint takes the whole script; only this scene changes. */
-function toSaveInput(v: EpisodeView, scene: Scene) {
-  return {
-    title: v.episode.title,
-    publish: v.episode.publish,
-    scenes: v.episode.scenes.map((s) => {
-      const x = s.id === scene.id ? scene : s;
-      return { id: x.id, slotId: x.slotId, block: String(x.block), locked: x.locked, narration: x.narration, props: x.props };
-    }),
-  };
 }

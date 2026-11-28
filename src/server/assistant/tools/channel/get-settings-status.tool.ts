@@ -14,6 +14,7 @@ export class GetSettingsStatus extends StudioTool<z.infer<typeof Input>, z.infer
   readonly title = 'Xem trạng thái cài đặt';
   readonly description = 'Xem studio đã cài gì: AI viết (provider, model), tạo ảnh, giọng đọc. Dùng khi một việc cần AI/ảnh/giọng mà có thể chưa được cài, để báo người dùng vào Cài đặt.';
   readonly risk = 'read';
+  override readonly scope = 'workspace';
   readonly input = Input;
   readonly output = Output;
 

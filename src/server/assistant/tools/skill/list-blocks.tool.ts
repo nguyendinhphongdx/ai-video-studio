@@ -11,6 +11,7 @@ export class ListBlocks extends StudioTool<z.infer<typeof Input>, z.infer<typeof
   readonly title = 'Xem công cụ và khối dựng';
   readonly description = 'Danh sách các công cụ dựng và khối cảnh có thể dùng trong skill, kèm cách dùng và các thuộc tính của từng khối. Đọc trước khi soạn skill.';
   readonly risk = 'read';
+  override readonly scope = 'workspace';
   readonly input = Input;
   readonly output = Output;
 

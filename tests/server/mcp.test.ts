@@ -71,3 +71,66 @@ describe('connection codes', () => {
     await expect(run({ ...A, role: 'member' }, () => mcp.createCode({ name: 'no' }))).rejects.toThrow(/chủ workspace/);
   });
 });
+
+describe('the endpoint', () => {
+  const post = async (code: string | null, body: unknown) => {
+    const { POST } = await import('@/app/api/mcp/route');
+    const res = await POST(new Request('http://studio.test/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', ...(code ? { authorization: `Bearer ${code}` } : {}) }, body: JSON.stringify(body) }));
+    const raw = await res.text();
+    const data = /^data: (.*)$/m.exec(raw)?.[1] ?? raw;
+    return { status: res.status, body: data ? JSON.parse(data) : null };
+  };
+  const names = async (code: string) => ((await post(code, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })).body.result.tools as { name: string }[]).map((t) => t.name);
+  const callTool = async (code: string, name: string, args: Record<string, unknown>) => {
+    const { result, error } = (await post(code, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } })).body;
+    return { isError: Boolean(error ?? result.isError), text: error?.message ?? (result.content[0].text as string) };
+  };
+  const projectIn = async (s: Scope, name: string) => {
+    const { channelService } = await import('@/server/modules/channel/channel.service');
+    const { NEW_CHANNEL } = await import('@/features/channel/services/channel.api');
+    return run(s, async () => (await channelService.create({ ...NEW_CHANNEL, name })).id);
+  };
+
+  it('asks for a code', async () => {
+    expect((await post(null, { jsonrpc: '2.0', id: 1, method: 'tools/list' })).status).toBe(401);
+    expect((await post('avs_mcp_wrong', { jsonrpc: '2.0', id: 1, method: 'tools/list' })).status).toBe(401);
+  });
+
+  it('offers each level its own tools, and nothing above it even by name', async () => {
+    const read = (await make('r', 'read')).code;
+    const edit = (await make('e', 'edit')).code;
+    const full = (await make('f', 'full')).code;
+    const [r, e, f] = [await names(read), await names(edit), await names(full)];
+    expect(r).toContain('list_projects');
+    expect(r).not.toContain('update_channel');
+    expect(e).toEqual(expect.arrayContaining([...r, 'update_channel', 'approve_scenes']));
+    expect(e).not.toContain('produce_video');
+    expect(e).not.toContain('remove_scene');
+    expect(f).toEqual(expect.arrayContaining([...e, 'produce_video', 'delete_episode']));
+    expect(f).not.toContain('ai_fix_scene');
+    expect((await callTool(read, 'update_channel', { projectId: 'x', name: 'y' })).isError).toBe(true);
+  });
+
+  it('works in the project it is given, only inside its workspace, and records what it did', async () => {
+    const mine = await projectIn(A, 'Kênh của An');
+    const theirs = await projectIn(B, 'Kênh của Bình');
+    const { code, view } = await make('w', 'edit');
+    expect((await callTool(code, 'list_projects', {})).text).toContain('Kênh của An');
+    expect((await callTool(code, 'list_projects', {})).text).not.toContain('Kênh của Bình');
+    expect(await callTool(code, 'update_channel', { projectId: mine, description: 'Truyện kể' })).toMatchObject({ isError: false });
+    expect((await callTool(code, 'get_channel', { projectId: mine })).text).toContain('Truyện kể');
+    expect((await callTool(code, 'get_channel', { projectId: theirs })).isError).toBe(true);
+    expect((await callTool(code, 'get_channel', {})).isError).toBe(true);
+    const calls = await run(A, () => mcp.calls(view.id));
+    expect(calls.map((c) => [c.tool, c.ok])).toContainEqual(['update_channel', true]);
+    expect(calls.map((c) => [c.tool, c.ok])).toContainEqual(['get_channel', false]);
+  });
+
+  it('limits how fast one code may call', async () => {
+    const { allowed, PER_MINUTE } = await import('@/server/modules/mcp/rate-limit');
+    for (let i = 0; i < PER_MINUTE; i++) expect(allowed('fast', 1000)).toBe(true);
+    expect(allowed('fast', 1000)).toBe(false);
+    expect(allowed('other', 1000)).toBe(true);
+    expect(allowed('fast', 62_000)).toBe(true);
+  });
+});

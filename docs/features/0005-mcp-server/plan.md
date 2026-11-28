@@ -55,6 +55,8 @@ abstract class StudioTool<Input, Output> {
 
 New tools are offered over MCP only and call the same services as the screens.
 
+Over MCP a tool answers with the same text the Assistant's model reads. `output` is checked inside `run` but not advertised: clients that prefer structured results would lose the guidance written in that text.
+
 ## The guide (`get_studio_guide`)
 Topics, in Vietnamese: **tổng quan** (what the studio is, its features) · **khái niệm** (project, series, episode, scene, skill, block, character, knowledge) · **luồng** (first video; next episode of a series; fixing a finished video) · **điều kiện trước** (for each thing that can be made, what must exist first) · **lưu ý** (cost, long jobs and how to follow them, what cannot be undone, versioned series rules) · **hiện trạng** (what is set up, what this code may do). The server's short instructions at connection say: read the guide first. Preconditions are taken from the service code.
 
@@ -64,8 +66,8 @@ Each leaves `npm run check` green and is committed on its own.
 1. [x] Contract of the 44 Assistant tools (name, risk, description, input schema) as a snapshot test — files: `tests/server/assistant-tools.test.ts` — proof: green on the code as it is.
 2. [ ] `StudioTool` and one file per tool, group by group, a commit per group — files: `core/assistant/tool.ts`, `core/assistant/loop.ts`, `server/assistant/tools/**`, `docs/conventions/05-extension-points.md` — proof: the snapshot is unchanged and the Assistant tests pass. (All 44 converted; left: delete `tools/{characters,episodes,scenes}.ts`, which a safety check reserves for the owner, then remove the `defineTool` wrapper.)
 3. [ ] Trial: SDK in a Next.js route with one fixed tool, connected from a real client on localhost — files: `app/api/mcp/route.ts`, `package.json` — proof: the client lists the tool; stop and ask if the SDK does not fit.
-4. [ ] Codes and call record: tables, repository, service (create, list, revoke, authenticate; hashed; expiry; creator must still be the workspace owner) — files: `schema.ts`, `server/modules/mcp/*` — proof: tests for wrong, revoked, expired, demoted creator, other workspace.
-5. [ ] The 43 existing tools over MCP: list by level, `projectId`, refused above level even by name, call record, 120 calls a minute per code — proof: tests per level and isolation; Assistant tests unchanged.
+4. [x] Codes and call record: tables, repository, service (create, list, revoke, authenticate; hashed; expiry; creator must still be the workspace owner) — files: `schema.ts`, `server/modules/mcp/*` — proof: tests for wrong, revoked, expired, demoted creator, other workspace.
+5. [x] The 43 existing tools over MCP: list by level, `projectId`, refused above level even by name, call record, 120 calls a minute per code — proof: tests per level and isolation; Assistant tests unchanged.
 6. [ ] New data tools: projects (list, create, delete), running work, retry, episode skill and series version, video approve and reject, series order and memory, skill upgrade, publish kit, costs — proof: tests per tool, including level and isolation.
 7. [ ] Files: `view_scene_picture`, `get_video` (frames and signed one-hour links), `request_upload` (one-time link, one purpose, same type and size checks as the screens) — proof: tests for expiry, reuse, tampering, wrong type, other workspace.
 8. [ ] Guide and connection instructions — proof: test that every tool it names exists and is offered at the level it claims.

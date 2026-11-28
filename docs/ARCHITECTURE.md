@@ -39,7 +39,7 @@ The output schema of a script is generated from the episode's active **ai** slot
 | New production step | Pipeline step | `src/core/pipeline/steps/<x>.ts`, list in `steps/index.ts` | `core/pipeline/step.ts` |
 | React to something | Domain event subscriber | `src/server/subscribers.ts` | `core/events/events.ts` |
 | New quality rule | Quality check | `src/core/quality/checks/` | `core/quality/check.ts` |
-| New provider (AI, TTS, storage, upload) | Assistant tool | Something the one assistant chat can do | `src/server/assistant/tools/<x>.ts`, list in `tools/index.ts` | `core/assistant/tool.ts` |
+| New provider (AI, TTS, storage, upload) | Assistant tool | Something the one assistant chat can do | `src/server/assistant/tools/<group>/<name>.tool.ts`, list in the group's `index.ts` | `core/assistant/tool.ts` |
 | Port + adapter | `src/server/adapters/<x>` | `core/ports.ts` |
 
 Registries are validated at startup (`core/registry.ts`): duplicate ids, tools without renderers and step cycles fail at boot.

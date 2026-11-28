@@ -10,7 +10,7 @@ A new capability goes into one of these (rule 2). If it fits none, **stop and as
 | New production step | `src/core/pipeline/steps/<x>.ts`, list in `steps/index.ts` | `core/pipeline/step.ts` | `steps/thumbnail.ts` |
 | React to something | a subscriber in `src/server/subscribers.ts` | `core/events/events.ts` | existing subscribers |
 | New quality rule | `src/core/quality/checks/index.ts` | `core/quality/check.ts` | existing checks |
-| Something the AI can do for the person | `src/server/assistant/tools/<x>.ts`, list in `tools/index.ts` | `core/assistant/tool.ts` | `tools/series.ts` |
+| Something the AI can do for the person | `src/server/assistant/tools/<group>/<name>.tool.ts`, list in the group's `index.ts` | `core/assistant/tool.ts` | `tools/series/get-series.tool.ts` |
 | New provider (LLM, picture, voice, storage, upload) | port in `core/ports.ts` + adapter in `src/server/adapters/<x>` | `core/ports.ts` | `adapters/image` |
 
 Long work additionally needs a **worker job** (`JobKind` in `src/core/domain/job.ts`, handler in `src/worker/index.ts`). See `.agent/skills/add-job`.

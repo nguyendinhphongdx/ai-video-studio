@@ -61,8 +61,8 @@ Topics, in Vietnamese: **tổng quan** (what the studio is, its features) · **k
 ## Steps
 Each leaves `npm run check` green and is committed on its own.
 
-1. [ ] Contract of the 44 Assistant tools (name, risk, description, input schema) as a snapshot test — files: `tests/server/assistant-tools.test.ts` — proof: green on the code as it is.
-2. [ ] `StudioTool` and one file per tool, group by group, a commit per group — files: `core/assistant/tool.ts`, `core/assistant/loop.ts`, `server/assistant/tools/**`, `docs/conventions/05-extension-points.md` — proof: the snapshot is unchanged and the Assistant tests pass.
+1. [x] Contract of the 44 Assistant tools (name, risk, description, input schema) as a snapshot test — files: `tests/server/assistant-tools.test.ts` — proof: green on the code as it is.
+2. [ ] `StudioTool` and one file per tool, group by group, a commit per group — files: `core/assistant/tool.ts`, `core/assistant/loop.ts`, `server/assistant/tools/**`, `docs/conventions/05-extension-points.md` — proof: the snapshot is unchanged and the Assistant tests pass. (All 44 converted; left: delete `tools/{characters,episodes,scenes}.ts`, which a safety check reserves for the owner, then remove the `defineTool` wrapper.)
 3. [ ] Trial: SDK in a Next.js route with one fixed tool, connected from a real client on localhost — files: `app/api/mcp/route.ts`, `package.json` — proof: the client lists the tool; stop and ask if the SDK does not fit.
 4. [ ] Codes and call record: tables, repository, service (create, list, revoke, authenticate; hashed; expiry; creator must still be the workspace owner) — files: `schema.ts`, `server/modules/mcp/*` — proof: tests for wrong, revoked, expired, demoted creator, other workspace.
 5. [ ] The 43 existing tools over MCP: list by level, `projectId`, refused above level even by name, call record, 120 calls a minute per code — proof: tests per level and isolation; Assistant tests unchanged.

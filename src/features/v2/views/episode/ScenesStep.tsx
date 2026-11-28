@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import type { Scene } from '@/core/domain/episode';
 import { blockIndex } from '@/features/episode/lib/preview';
 import { isBusy, useEpisode, useEpisodeAction, useTools } from '@/features/episode/hooks/use-episode';
+import { SceneThumbnail } from '@/features/episode/components/preview';
 import { episodeApi, type EpisodeView } from '@/features/episode/services/episode.api';
 
 import { lacksImage, lacksVoice } from '../../model';
@@ -13,7 +14,7 @@ import { LockedScenes, scenesLocked } from '../LockedScenes';
 import { sceneHref } from '../SceneDirectorView';
 import { useReviewer } from './EpisodeShell';
 import { toSaveInput } from './save';
-import { SceneViewer } from './SceneViewer';
+import { SceneViewer, useDrawnScene } from './SceneViewer';
 
 type Filter = 'all' | 'todo';
 
@@ -96,6 +97,7 @@ export function ScenesStep({ projectId, episodeId }: { projectId: string; episod
 function SceneRow({ view: v, scene: s, index, projectId, blockName, onZoom }: { view: EpisodeView; scene: Scene; index: number; projectId: string; blockName: string; onZoom: () => void }) {
   const id = v.episode.id;
   const a = v.assets[s.id];
+  const drawn = useDrawnScene(projectId)(s, a);
   const [text, setText] = useState<string | null>(null);
   const save = useEpisodeAction(id, (narration: string) => episodeApi.saveScript(id, toSaveInput(v, { scene: { ...s, narration } })), 'Đã lưu lời đọc');
   const approve = useEpisodeAction(id, (approved: boolean) => episodeApi.approvals(id, { sceneIds: [s.id], approved }));
@@ -108,8 +110,14 @@ function SceneRow({ view: v, scene: s, index, projectId, blockName, onZoom }: { 
 
   return (
     <div className={`card flat scrow${s.approved ? ' sel' : ''}`}>
-      <button type="button" className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined} onClick={onZoom} aria-label={`Xem lớn cảnh ${number}`}>
-        {!a?.imageUrl && <span className="hint">{a?.needsImage ? 'Chưa có ảnh' : s.locked ? 'Nền của kênh' : 'Chỉ có chữ'}</span>}
+      <button type="button" className={a?.imageUrl || drawn ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined} onClick={onZoom} aria-label={`Xem lớn cảnh ${number}`}>
+        {drawn ? (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+            <SceneThumbnail {...drawn} />
+          </div>
+        ) : (
+          !a?.imageUrl && <span className="hint">{a?.needsImage ? 'Chưa có ảnh' : s.locked ? 'Nền của kênh' : 'Chỉ có chữ'}</span>
+        )}
         <span>{number}</span>
       </button>
       <div className="col" style={{ gap: 6 }}>

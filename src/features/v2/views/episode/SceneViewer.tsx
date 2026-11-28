@@ -2,10 +2,29 @@
 
 import { useEffect, useRef } from 'react';
 
-import { isBusy, useEpisodeAction } from '@/features/episode/hooks/use-episode';
+import type { Scene } from '@/core/domain/episode';
+import { useChannel } from '@/features/channel/hooks/use-channels';
+import { ScenePlayer } from '@/features/episode/components/preview';
+
+
+import { isBusy, useEpisodeAction, useTools } from '@/features/episode/hooks/use-episode';
+import { blockIndex, brandOf, sceneSeconds } from '@/features/episode/lib/preview';
 import { episodeApi, type EpisodeView } from '@/features/episode/services/episode.api';
 
 import { scenesLocked } from '../LockedScenes';
+
+/** Intro, outro and text scenes have no picture of their own: the template and the project's brand draw them. */
+export function useDrawnScene(projectId: string) {
+  const tools = useTools();
+  const channel = useChannel(projectId).data ?? null;
+  const blocks = blockIndex(tools.data);
+  const brand = brandOf(channel);
+  return (s: Scene, a: EpisodeView['assets'][string] | undefined) => {
+    // Puppet and picture scenes need the series cast to be drawn, which is not at hand here.
+    if (!channel || a?.imageUrl || a?.needsImage || !blocks.get(s.block)?.previewable || s.block === 'remotion/puppet' || s.block === 'remotion/picture') return null;
+    return { block: s.block, props: s.props, ordinal: 1, brand, durationSec: sceneSeconds(s, blocks) };
+  };
+}
 
 /** One scene at a time, large: arrows move, Enter approves and goes to the next one waiting, Esc closes. */
 export function SceneViewer({ view: v, index, onMove }: { view: EpisodeView; index: number; onMove: (index: number | null) => void }) {
@@ -16,6 +35,7 @@ export function SceneViewer({ view: v, index, onMove }: { view: EpisodeView; ind
   const approve = useEpisodeAction(id, (approved: boolean) => episodeApi.approvals(id, { sceneIds: [s.id], approved }));
   const locked = scenesLocked(v);
   const canApprove = !locked && !isBusy(v) && !s.approved && Boolean(a?.ready) && !approve.isPending;
+  const drawn = useDrawnScene(v.episode.channelId)(s, a);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => box.current?.focus(), []);
 
@@ -47,8 +67,16 @@ export function SceneViewer({ view: v, index, onMove }: { view: EpisodeView; ind
         Cảnh {index + 1} / {scenes.length}
         {s.approved ? ' · đã duyệt' : ''}
       </b>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {a?.imageUrl ? <img src={a.imageUrl} alt="" /> : <span>{a?.needsImage ? 'Chưa có ảnh' : 'Cảnh này không dùng ảnh'}</span>}
+      {drawn ? (
+        <div style={{ width: 'min(960px, 100%)' }}>
+          <ScenePlayer key={s.id} {...drawn} />
+        </div>
+      ) : a?.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={a.imageUrl} alt="" />
+      ) : (
+        <span>{a?.needsImage ? 'Chưa có ảnh' : 'Cảnh này không dùng ảnh'}</span>
+      )}
       <p>{s.narration}</p>
       {a?.voiceUrl && <audio key={s.id} controls autoPlay src={a.voiceUrl} />}
       <div className="row">

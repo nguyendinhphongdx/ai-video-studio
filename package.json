@@ -17,6 +17,7 @@
     "studio": "remotion studio remotion/index.ts",
     "test": "vitest run",
     "lint": "eslint src tests",
+    "check": "npm run typecheck && npm run lint && npm test",
     "db:generate": "drizzle-kit generate",
     "db:import-sqlite": "tsx scripts/sqlite-to-postgres.ts",
     "db:dev": "docker compose -f docker-compose.tunnel.yml up -d postgres",

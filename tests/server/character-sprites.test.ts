@@ -40,6 +40,31 @@ describe('chroma key', () => {
     expect(alphaAt(k, 50 + 22, 70 + 42)).toBe(255); // the enclosed green gem
   });
 
+  it('clears a hole of backdrop seen through the subject (the inside of a ring), not just the outside', async () => {
+    // A red "ring": a 60x60 body with a 30x30 window of pure backdrop green in the middle.
+    const ring = await sharp({ create: { width: 60, height: 60, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();
+    const hole = await sharp({ create: { width: 30, height: 30, channels: 3, background: { r: 0, g: 255, b: 0 } } }).png().toBuffer();
+    const img = await sharp({ create: { width: 160, height: 240, channels: 3, background: { r: 0, g: 255, b: 0 } } })
+      .composite([{ input: ring, left: 50, top: 90 }, { input: hole, left: 65, top: 105 }])
+      .png()
+      .toBuffer();
+    const k = await keyOut(img);
+    expect(alphaAt(k, 80, 120)).toBe(0); // the middle of the hole
+    expect(alphaAt(k, 52, 92)).toBe(255); // the ring itself
+  });
+
+  it('also clears a hole the model painted a lighter green than the backdrop', async () => {
+    const ring = await sharp({ create: { width: 60, height: 60, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();
+    const hole = await sharp({ create: { width: 30, height: 30, channels: 3, background: { r: 150, g: 215, b: 120 } } }).png().toBuffer();
+    const img = await sharp({ create: { width: 160, height: 240, channels: 3, background: { r: 0, g: 255, b: 0 } } })
+      .composite([{ input: ring, left: 50, top: 90 }, { input: hole, left: 65, top: 105 }])
+      .png()
+      .toBuffer();
+    const k = await keyOut(img);
+    expect(alphaAt(k, 80, 120)).toBe(0);
+    expect(alphaAt(k, 52, 92)).toBe(255);
+  });
+
   it('feathers the edge and removes green spill', async () => {
     // A green-tinted rim (between key and body colour) around the body.
     const rim = await sharp({ create: { width: 64, height: 124, channels: 3, background: { r: 100, g: 200, b: 60 } } }).png().toBuffer();

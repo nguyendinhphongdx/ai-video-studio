@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANCHOR_X, ENTER_SECONDS, companionPoseAt, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys, spriteAt } from '@video/puppet/rig';
+import { ANCHOR_X, ENTER_SECONDS, companionPoseAt, companionSpriteAt, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys, spriteAt } from '@video/puppet/rig';
 
 describe('puppet rig', () => {
   it('interpolates keyframes and holds the ends', () => {
@@ -100,5 +100,18 @@ describe('puppet rig', () => {
     expect(new Set([0, 0.45].map((t) => companionPoseAt('wave', t, all)))).toEqual(new Set(['wave1', 'wave2']));
     expect(companionPoseAt('point', 3, all)).toBe('point');
     expect(companionPoseAt('point', 3, [])).toBeNull();
+  });
+});
+
+describe('supporting character faces', () => {
+  const all = ['talk', 'blink', 'sad', 'point'];
+  it('shows the emotion of the scene, blinking now and then, and its own picture for a face it lacks', () => {
+    const at = (t: number, emotion: 'sad' | 'happy') => companionSpriteAt({ action: 'idle', emotion, t, available: all });
+    const seen = new Set(Array.from({ length: 200 }, (_, i) => at(i / 20, 'sad')));
+    expect(seen).toEqual(new Set(['sad', 'blink']));
+    expect(at(0.2, 'happy')).toBeNull();
+  });
+  it('lets a gesture win over the face', () => {
+    expect(companionSpriteAt({ action: 'point', emotion: 'sad', t: 1, available: all })).toBe('point');
   });
 });

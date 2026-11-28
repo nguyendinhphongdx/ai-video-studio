@@ -18,7 +18,7 @@ const LABEL: Record<SpriteKey, string> = {
   walk1: 'Bước 1', walk2: 'Bước 2', walk3: 'Bước 3', walk4: 'Bước 4', wave1: 'Vẫy 1', wave2: 'Vẫy 2', point: 'Chỉ tay', think: 'Suy nghĩ',
   cross: 'Khoanh tay', bow: 'Cúi chào', sit: 'Ngồi', crouch: 'Lấy đà', leap: 'Bật nhảy', cheer: 'Ăn mừng',
 };
-const CAST_LABEL: Record<CastPose, string> = { talk: 'Đang nói', wave1: 'Vẫy 1', wave2: 'Vẫy 2', point: 'Chỉ tay' };
+const CAST_LABEL: Record<CastPose, string> = { talk: 'Đang nói', blink: 'Nháy mắt', happy: 'Vui', sad: 'Buồn', surprised: 'Ngạc nhiên', angry: 'Giận', wave1: 'Vẫy 1', wave2: 'Vẫy 2', point: 'Chỉ tay' };
 const MAX_REFERENCES = 4;
 const CAST_ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
 
@@ -264,7 +264,7 @@ export function CastEditor({ series }: { series: SeriesView }) {
                 <div className="row" style={{ gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <UploadButton label="Đổi" className="btn sm ghost" onUploaded={(path) => setCast(k, path)} />
                   <button className="btn sm ghost" aria-expanded={openCast === k} onClick={() => setOpenCast(openCast === k ? null : k)}>
-                    Tư thế {castPoseCount(k)}/{CAST_POSES.length}
+                    Biểu cảm {castPoseCount(k)}/{CAST_POSES.length}
                   </button>
                   <button className="btn sm ghost" disabled={working} onClick={() => removeCast(k)}>
                     Bỏ
@@ -276,9 +276,9 @@ export function CastEditor({ series }: { series: SeriesView }) {
           {openCast && bible.characterCast[openCast] && (
             <div className="card flat">
               <SpriteGroup
-                title={`Tư thế của ${openCast}`}
+                title={`Biểu cảm và tư thế của ${openCast}`}
                 items={CAST_POSES.map((k) => ({ key: k, label: CAST_LABEL[k] }))}
-                hint="Đang nói để nhân vật phụ mở miệng khi nói câu thoại của nó, Vẫy 1–2 cho vẫy tay, Chỉ tay để chỉ. Đồ vật (bảo vật) không cần tư thế."
+                hint="Đang nói và Nháy mắt cho gương mặt sống động; Vui, Buồn, Ngạc nhiên, Giận cho biểu cảm; Vẫy 1–2 và Chỉ tay cho động tác. Nhân vật hiếm khi xuất hiện thì không cần vẽ. Đồ vật (bảo vật) không cần."
                 get={(k) => bible.characterCast[castPoseKey(openCast, k as CastPose)]}
                 extraNeutral={false}
                 canGenerate
@@ -286,7 +286,7 @@ export function CastEditor({ series }: { series: SeriesView }) {
                 progress={progress}
                 onGenerate={(keys) => generate.mutate({ keys, cast: openCast })}
                 onSet={(k, path) => setCast(castPoseKey(openCast, k as CastPose), path)}
-                columns={4}
+                columns={5}
               />
             </div>
           )}

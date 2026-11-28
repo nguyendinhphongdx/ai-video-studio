@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { CAST_KEY, MAX_CUSTOM_POSES, POSE_ID, SPRITE_KEY } from '@/core/character/expressions';
 import { EpisodeFormatSchema } from '@/core/series/format';
 
+/** One entry of the picture library planned for a series; its picture is drawn later, when the person asks. */
+export const LibraryItemSchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9-]{0,23}$/),
+  kind: z.enum(['hero', 'character', 'item']),
+  name: z.string().trim().min(1).max(60),
+  description: z.string().trim().min(3).max(400),
+});
+
 export const SeriesBibleSchema = z.object({
   premise: z.string().max(1000).default(''),
   instructions: z.string().max(20000).default(''),
@@ -11,6 +19,8 @@ export const SeriesBibleSchema = z.object({
   avoid: z.array(z.string().max(200)).max(30).default([]),
   characterAssets: z.array(z.string()).max(20).default([]),
   characters: z.string().max(2000).default(''),
+  library: z.array(LibraryItemSchema).max(20).optional(),
+  brandIdeas: z.object({ logo: z.string().max(400), introArt: z.string().max(400) }).optional(),
   characterCast: z.record(z.string().regex(CAST_KEY), z.string()).default({}),
   characterSprites: z.record(z.string().regex(SPRITE_KEY), z.string()).default({}),
   /** The hero's own poses: id → what the pose looks like (the AI draws it from this). */

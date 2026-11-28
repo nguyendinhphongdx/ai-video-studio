@@ -34,6 +34,12 @@ export const imageStyleOf = (ctx: StyleCtx): string => {
   return `${base}${CHARACTER_MARK}${CHARACTER_RULE}${notes ? ` Characters: ${notes}` : ''} (references: ${ids})`;
 };
 
+/** Whether the scene's picture is made with the series' character references and rules. */
+export function usesCharacters(scene: Scene, tools: ToolCatalog): boolean {
+  const slot = tools.block(scene.block)?.image;
+  return Boolean(slot) && !slot!.background && !slot!.withoutCharacters?.(scene.props);
+}
+
 /** The final picture prompt of a scene (its subject + the block's or the channel's style), or null when the block needs no picture. */
 export function imageSpec(scene: Scene, tools: ToolCatalog, channelStyle: string): ImageSpec | null {
   const slot = tools.block(scene.block)?.image;
@@ -41,8 +47,8 @@ export function imageSpec(scene: Scene, tools: ToolCatalog, channelStyle: string
   const subject = String(scene.props[slot.promptKey] ?? '').trim();
   if (!subject) throw new UserFacingError('Có cảnh chưa có mô tả ảnh. Điền "Mô tả ảnh" của cảnh rồi thử lại.');
   const framing = slot.compose?.(scene.props).trim();
-  // A background-only block must not be told to draw the characters.
-  const style = slot.background ? channelStyle.split(CHARACTER_MARK)[0]! : channelStyle;
+  // A scene without the series' characters must not be told to draw them.
+  const style = usesCharacters(scene, tools) ? channelStyle : channelStyle.split(CHARACTER_MARK)[0]!;
   // The skill's own look may talk about characters; the last words of the prompt win, so say it again at the end.
   const plate = slot.background ? ' Final rule: this is an empty background plate. Do not draw any person, character, animal, figure or creature anywhere in the picture; scenery and objects only.' : '';
   const prompt = `${subject}${framing ? `. ${framing}` : ''}. ${style.trim() || slot.style || DEFAULT_IMAGE_STYLE}${plate}`;

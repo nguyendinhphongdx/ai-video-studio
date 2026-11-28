@@ -11,20 +11,25 @@ import { toSprite } from '@/server/adapters/media/chroma-key';
 import { resolveMedia, saveCharacterFile } from '@/server/adapters/media/media.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
 import { runWithContext, withUsage } from '@/server/context';
-import { db } from '@/server/db';
+import { eq } from 'drizzle-orm';
+
+import { closeDb, dbReady, orm } from '@/server/db';
+import { one } from '@/server/orm';
+import { series as seriesTable } from '@/server/schema';
 import { authService } from '@/server/modules/auth/auth.service';
 
 const [seriesId, file] = process.argv.slice(2);
 if (!seriesId || !file) throw new Error('usage: make-cast.ts <seriesId> <cast.json>');
 const items = JSON.parse(await fs.readFile(file, 'utf8')) as { id: string; kind: CastKind; description: string }[];
 // A command-line run has no signed-in person: act in the series' own workspace, as its owner.
-const owner = db().prepare('SELECT workspace_id FROM series WHERE id = ?').get(seriesId) as { workspace_id: string | null } | undefined;
-const context = authService.contextFor(owner?.workspace_id ?? null, null);
+await dbReady();
+const owner = await orm().select({ workspaceId: seriesTable.workspaceId }).from(seriesTable).where(eq(seriesTable.id, seriesId)).then(one);
+const context = await authService.contextFor(owner?.workspaceId ?? null, null);
 if (!context) throw new Error('series not found');
 await runWithContext(context, async () => {
-const series = seriesRepository.find(seriesId);
+const series = await seriesRepository.find(seriesId);
 if (!series) throw new Error('series not found');
-const bible = seriesRepository.version(seriesId, series.currentVersion)!.bible;
+const bible = (await seriesRepository.version(seriesId, series.currentVersion))!.bible;
 const style = bible.characterSprites.neutral ?? bible.characterAssets[0];
 if (!style) throw new Error('the series needs a character picture to copy the style from');
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'avs-cast-'));
@@ -41,3 +46,4 @@ await withUsage({ seriesId, channelId: series.channelId }, async () => {
 await fs.rm(dir, { recursive: true, force: true });
 console.log(JSON.stringify(made, null, 2));
 });
+await closeDb();

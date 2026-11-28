@@ -162,6 +162,17 @@ export function mouthOpen(t: number): boolean {
   return h - Math.floor(h) > 0.38;
 }
 
+/**
+ * Everything a supporting character shows at `t`: its gesture or talking mouth first, else a blink, else the face for
+ * the scene's emotion. null = its own base picture (also for any face it was never drawn with).
+ */
+export function companionSpriteAt(opts: { action: CompanionAction; emotion: Emotion; t: number; available: readonly string[]; talkTo?: number }): string | null {
+  const gesture = companionPoseAt(opts.action, opts.t, opts.available, opts.talkTo);
+  if (gesture) return gesture;
+  if (opts.available.includes('blink') && isBlinking(opts.t, 3)) return 'blink';
+  return opts.emotion !== 'neutral' && opts.available.includes(opts.emotion) ? opts.emotion : null;
+}
+
 /** The sprite showing at `t`. Only names in `available` are returned; neutral is the last resort. */
 export function expressionAt(opts: { emotion: Emotion; talking: boolean; t: number; available: readonly string[]; seed?: number }): Expression {
   const has = (e: Expression) => opts.available.includes(e);

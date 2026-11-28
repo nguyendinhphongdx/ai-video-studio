@@ -8,9 +8,19 @@ export type CastKind = 'character' | 'item';
 export function castPrompt(description: string, kind: CastKind): string {
   const subject = kind === 'character' ? 'Show the full body of this character, standing, facing the viewer, feet fully visible' : 'Show this single object, complete and centred, large in the frame';
   return [
-    `Draw ${description.trim().replace(/\.$/, '')} in exactly the same art style as the reference picture (thick clean dark outlines, flat cel-shaded colours, chibi proportions). Do NOT copy the reference character itself: it only shows the style.`,
+    `Draw ${description.trim().replace(/\.$/, '')} in exactly the same art style as the reference picture (the same outlines, colouring, shading and body proportions). Do NOT copy the reference character itself: it only shows the style.`,
     `${subject}, nothing else in the picture.`,
     `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, no text.`,
     'Do not use green anywhere on the subject.',
+  ].join(' ');
+}
+
+/** The series' main character, drawn before any reference exists: the channel's picture style sets the look. */
+export function heroPrompt(description: string, style: string): string {
+  return [
+    `Character design of ${description.trim().replace(/\.$/, '')}. ${style.trim()}`,
+    'Show the full body of this one character, standing, facing the viewer, feet fully visible, nothing else in the picture.',
+    `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, no text.`,
+    'Do not use green anywhere on the character.',
   ].join(' ');
 }

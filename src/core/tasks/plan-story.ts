@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { defineTask } from '../agent/task';
+import { TALE_BRIEF } from './story';
 
 const BeatSchema = z.object({
   role: z.enum(['hook', 'context', 'rise', 'turn', 'payoff', 'aftertaste']).describe('hook = mở bằng điều khiến người xem muốn biết; context = nền cần có; rise = leo thang; turn = bước ngoặt đảo hiểu biết; payoff = trả lời câu hỏi; aftertaste = hàm ý mang đi'),
@@ -24,7 +25,7 @@ export const renderPlan = (p: StoryPlan): string =>
 /** Step one of writing a video: the story's spine (question, answer, stakes, thread, beats) before any scene exists. */
 export const planStoryTask = defineTask<{ scenes: number; slots: string }, StoryPlan>({
   id: 'plan-story',
-  version: 1,
+  version: 2,
   layers: 'all',
   schema: () => PlanSchema,
   prompt: ({ scenes, slots }) => `Trước khi viết lời đọc, hãy dựng KHUNG MẠCH CHUYỆN cho video này như một biên kịch.
@@ -38,6 +39,9 @@ Một câu chuyện hay có:
 - Một sợi chỉ xuyên suốt (một hình ảnh, nhân vật hay phép so sánh cụ thể) quay lại ở nhiều phần để các cảnh dính vào nhau.
 - Mỗi phần để lại một câu hỏi hoặc mâu thuẫn dẫn sang phần sau (trường "leaves"); phần sau mở bằng chính điều đó.
 - Chi tiết cụ thể, chắc chắn đúng (ưu tiên tri thức của kênh), không chung chung.
+${TALE_BRIEF}
+Khi luật kể chuyện áp dụng, các phần đầu (role context) dành cho dẫn nhập, trước biến cố.
+
 Không viết lời đọc ở bước này, chỉ dựng khung.`,
   parse: (raw) => PlanSchema.parse(raw),
 });

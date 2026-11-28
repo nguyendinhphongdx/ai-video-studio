@@ -12,6 +12,8 @@ import { FxLayer } from '../shots/fx';
 import { autoMotion, cutFor, fxFor, captionLookFor, layeredFor, type Motion } from './variants';
 
 export interface PictureSceneProps {
+  /** Whether the series' main character is in the picture (only affects how the picture is made, not how it is drawn). */
+  hero: 'yes' | 'no';
   transition: 'auto' | EntranceId;
   caption: string;
   imagePrompt: string;

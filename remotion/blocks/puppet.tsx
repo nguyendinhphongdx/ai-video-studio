@@ -1,7 +1,7 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { useBrand, useFont, useLayout } from '../primitives';
-import { ANCHOR_X, companionFlip, companionPoseAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
+import { ANCHOR_X, companionFlip, companionSpriteAt, ENTER_SECONDS, EXIT_SECONDS, hasFrames, poseAt, smoothstep, spriteAt, talkBounce, type CompanionAction, type Emotion, type PuppetAction, type Side } from '../puppet/rig';
 import { Atmosphere, type Mood } from '../puppet/atmosphere';
 
 export interface PuppetSceneProps {
@@ -14,6 +14,10 @@ export interface PuppetSceneProps {
   mood: Mood;
   /** Id of one of the series' own poses (sprite `pose:<id>`) the hero holds while standing; '' for none. */
   pose: string;
+  /** Id of a cast character who takes the main place instead of the series' hero (who is then not on stage); '' = hero. */
+  lead: string;
+  /** The supporting character's face. */
+  companionEmotion: Emotion;
   /** Id of a supporting character from the series cast who stands opposite the hero; '' for none. */
   companion: string;
   /** What the supporting character does; `talk` gives it the line and the hero listens. */
@@ -33,7 +37,7 @@ const src = (s: string) => (/^(data:|https?:|\/)/.test(s) ? s : staticFile(s));
  * A character (expression and pose sprites from the series bible) acting on an AI-painted empty background:
  * it walks in (walk cycle), talks (mouth sprite and bounce), blinks, shows an emotion, gestures (wave, point, bow…) and walks out.
  */
-export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPose, companion, companionAction, item, image, sprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
+export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPose, lead, companion, companionAction, companionEmotion, item, image, sprites: heroSprites, cast }: PuppetSceneProps & { image?: string; sprites?: Record<string, string>; cast?: Record<string, string> }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const { u, width, height } = useLayout();
@@ -41,6 +45,9 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
   const font = useFont();
   const t = frame / fps;
   const duration = durationInFrames / fps;
+  // A cast character in the main place acts with its own pictures; the hero's own poses do not apply to it.
+  const posesOf = (id: string) => Object.fromEntries(Object.entries(cast ?? {}).filter(([k]) => k.startsWith(`${id}:`)).map(([k, v]) => [k.slice(id.length + 1), v]));
+  const sprites: Record<string, string> | undefined = lead ? (cast?.[lead] ? { ...posesOf(lead), neutral: cast[lead]! } : {}) : heroSprites;
   const available = Object.keys(sprites ?? {});
   const talkFrom = action === 'enter' ? ENTER_SECONDS : 0.3;
   const talkTo = action === 'exit' ? duration - EXIT_SECONDS : duration - 0.4;
@@ -49,16 +56,18 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
   const talking = !companionTalks && t > talkFrom && t < talkTo;
   const pose = poseAt(action, side, t, duration, hasFrames(action, available));
   const bounce = talkBounce(t, talking);
-  const shown = spriteAt({ action, side, emotion, talking, t, duration, available, pose: ownPose ?? '' });
+  const shown = spriteAt({ action, side, emotion, talking, t, duration, available, pose: lead ? '' : (ownPose ?? '') });
   const sprite = sprites?.[shown.sprite] ?? sprites?.neutral;
   // A slow push-in with a sideways drift; the base zoom also crops the thin frame line some pictures carry at their edge.
   const bgZoom = interpolate(frame, [0, durationInFrames], [1.05, 1.13], { extrapolateRight: 'clamp' });
   const drift = interpolate(frame, [0, durationInFrames], [0, side === 'left' ? 22 : -22], { extrapolateRight: 'clamp' }) * u;
+  // A grown-up in the main place stands as tall as one in the companion's place.
   const stageH = height * 0.66;
+  const mainH = lead ? stageH * 0.86 : stageH;
   const ground = height * 0.17;
-  const companionPoses = companion ? Object.keys(cast ?? {}).filter((k) => k.startsWith(`${companion}:`)).map((k) => k.slice(companion.length + 1)) : [];
-  const companionPose = companion ? companionPoseAt(companionAction ?? 'idle', t, companionPoses, talkTo) : null;
-  const companionFile = companion ? (companionPose ? cast?.[`${companion}:${companionPose}`] : undefined) ?? cast?.[companion] : undefined;
+  const companionPoses = companion ? posesOf(companion) : {};
+  const companionPose = companion ? companionSpriteAt({ action: companionAction ?? 'idle', emotion: companionEmotion ?? 'neutral', t, available: Object.keys(companionPoses), talkTo }) : null;
+  const companionFile = companion ? (companionPose ? companionPoses[companionPose] : undefined) ?? cast?.[companion] : undefined;
   const companionSrc = companionFile ? src(companionFile) : null;
   const itemSrc = item && cast?.[item] ? src(cast[item]) : null;
   const accent = brand.palette[1] ?? '#FFC53D';
@@ -71,10 +80,10 @@ export function PuppetScene({ caption, emotion, action, side, mood, pose: ownPos
       <div
         style={{
           position: 'absolute',
-          left: pose.x * width - (stageH * STAGE_ASPECT) / 2,
+          left: pose.x * width - (mainH * STAGE_ASPECT) / 2,
           bottom: ground + (pose.y + bounce.y) * height,
-          width: stageH * STAGE_ASPECT,
-          height: stageH,
+          width: mainH * STAGE_ASPECT,
+          height: mainH,
           opacity: pose.alpha,
           transformOrigin: '50% 100%',
           transform: `rotate(${pose.angle}deg) scale(${pose.scale * pose.squashX}, ${pose.scale * pose.squashY * bounce.squashY})`,

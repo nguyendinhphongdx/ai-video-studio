@@ -72,9 +72,13 @@ export function HomeView() {
             {list.map((c, i) => {
               const eps = episodes[i]?.data ?? [];
               const done = eps.filter((v) => v.episode.status === 'published').length;
+              // Cover: the channel's intro art, else the newest episode's thumbnail, else a plain placeholder.
+              const cover =
+                c.introArtUrl ??
+                [...eps].sort((a, b) => b.episode.updatedAt.localeCompare(a.episode.updatedAt)).flatMap((v) => v.renders).find((r) => r.thumbnailUrl)?.thumbnailUrl;
               return (
                 <Link key={c.id} href={projectHref(c.id)} className="card" style={{ color: 'inherit', textDecoration: 'none', padding: 0, overflow: 'hidden', gap: 0 }}>
-                  <div className="thumb a" style={{ borderRadius: 0, background: c.introArtUrl ? `center / cover url(${c.introArtUrl})` : undefined }}>
+                  <div className="thumb a" style={{ borderRadius: 0, background: cover ? `center / cover url(${cover})` : undefined }}>
                     <span>{c.palette[0] && <i style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: c.palette[0], marginRight: 6 }} />}{c.name}</span>
                   </div>
                   <div className="col" style={{ padding: 16, gap: 4 }}>

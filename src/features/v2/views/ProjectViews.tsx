@@ -13,6 +13,7 @@ import { errorMessage } from '@/lib/api/client';
 
 import { currentStep, episodeHref, STATUS_CHIP } from '../model';
 import { Empty, Loading, Page, Topbar } from '../Shell';
+import { SetupChecklist } from './SetupChecklist';
 
 /** Project home: its episodes, newest first, each opening at the step it is at. */
 export function ProjectEpisodesView({ projectId }: { projectId: string }) {
@@ -37,6 +38,7 @@ export function ProjectEpisodesView({ projectId }: { projectId: string }) {
             <p>{project.data?.description}</p>
           </div>
         </div>
+        <SetupChecklist projectId={projectId} />
         <form
           className="card flat row"
           onSubmit={(e) => {

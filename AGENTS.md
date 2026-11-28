@@ -43,13 +43,18 @@ tests/                         vitest: core contracts and tool catalog
 ```bash
 npm run db:dev      # the development Postgres (Docker, 127.0.0.1:5433)
 npm run dev         # Next.js on :3300 + worker
+npm run check       # typecheck + lint + test: run before reporting done
 npm run typecheck
 npm run lint
 npm test
 npm run studio      # Remotion Studio for the blocks
 ```
 
-Verify before reporting done: `npm run typecheck`, `npm run lint` and `npm test` green; for pipeline changes run a real job through the worker.
+Verify before reporting done: `npm run check` green; for pipeline changes run a real job through the worker.
+
+## Working here (coding agents)
+
+Follow [docs/AGENT-PLAYBOOK.md](docs/AGENT-PLAYBOOK.md): the recipe for each kind of change, how to prove it works, and what needs the owner's yes. Anything the in-app AI generates must come with its harness (same file, "In-app AI harness").
 
 <!-- BEGIN:nextjs-agent-rules -->
 

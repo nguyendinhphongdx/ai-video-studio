@@ -20,7 +20,7 @@ export const instructionsLayer: ContextLayer = {
       b.avoid.length && `Tuyệt đối tránh: ${b.avoid.join('; ')}`,
       b.instructions,
       // Ids the puppet scenes can use: supporting cast (companion/item) and the hero's own poses (pose).
-      cast.length > 0 && `Dàn nhân vật phụ và bảo vật (id cho companion, item): ${cast.join(', ')}`,
+      cast.length > 0 && `Dàn nhân vật phụ và bảo vật (id nhân vật cho companion hoặc lead, id bảo vật cho item): ${cast.join(', ')}`,
       poses.length > 0 && `Tư thế riêng của nhân vật chính (id cho pose):\n${poses.map(([id, d]) => `- ${id}: ${d}`).join('\n')}`,
     ]
       .filter(Boolean)

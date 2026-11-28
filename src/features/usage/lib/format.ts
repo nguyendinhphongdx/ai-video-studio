@@ -17,6 +17,8 @@ export const PURPOSE_LABEL: Record<string, string> = {
   'plan-story': 'Dựng mạch chuyện',
   'write-episode': 'Viết kịch bản',
   'smooth-narration': 'Làm mượt lời đọc',
+  'review-script': 'Tự soát kịch bản',
+  'setup-project': 'Đề xuất thiết lập dự án',
   'revise-episode': 'Sửa kịch bản',
   'summarize-episode': 'Ghi bộ nhớ tập',
   'rollup-season': 'Tóm tắt mùa',

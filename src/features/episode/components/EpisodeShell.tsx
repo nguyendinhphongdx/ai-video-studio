@@ -64,7 +64,7 @@ function JobBanner({ view }: { view: EpisodeView }) {
   const retry = useEpisodeAction(view.episode.id, () => episodeApi.retry(view.episode.id), 'Đã chạy lại');
   const job = view.job;
   if (!job || job.state !== 'failed') return null;
-  const where = { write_script: 'AI viết kịch bản', revise_script: 'AI sửa kịch bản', produce: 'sản xuất video', summarize: 'ghi bộ nhớ series', generate_art: 'tạo ảnh nền', generate_sprites: 'tạo bộ biểu cảm nhân vật', scene_assets: 'tạo ảnh và giọng đọc', assistant_turn: 'trợ lý' }[job.kind];
+  const where = { write_script: 'AI viết kịch bản', revise_script: 'AI sửa kịch bản', produce: 'sản xuất video', summarize: 'ghi bộ nhớ series', generate_art: 'tạo ảnh nền', generate_sprites: 'tạo bộ biểu cảm nhân vật', scene_assets: 'tạo ảnh và giọng đọc', assistant_turn: 'trợ lý', draw_library: 'vẽ thư viện hình' }[job.kind];
   return (
     <div role="alert" className="flex flex-wrap items-start gap-3 rounded-xl bg-danger-soft px-4 py-3.5 text-destructive">
       <CircleAlert className="mt-0.5 size-5 shrink-0" aria-hidden />

@@ -1,6 +1,6 @@
 // Turns a picture painted on a flat chroma-key colour into a transparent PNG, in pure code (sharp only decodes and encodes).
-// The background is found by flood fill from the picture's border, so pixels of the key colour that sit inside the
-// character (a green gem, say) stay; the edge is feathered and despilled so no coloured halo is left around the body.
+// The background is found by flood fill from the picture's border, plus enclosed holes of almost exactly the key colour (the
+// inside of a ring); small key-coloured details inside the subject stay. The edge is feathered and despilled.
 import sharp from 'sharp';
 
 import { UserFacingError } from '@/core/domain/errors';
@@ -73,11 +73,45 @@ export async function keyOut(input: Buffer, opts: KeyOptions = {}): Promise<Keye
     if (y > 0) seed(x, y - 1);
     if (y < h - 1) seed(x, y + 1);
   }
+  // Holes: the backdrop seen through the subject (the inside of a ring, between the loops of a sash and the body,
+  // between wheel spokes). Not connected to the border, so the fill above missed them, and the model often paints them
+  // a lighter or shaded green. With a green key (the subject is asked to use no green), an enclosed, clearly green
+  // region counts as a hole; otherwise only the key colour almost exactly. Tiny regions stay (a green detail on purpose).
+  const greenKey = key.g > key.r && key.g > key.b;
+  const tight = hard * 0.75;
+  const keyLike = (p: number) => dist(px, p * 4, key) < tight;
+  const greenish = (p: number) => greenKey && px[p * 4 + 1]! > px[p * 4]! + 40 && px[p * 4 + 1]! > px[p * 4 + 2]! + 40;
+  const holeLike = (p: number) => keyLike(p) || greenish(p);
+  const minHole = Math.max(200, Math.round(w * h * 0.0004));
+  const seen = new Uint8Array(w * h);
+  for (let start = 0; start < w * h; start++) {
+    if (bg[start] || seen[start] || !holeLike(start)) continue;
+    const region: number[] = [start];
+    seen[start] = 1;
+    // A greenish band touching the outside background is spill on the subject's edge, not a hole: the feathering
+    // below handles it. Only a region the subject encloses, or one of the key colour itself, is cleared.
+    let touchesOutside = false;
+    let allKey = true;
+    for (let k = 0; k < region.length; k++) {
+      const p = region[k]!;
+      if (!keyLike(p)) allKey = false;
+      const x = p % w;
+      const y = (p - x) / w;
+      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
+        if (q < 0) continue;
+        if (bg[q]) touchesOutside = true;
+        else if (!seen[q] && holeLike(q)) {
+          seen[q] = 1;
+          region.push(q);
+        }
+      }
+    }
+    if (region.length >= minHole && (allKey || !touchesOutside)) for (const p of region) bg[p] = 1;
+  }
   // Too little of the picture was background: the model did not paint a flat backdrop, so a cut-out would be garbage.
   let bgCount = 0;
   for (let p = 0; p < w * h; p++) bgCount += bg[p]!;
   if (bgCount < w * h * 0.1) throw new UserFacingError('Không tách được nền khỏi ảnh nhân vật (nền không phẳng một màu). Thử tạo lại biểu cảm này.');
-  const greenKey = key.g > key.r && key.g > key.b;
   const out = Buffer.from(px);
   for (let p = 0; p < w * h; p++) {
     const i = p * 4;

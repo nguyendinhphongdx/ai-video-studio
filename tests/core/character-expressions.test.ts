@@ -49,3 +49,9 @@ describe('expression prompts', () => {
   });
 });
 
+
+describe('a cast character in the main place', () => {
+  it('gets its pictures with the scene', () => {
+    expect(castForScene({ lead: 'ba-do', companion: '' }, { 'ba-do': 'a', 'ba-do:sad': 'b', other: 'c' }).sort()).toEqual(['ba-do', 'ba-do:sad']);
+  });
+});

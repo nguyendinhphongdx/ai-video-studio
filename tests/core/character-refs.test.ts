@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { characterRefs, imageSpec, imageStyleOf } from '@/core/scenes/assets';
+import { characterRefs, imageSpec, imageStyleOf, usesCharacters } from '@/core/scenes/assets';
 import type { Scene } from '@/core/domain/episode';
 import type { ToolCatalog } from '@/core/tools/catalog';
 
@@ -35,5 +35,16 @@ describe('character references', () => {
     // The last words forbid people even when the skill's own style talks about characters.
     expect(imageSpec(scene, catalog(true), style)!.prompt.endsWith('scenery and objects only.')).toBe(true);
     expect(imageSpec(scene, catalog(false), style)!.prompt).not.toContain('empty background plate');
+  });
+
+  it('leaves the characters out of a picture they are not in', () => {
+    const style = imageStyleOf(withBible(['series-characters/character-a.png'], 'Na Tra: red robe'));
+    const scene = { block: 'remotion/picture', props: { imagePrompt: 'a midwife beside a bed', hero: 'no' } } as unknown as Scene;
+    const catalog = { block: () => ({ image: { promptKey: 'imagePrompt', style: '', withoutCharacters: (p: Record<string, unknown>) => p.hero === 'no' } }) } as unknown as ToolCatalog;
+    expect(usesCharacters(scene, catalog)).toBe(false);
+    const prompt = imageSpec(scene, catalog, style)!.prompt;
+    expect(prompt).not.toContain('Na Tra');
+    expect(prompt).not.toContain('empty background plate');
+    expect(usesCharacters({ ...scene, props: { imagePrompt: 'x' } }, catalog)).toBe(true);
   });
 });

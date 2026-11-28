@@ -9,6 +9,7 @@ import { createCoreDeps } from '@/server/core-deps';
 import { dbReady } from '@/server/db';
 import { jobPrefixes, storage } from '@/server/adapters/media/storage';
 import { createLogger } from '@/server/logger';
+import { setupService } from '@/server/modules/setup/setup.service';
 import { characterSpriteService } from '@/server/modules/series/character-sprites.service';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { assistantService } from '@/server/modules/assistant/assistant.service';
@@ -45,6 +46,7 @@ const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: str
   produce: (job, p) => produce(deps, episodeOf(job), p),
   summarize: (job) => summarizeEpisode(deps, episodeOf(job)),
   generate_sprites: (job, p) => characterSpriteService.run(job, p),
+  draw_library: (job, p) => setupService.drawLibrary(job, p),
   generate_art: async (job) => {
     const p = job.payload as { channelId: string; kind: 'intro' | 'outro'; prompt: string };
     await channelService.generateArt(p.channelId, p.kind, p.prompt);

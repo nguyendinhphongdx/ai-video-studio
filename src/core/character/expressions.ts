@@ -18,8 +18,8 @@ export const customPoseKey = (id: string) => `pose:${id}`;
 /** Any key characterSprites may hold. */
 export const SPRITE_KEY = new RegExp(`^(${SPRITES.join('|')}|pose:[a-z0-9][a-z0-9-]{0,23})$`);
 
-/** The few poses a supporting character can have; their sprites sit in characterCast under `<id>:<pose>`. */
-export const CAST_POSES = ['talk', 'wave1', 'wave2', 'point'] as const;
+/** What a supporting character can show besides its own picture: faces and a few gestures, under `<id>:<pose>` in characterCast. */
+export const CAST_POSES = ['talk', 'blink', 'happy', 'sad', 'surprised', 'angry', 'wave1', 'wave2', 'point'] as const;
 export type CastPose = (typeof CAST_POSES)[number];
 export const castPoseKey = (castId: string, pose: CastPose) => `${castId}:${pose}`;
 /** Any key characterCast may hold: a cast id, or a cast id and one of its poses. */
@@ -115,8 +115,8 @@ export function spritesForScene(props: { action?: unknown; emotion?: unknown; po
   return [...keys];
 }
 
-/** The supporting-cast pictures one puppet scene can show: its companion (and that companion's poses) and its item. */
-export function castForScene(props: { companion?: unknown; item?: unknown }, cast: Record<string, string>): string[] {
-  const ids = [props.companion, props.item].filter((v): v is string => typeof v === 'string' && v !== '');
+/** The supporting-cast pictures one puppet scene can show: its lead and companion (with their poses) and its item. */
+export function castForScene(props: { lead?: unknown; companion?: unknown; item?: unknown }, cast: Record<string, string>): string[] {
+  const ids = [props.lead, props.companion, props.item].filter((v): v is string => typeof v === 'string' && v !== '');
   return Object.keys(cast).filter((k) => ids.some((id) => k === id || k.startsWith(`${id}:`)));
 }

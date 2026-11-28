@@ -21,6 +21,8 @@ const props = z.object({
   side: SideEnum,
   mood: MoodEnum,
   pose: z.string().default('').describe('Id một tư thế riêng của nhân vật chính (xem "Tư thế riêng" trong instructions của series), nhân vật giữ tư thế này khi đứng; để trống nếu không dùng'),
+  lead: z.string().default('').describe('Để trống: nhân vật chính của series diễn. Điền id nhân vật phụ khi cảnh là của người khác và nhân vật chính không có mặt: người đó đứng ở vị trí chính, dùng emotion và action của cảnh'),
+  companionEmotion: EmotionEnum.default('neutral').describe('Biểu cảm của nhân vật phụ (companion) trong cảnh'),
   companion: z.string().describe('Id nhân vật phụ trong dàn nhân vật phụ của series, đứng đối diện nhân vật chính; để trống nếu không có'),
   companionAction: z
     .enum(['idle', 'talk', 'wave', 'point'])
@@ -36,7 +38,8 @@ export const puppetBlock = defineBlock({
   name: 'Nhân vật diễn',
   summary: 'Nhân vật của series đi vào (có bước chân), nói (mở miệng, nháy mắt), đổi biểu cảm, làm động tác (vẫy, chỉ, cúi chào, ngồi…) và đi ra trên một phông nền AI',
   aiGuide:
-    'Cảnh có nhân vật của series đứng trên phông nền AI. imagePrompt chỉ tả phông nền, TUYỆT ĐỐI không có người hay nhân vật trong ảnh và chừa chỗ giữa-dưới cho nhân vật. ' +
+    'Cảnh có nhân vật của series đứng trên phông nền AI. Nhân vật đứng trên sân khấu là nhân vật chính của series (đúng ngoại hình chuẩn) hoặc, khi điền lead, một nhân vật phụ thay thế. Hợp nhất cho trò chuyện, cảm xúc trên gương mặt và động tác đơn giản của những người đã có ảnh. ' +
+    'Nhân vật chính chưa ra đời, còn là em bé hay đã biến hình thì không để trống lead. Khi người cần thấy chưa có ảnh trong dàn nhân vật, hoặc lời đọc tả hành động chạm vào nhau (bế, đỡ, che chở, giao đấu), cầm trao đồ vật, biến đổi, đám đông: dùng cảnh tranh. imagePrompt chỉ tả phông nền, TUYỆT ĐỐI không có người hay nhân vật trong ảnh và chừa chỗ giữa-dưới cho nhân vật. ' +
     'Chọn emotion khớp với câu đang nói (vui, giận, ngạc nhiên...) và action theo diễn biến: cảnh đầu dùng enter, cảnh cuối dùng exit, nhân vật chạy qua dùng walk, mừng thì jump hoặc cheer, chào thì wave hoặc bow, giới thiệu hay chỉ vật thì point, băn khoăn thì think, tự tin hay cứng rắn thì cross, kể chuyện chậm rãi thì sit, còn lại idle. Đổi action giữa các cảnh liền nhau để nhân vật không đứng yên mãi. ' +
     'Mỗi cảnh chọn mood hợp khung cảnh (biển, bão, lửa, phép thuật...). Nếu series có dàn nhân vật phụ (xem hướng dẫn của series), đưa nhân vật đang đối thoại vào companion và bảo vật đang nhắc tới vào item để cảnh không trơ trọi một mình nhân vật chính. ' +
     'Series có tư thế riêng (danh sách trong instructions) thì dùng pose khi câu thoại hợp với tư thế đó, ví dụ cảnh giao đấu dùng tư thế múa vũ khí. Câu do nhân vật phụ nói thì đặt companionAction là talk. ' +
@@ -50,15 +53,17 @@ export const puppetBlock = defineBlock({
     { key: 'side', label: 'Vị trí', kind: 'choice', options: [{ value: 'left', label: 'Bên trái' }, { value: 'center', label: 'Giữa' }, { value: 'right', label: 'Bên phải' }] },
     { key: 'mood', label: 'Không khí', kind: 'choice', options: [{ value: 'calm', label: 'Êm dịu' }, { value: 'sea', label: 'Biển' }, { value: 'storm', label: 'Giông bão' }, { value: 'fire', label: 'Lửa' }, { value: 'magic', label: 'Phép thuật' }, { value: 'sad', label: 'Buồn' }] },
     { key: 'pose', label: 'Tư thế riêng (id)', kind: 'text', maxLength: 24, hint: 'Id một tư thế riêng của nhân vật, ví dụ mua-thuong. Để trống thì dùng tư thế theo hành động.' },
+    { key: 'lead', label: 'Người đứng vai chính (id)', kind: 'text', maxLength: 24, hint: 'Để trống: nhân vật chính của series. Điền id nhân vật phụ để người đó diễn thay.' },
+    { key: 'companionEmotion', label: 'Biểu cảm nhân vật phụ', kind: 'choice', options: [{ value: 'neutral', label: 'Bình thường' }, { value: 'happy', label: 'Vui' }, { value: 'angry', label: 'Giận' }, { value: 'sad', label: 'Buồn' }, { value: 'surprised', label: 'Ngạc nhiên' }] },
     { key: 'companion', label: 'Nhân vật phụ (id)', kind: 'text', maxLength: 24, hint: 'Id trong dàn nhân vật phụ của series, ví dụ ngao-binh. Để trống nếu không có.' },
     { key: 'companionAction', label: 'Nhân vật phụ làm gì', kind: 'choice', options: [{ value: 'idle', label: 'Đứng nghe' }, { value: 'talk', label: 'Nói câu này' }, { value: 'wave', label: 'Vẫy tay' }, { value: 'point', label: 'Chỉ tay' }] },
     { key: 'item', label: 'Bảo vật (id)', kind: 'text', maxLength: 24, hint: 'Id vật phẩm trong dàn nhân vật phụ, ví dụ hon-thien-lang. Để trống nếu không có.' },
     { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { caption: '', imagePrompt: 'an ancient Chinese courtyard with a stone lantern and bamboo, empty, no people', emotion: 'neutral', action: 'idle', side: 'center', mood: 'calm', pose: '', companion: '', companionAction: 'idle', item: '', transition: 'auto' },
+  defaults: { caption: '', imagePrompt: 'an ancient Chinese courtyard with a stone lantern and bamboo, empty, no people', emotion: 'neutral', action: 'idle', side: 'center', mood: 'calm', pose: '', lead: '', companionEmotion: 'neutral', companion: '', companionAction: 'idle', item: '', transition: 'auto' },
   varyBy: ['side', 'emotion', 'mood'],
   minSeconds: 4,
   // `background`: the picture is only the set; the series' character pictures are not sent with it.
   image: { promptKey: 'imagePrompt', style: '', background: true, compose: () => 'An empty set with no people, animals or characters; keep the middle-bottom of the frame clear.' },
-  normalize: (p) => ({ ...p, caption: p.caption.trim().slice(0, 60), imagePrompt: p.imagePrompt.trim(), pose: p.pose.trim(), companion: p.companion.trim(), item: p.item.trim() }),
+  normalize: (p) => ({ ...p, caption: p.caption.trim().slice(0, 60), imagePrompt: p.imagePrompt.trim(), pose: p.pose.trim(), lead: p.lead.trim(), companion: p.companion.trim(), item: p.item.trim() }),
 });

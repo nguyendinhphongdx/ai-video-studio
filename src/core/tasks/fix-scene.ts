@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { defineTask } from '../agent/task';
 import type { Scene } from '../domain/episode';
-import { newExtra, parseTune, TUNE_KEY } from '../domain/tune';
+import { parseTune, patchTune, TunePatchSchema, TUNE_KEY } from '../domain/tune';
 import { cleanProps, type BlockDefinition } from '../tools/tool';
 import { VISUAL_BRIEF } from './story';
 
@@ -23,23 +23,26 @@ export interface FixSceneInput {
   cast: CastMember[];
   /** What the person wants changed; empty = rewrite the picture to fit the narration. */
   request: string;
+  /** Other scene types this part of the format allows. */
+  others?: { ref: string; name: string; summary: string }[];
 }
 
 export interface SceneFix {
+  block: string;
   narration: string;
   props: Record<string, unknown>;
   /** What was changed and why, for the person, in Vietnamese. */
   note: string;
+  /** The request needs another kind of scene: the caller asks again with that block. */
+  switchTo: string | null;
 }
-
-const place = z.object({ dx: z.number(), dy: z.number(), scale: z.number() }).nullable();
 
 const outSchema = (block: BlockDefinition) =>
   z.object({
     narration: z.string().describe('Lời đọc của cảnh (giữ nguyên văn nếu không được yêu cầu đổi)'),
     props: block.props,
-    layout: z.object({ hero: place, companion: place, item: place }).nullable().describe('Chỉ khi được yêu cầu dời hay phóng to/thu nhỏ nhân vật trên phông: dx, dy là phần của khung hình (phải và xuống là dương), scale 1 là cỡ chuẩn. Không đổi bố trí thì để null.'),
-    extras: z.array(z.object({ id: z.string(), x: z.number(), scale: z.number() })).nullable().describe('Khi cảnh cần nhiều người hoặc vật hơn các ô lead/companion/item: danh sách ĐẦY ĐỦ những người, vật thêm vào (id trong dàn đã có ảnh; x là vị trí ngang 0 trái đến 1 phải; scale 1 là cỡ chuẩn). Không cần đổi thì null.'),
+    tune: TunePatchSchema.nullable().describe('Chỉnh tay: bố trí, người và vật thêm, giờ xuất hiện, chữ, âm thanh. Chỉ điền mục yêu cầu cần đổi, còn lại null. Không đổi gì thì cả tune là null.'),
+    switchTo: z.string().nullable().describe('Mã loại cảnh khác (trong danh sách được phép) CHỈ KHI loại hiện tại không làm được điều được yêu cầu; nếu không thì null'),
     note: z.string().describe('Một hai câu tiếng Việt: đã đổi gì và vì sao'),
   });
 
@@ -48,10 +51,10 @@ const ID_PROPS: Record<string, CastMember['kind'][]> = { lead: ['character'], co
 
 export const fixSceneTask = defineTask<FixSceneInput, SceneFix>({
   id: 'fix-scene',
-  version: 1,
+  version: 2,
   layers: 'all',
   schema: ({ block }) => outSchema(block),
-  prompt: ({ block, scene, before, after, cast, request }) => {
+  prompt: ({ block, scene, before, after, cast, request, others = [] }) => {
     const { [TUNE_KEY]: tune, ...props } = scene.props;
     const fields = block.fields.map((f) => `- ${f.key} (${f.label})${f.options ? `: ${f.options.map((o) => `${o.value}=${o.label}`).join(', ')}` : ''}${f.hint ? `. ${f.hint}` : ''}`);
     return `Sửa MỘT cảnh của video. Loại cảnh: ${block.name} (${block.summary}).
@@ -67,7 +70,7 @@ ${fields.join('\n')}
 
 ${cast.length ? `Nhân vật, vật phẩm, tư thế đã có ảnh (chỉ dùng đúng các id này):\n${cast.map((c) => `- ${c.id} (${c.kind}): ${c.about}`).join('\n')}` : 'Không có dàn nhân vật vẽ sẵn: các ô id để chuỗi rỗng.'}
 
-Yêu cầu của người dùng: ${request || 'Viết lại mô tả ảnh và chọn nhân vật, cảm xúc, động tác, kiểu khung sao cho người xem THẤY đúng điều đang được đọc ở cảnh này. Không đổi lời đọc.'}
+${others.length ? `Loại cảnh khác được phép đổi sang (switchTo):\n${others.map((o) => `- ${o.ref}: ${o.name}. ${o.summary}`).join('\n')}\n\n` : ''}Yêu cầu của người dùng: ${request || 'Viết lại mô tả ảnh và chọn nhân vật, cảm xúc, động tác, kiểu khung sao cho người xem THẤY đúng điều đang được đọc ở cảnh này. Không đổi lời đọc.'}
 
 Cách làm:
 - Đọc kỹ lời của cảnh này: ai đang làm gì, ở đâu, lúc nào, cảm xúc gì. Hình phải thể hiện đúng khoảnh khắc đó, không phải cảnh trước hay cảnh sau.
@@ -76,7 +79,7 @@ Cách làm:
 
 ${VISUAL_BRIEF}`;
   },
-  parse: (raw, { block, scene, cast, request }) => {
+  parse: (raw, { block, scene, cast, request, others = [] }) => {
     const out = outSchema(block).parse(raw);
     const props = { ...(out.props as Record<string, unknown>) };
     for (const [key, kinds] of Object.entries(ID_PROPS)) {
@@ -84,14 +87,13 @@ ${VISUAL_BRIEF}`;
       if (!cast.some((c) => c.id === props[key] && kinds.includes(c.kind))) props[key] = scene.props[key] ?? '';
     }
     // Only people and things that have a picture; their kind comes from the cast, not from the model.
-    const extras = out.extras
+    const extras = out.tune?.extras
       ?.filter((e) => cast.some((c) => c.id === e.id && c.kind !== 'pose'))
-      .map((e) => {
-        const kind = cast.find((c) => c.id === e.id)!.kind === 'item' ? ('item' as const) : ('person' as const);
-        return { ...newExtra(e.id, kind, []), x: e.x, scale: e.scale };
-      });
-    const tune = parseTune({ ...(parseTune(scene.props[TUNE_KEY]) ?? {}), ...(extras ? { extras } : {}), ...Object.fromEntries(Object.entries(out.layout ?? {}).filter(([, v]) => v)) });
+      .map((e) => ({ ...e, kind: cast.find((c) => c.id === e.id)!.kind === 'item' ? ('item' as const) : ('person' as const) }));
+    const old = parseTune(scene.props[TUNE_KEY]) ?? {};
+    const tune = out.tune ? patchTune(old, { ...out.tune, extras: extras ?? null }) : parseTune(old);
     const narration = request && out.narration.trim() ? out.narration.trim().slice(0, 600) : scene.narration;
-    return { narration, props: cleanProps(block, { ...props, ...(tune ? { [TUNE_KEY]: tune } : {}) }), note: out.note.trim() };
+    const switchTo = out.switchTo && out.switchTo !== scene.block && others.some((o) => o.ref === out.switchTo) ? out.switchTo : null;
+    return { block: scene.block, narration, props: cleanProps(block, { ...props, ...(tune ? { [TUNE_KEY]: tune } : {}) }), note: out.note.trim(), switchTo };
   },
 });

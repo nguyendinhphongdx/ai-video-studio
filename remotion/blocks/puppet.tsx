@@ -86,7 +86,7 @@ export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose:
       {image ? <Img src={src(image)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `translateX(${drift}px) scale(${bgZoom})` }} /> : null}
       {weather.on ? <Atmosphere mood={mood ?? 'calm'} frame={Math.round(weather.local * fps)} fps={fps} width={width} height={height} u={u} /> : null}
       {companionSrc && friend.on ? <Companion at={tune.companion ?? AT} height={height} src={companionSrc} side={side} t={friend.local} width={width} stageH={stageH} ground={ground} u={u} talking={companionPose === 'talk' || (companionTalks && t > 0.3 && t < talkTo)} flip={companionFlip(companionPose, side)} /> : null}
-      {(tune.extras ?? []).filter((e) => e.kind === 'person').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
+      {(tune.extras ?? []).filter((e) => e.kind === 'person' && !e.front).map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       <div
         style={{
           position: 'absolute',
@@ -110,6 +110,7 @@ export function PuppetScene({ _tune, caption, emotion, action, side, mood, pose:
       {itemSrc && thing.on ? <FloatingItem at={tune.item ?? AT} height={height} src={itemSrc} heroX={pose.x + heroAt.dx} t={thing.local} width={width} stageH={stageH} ground={ground} u={u} /> : null}
       <div style={{ position: 'absolute', left: (pose.x + heroAt.dx) * width - stageH * 0.2 * heroAt.scale, bottom: ground - 14 * u - heroAt.dy * height, width: stageH * 0.4 * heroAt.scale, height: 28 * u, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', filter: `blur(${6 * u}px)`, opacity: heroOn ? pose.alpha * (1 - pose.y * 3) : 0 }} />
       {(tune.extras ?? []).filter((e) => e.kind === 'item').map((e, i) => <ExtraFigure key={`${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
+      {(tune.extras ?? []).filter((e) => e.kind === 'person' && e.front).map((e, i) => <ExtraFigure key={`front-${e.id}-${i}`} extra={e} index={i} cast={cast} posesOf={posesOf} now={now} width={width} height={height} stageH={stageH} ground={ground} u={u} />)}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(20,10,5,0.38) 100%)', pointerEvents: 'none' }} />
       {caption && tune.captionPlace !== 'off' ? (
         <div style={{ position: 'absolute', left: 0, right: 0, ...(tune.captionPlace === 'top' ? { top: 28 * u } : { bottom: 28 * u }), display: 'flex', justifyContent: 'center' }}>
@@ -125,10 +126,17 @@ function ExtraFigure({ extra: e, index, cast, posesOf, now, width, height, stage
   const { on, local } = spanAt(e.time, now);
   if (!on || !cast?.[e.id]) return null;
   const appear = smoothstep(local / 0.5);
+  // Walking in starts just outside that side of the frame; popping overshoots a little.
+  const from = e.enter === 'left' ? -0.25 - e.x : e.enter === 'right' ? 1.25 - e.x : 0;
+  const slide = from * width * (1 - smoothstep(local / 1.1));
+  const pop = e.enter === 'pop' ? appear * (1 + Math.sin(appear * Math.PI) * 0.25) : 1;
+  const shown = from ? 1 : appear;
   if (e.kind === 'item') {
     const size = stageH * 0.5 * e.scale;
+    const bob = e.motion === 'float' ? Math.sin(now * 2.2 + index) * 0.02 * stageH : 0;
+    const turn = e.motion === 'spin' ? local * 140 : e.motion === 'float' ? Math.sin(now * 1.3 + index) * 9 : 0;
     return (
-      <div style={{ position: 'absolute', left: e.x * width - size / 2, bottom: ground + e.y * height + Math.sin(now * 2.2 + index) * 0.02 * stageH, width: size, height: size, opacity: appear, transform: `rotate(${Math.sin(now * 1.3 + index) * 9}deg) scale(${0.7 + appear * 0.3})`, filter: `drop-shadow(0 0 ${22 * u}px rgba(255,200,80,0.85))` }}>
+      <div style={{ position: 'absolute', left: e.x * width - size / 2 + slide, bottom: ground + e.y * height + bob, width: size, height: size, opacity: shown, transform: `rotate(${turn}deg) scale(${e.enter === 'pop' ? pop : 0.7 + appear * 0.3}) ${e.flip ? 'scaleX(-1)' : ''}`, filter: e.glow ? `drop-shadow(0 0 ${22 * u}px rgba(255,200,80,0.85))` : undefined }}>
         <Img src={src(cast[e.id]!)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
     );
@@ -142,10 +150,10 @@ function ExtraFigure({ extra: e, index, cast, posesOf, now, width, height, stage
   const bottom = ground + e.y * height;
   return (
     <>
-      <div style={{ position: 'absolute', left: e.x * width - h * 0.18, bottom: bottom - 12 * u, width: h * 0.36, height: 24 * u, opacity: appear, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
-      <div style={{ position: 'absolute', left: e.x * width - (h * STAGE_ASPECT) / 2, bottom: bottom + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, opacity: appear, transformOrigin: '50% 100%', transform: `scale(${2 - breathe}, ${breathe})` }}>
+      <div style={{ position: 'absolute', left: e.x * width - h * 0.18 + slide, bottom: bottom - 12 * u, width: h * 0.36, height: 24 * u, opacity: shown, borderRadius: '50%', background: 'rgba(0,0,0,0.26)', filter: `blur(${6 * u}px)` }} />
+      <div style={{ position: 'absolute', left: e.x * width - (h * STAGE_ASPECT) / 2 + slide, bottom: bottom + bounce.y * stageH, width: h * STAGE_ASPECT, height: h, opacity: shown, transformOrigin: '50% 100%', transform: `scale(${(2 - breathe) * pop}, ${breathe * pop})` }}>
         {/* Those right of the middle turn to face it, as the companion does. */}
-        <Img src={src(file)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: companionFlip(pose, e.x > 0.5 ? 'left' : 'right') ? 'scaleX(-1)' : undefined }} />
+        <Img src={src(file)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: '50% 100%', transform: companionFlip(pose, e.x > 0.5 ? 'left' : 'right') !== e.flip ? 'scaleX(-1)' : undefined }} />
       </div>
     </>
   );

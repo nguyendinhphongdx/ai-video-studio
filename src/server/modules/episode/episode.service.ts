@@ -290,6 +290,11 @@ export const episodeService = {
   },
 
   /** One AI call proposing a fix for one scene. Nothing is saved: the person reads it, then saves like any edit. */
+  /** Who and what this episode's series can put on screen, and which of them are things. */
+  async cast(id: string): Promise<CastMember[]> {
+    return castOf((await buildContext(appDeps, await loadEpisode(id))).series?.version.bible);
+  },
+
   async suggestSceneFix(id: string, sceneId: string, input: SceneFixInput): Promise<SceneFix> {
     const e = await loadEpisode(id);
     if (!editable(e)) throw conflict('Kịch bản đã được duyệt. Mở lại để sửa cảnh.');
@@ -303,9 +308,18 @@ export const episodeService = {
     if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt.');
     const scene: Scene = { ...saved, narration: input.narration ?? saved.narration, props: input.props ?? saved.props };
     const ctx = await buildContext(appDeps, e);
-    return withUsage({ channelId: e.channelId, purpose: 'fix-scene' }, () =>
-      runTask({ llm: appDeps.llm, runs: appDeps.aiRuns, layers: appDeps.layers }, fixSceneTask, { block, scene, before: e.scenes[index - 1]?.narration ?? null, after: e.scenes[index + 1]?.narration ?? null, cast: castOf(ctx.series?.version.bible), request: input.request }, ctx),
-    );
+    const allowed = (ctx.slots.find((x) => x.id === scene.slotId)?.blocks ?? []).map((ref) => appDeps.tools.block(ref)).filter((b) => b !== undefined);
+    const ask = (use: typeof block, from: Scene, others: typeof allowed) =>
+      runTask({ llm: appDeps.llm, runs: appDeps.aiRuns, layers: appDeps.layers }, fixSceneTask, { block: use, scene: from, before: e.scenes[index - 1]?.narration ?? null, after: e.scenes[index + 1]?.narration ?? null, cast: castOf(ctx.series?.version.bible), request: input.request, others }, ctx);
+    return withUsage({ channelId: e.channelId, purpose: 'fix-scene' }, async () => {
+      const first = await ask(block, scene, allowed.filter((b) => b.ref !== scene.block));
+      const to = first.switchTo ? appDeps.tools.block(first.switchTo) : undefined;
+      if (!to) return first;
+      // Asked again in the new type's own terms, keeping the words and the hand adjustments.
+      const { caption, imagePrompt, transition, _tune } = first.props;
+      const kept = Object.fromEntries(Object.entries({ caption, imagePrompt, transition, _tune }).filter(([, x]) => x !== undefined));
+      return ask(to, { ...scene, block: to.ref, narration: first.narration, props: { ...(to.defaults as Record<string, unknown>), ...kept } }, []);
+    });
   },
 
   /** Every picture ever drawn for a scene that is still on disk, newest first: a redraw never deletes the one before. */

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { z } from 'zod';
+
 import { castForScene } from '@/core/character/expressions';
-import { parseTune, spanAt } from '@/core/domain/tune';
+import { parseTune, patchTune, spanAt, TunePatchSchema, ToolTuneSchema } from '@/core/domain/tune';
 import { carryOver, voiceHashOf } from '@/core/scenes/assets';
 import { fixSceneTask, type FixSceneInput } from '@/core/tasks/fix-scene';
 import { buildTimeline, sceneDuration } from '@/core/timeline';
@@ -47,6 +49,19 @@ describe('hand adjustments of a scene', () => {
     expect(castForScene({ _tune: { extras: extras.slice(0, 2) } }, cast)).toEqual(['ly-tinh', 'ly-tinh:talk']);
   });
 
+  it('lets an AI patch any adjustment, keeping what it does not name and resetting what it asks', () => {
+    const old = { holdSec: 2, sfxVolume: 0 };
+    const next = patchTune(old, { reset: ['sfxVolume'], captionPlace: 'top', extras: [{ id: 'ly-tinh', x: null, y: null, scale: 1.2, action: 'wave', emotion: null, flip: true, front: null, enter: 'left', motion: null, glow: null, time: null }] });
+    expect(next).toMatchObject({ holdSec: 2, captionPlace: 'top', extras: [{ id: 'ly-tinh', x: 0.1, action: 'wave', flip: true, enter: 'left', emotion: 'neutral' }] });
+    expect(next?.sfxVolume).toBeUndefined();
+  });
+
+  it('describes every adjustment to the AI, so none is out of its reach', () => {
+    const knobs = Object.keys(TunePatchSchema.shape).filter((k) => k !== 'reset');
+    const json = JSON.stringify(z.toJSONSchema(ToolTuneSchema));
+    for (const key of [...knobs, 'flip', 'front', 'enter', 'motion', 'glow', 'emotion', 'action']) expect(json).toContain(`"${key}"`);
+  });
+
   it('stays on a scene the AI rewrote without changing what it says', () => {
     const base = { id: 'a', slotId: 'body', block: puppet.id, locked: false, narration: 'Một lời', approved: true, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
     const previous = [{ ...base, block: 'remotion/puppet' as const, props: { ...(puppet.defaults as object), _tune: { holdSec: 1 } } }];
@@ -64,7 +79,7 @@ describe('fix-scene', () => {
     cast: [{ id: 'ly-tinh', kind: 'character', about: 'cha' }],
     request: '',
   };
-  const raw = (props: object) => ({ narration: 'Lời khác', props: { ...(puppet.defaults as object), imagePrompt: 'a lotus pond at dawn', ...props }, extras: null, layout: { hero: { dx: -0.2, dy: 0, scale: 1 }, companion: null, item: null }, note: 'ok' });
+  const raw = (props: object) => ({ narration: 'Lời khác', props: { ...(puppet.defaults as object), imagePrompt: 'a lotus pond at dawn', ...props }, switchTo: null, tune: { ...Object.fromEntries(Object.keys(TunePatchSchema.shape).map((k) => [k, null])), hero: { dx: -0.2, dy: 0, scale: 1 } }, note: 'ok' });
 
   it('never invents a character and never rewrites the words unless asked', () => {
     const out = fixSceneTask.parse(raw({ companion: 'khong-co', lead: 'ly-tinh' }), input, {} as never);

@@ -351,3 +351,6 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 .dtl .layermenu .choice:hover:not(:disabled) { color: #fff; background: var(--e-raise); }
 .dtl .layermenu .choice:disabled { opacity: 0.5; cursor: default; }
 .dtl .layermenu .choice small { margin-left: 6px; font-size: 11px; color: var(--e-ink-3); }
+.dtl .lname { border: 0; background: none; padding: 0; text-align: left; color: inherit; font: 600 12px var(--font); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dtl .lname:hover, .dtl .lname.sel { color: var(--accent); }
+.director .dtabs.inspect { justify-content: space-between; align-items: center; }

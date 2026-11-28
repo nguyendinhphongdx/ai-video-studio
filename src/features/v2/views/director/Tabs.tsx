@@ -44,7 +44,7 @@ export function tabsOf(block: BlockInfo): { id: TabId; label: string }[] {
 const field = (block: BlockInfo, key: string): ToolField | undefined => block.fields.find((f) => f.key === key);
 const price = (n: number | null | undefined) => (n == null ? 'chưa rõ giá' : usd(n));
 
-function ChoiceSection({ name, title, hint, p }: { name: string; title?: string; hint?: string; p: TabProps }) {
+export function ChoiceSection({ name, title, hint, p }: { name: string; title?: string; hint?: string; p: TabProps }) {
   const f = field(p.block, name);
   if (!f) return null;
   return (
@@ -224,8 +224,8 @@ function Extras({ p, people, things }: { p: TabProps; people: string[]; things: 
   );
 }
 
-const ACTION_NAME = { idle: 'Đứng nghe', talk: 'Đang nói', wave: 'Vẫy tay', point: 'Chỉ tay' } as const;
-const EMOTION_NAME = { neutral: 'Bình thường', happy: 'Vui', angry: 'Giận', sad: 'Buồn', surprised: 'Ngạc nhiên' } as const;
+export const ACTION_NAME = { idle: 'Đứng nghe', talk: 'Đang nói', wave: 'Vẫy tay', point: 'Chỉ tay' } as const;
+export const EMOTION_NAME = { neutral: 'Bình thường', happy: 'Vui', angry: 'Giận', sad: 'Buồn', surprised: 'Ngạc nhiên' } as const;
 
 export function CastTab({ p, people, things }: { p: TabProps; people: string[]; things: string[] }) {
   const s = p.draft.value!;
@@ -329,14 +329,11 @@ export function TextTab({ p }: { p: TabProps }) {
   );
 }
 
-export function AudioTab({ p, voiceUrl }: { p: TabProps; voiceUrl: string | null }) {
+export function VoiceSections({ p, voiceUrl }: { p: TabProps; voiceUrl: string | null }) {
   const s = p.draft.value!;
   const tune = tuneOf(s.props);
   const e = p.view.episode;
   const assets = p.view.assets[s.id];
-  const options = useEpisodeAction(e.id, (input: { music?: boolean; musicVolume?: number }) => episodeApi.updateOptions(e.id, input));
-  const level = e.musicVolume ?? 0.12;
-  const sfx = tune.sfxVolume ?? 1;
   return (
     <>
       <Section title="Lời đọc" hint={`${s.narration.length} / 600 ký tự. Đổi lời, giọng điệu hay tốc độ thì phải đọc lại.`}>
@@ -352,9 +349,27 @@ export function AudioTab({ p, voiceUrl }: { p: TabProps; voiceUrl: string | null
           {assets?.voiceUrl || assets?.voiceStale ? 'Đọc lại' : 'Tạo giọng'} · {price(p.price.voice)}
         </button>
       </Section>
-      <Section title="Tiếng động cảnh này">
-        <Slider label="Hiệu ứng" min={0} max={2} step={0.1} value={sfx} show={sfx === 0 ? 'Tắt' : `${Math.round(sfx * 100)}%`} disabled={p.readOnly} onChange={(v) => p.draft.setTune({ sfxVolume: v })} />
-      </Section>
+    </>
+  );
+}
+
+export function SfxSection({ p }: { p: TabProps }) {
+  const sfx = tuneOf(p.draft.value!.props).sfxVolume ?? 1;
+  return (
+    <Section title="Tiếng động cảnh này">
+      <Slider label="Hiệu ứng" min={0} max={2} step={0.1} value={sfx} show={sfx === 0 ? 'Tắt' : `${Math.round(sfx * 100)}%`} disabled={p.readOnly} onChange={(v) => p.draft.setTune({ sfxVolume: v })} />
+    </Section>
+  );
+}
+
+export function AudioTab({ p, voiceUrl }: { p: TabProps; voiceUrl: string | null }) {
+  const e = p.view.episode;
+  const options = useEpisodeAction(e.id, (input: { music?: boolean; musicVolume?: number }) => episodeApi.updateOptions(e.id, input));
+  const level = e.musicVolume ?? 0.12;
+  return (
+    <>
+      <VoiceSections p={p} voiceUrl={voiceUrl} />
+      <SfxSection p={p} />
       <Section title="Nhạc nền cả video" hint="Áp dụng cho mọi cảnh, lưu ngay.">
         <label className="row" style={{ gap: 8 }}>
           <input type="checkbox" checked={e.music} disabled={p.readOnly || p.busy || options.isPending} onChange={(x) => options.mutate({ music: x.target.checked })} />

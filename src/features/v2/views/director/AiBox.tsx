@@ -26,7 +26,7 @@ export function AiBox({ episodeId, draft, disabled }: { episodeId: string; draft
     mutationFn: (request: string) => episodeApi.suggestSceneFix(episodeId, draft.value!.id, { request, narration: draft.value!.narration, props: draft.value!.props }).then((r) => ({ ...r, id: draft.value!.id })),
     onSuccess: (r) => {
       // The person may have moved on while the AI was thinking.
-      draft.change((s) => (s.id === r.id ? { ...s, narration: r.narration, props: r.props } : s));
+      draft.change((s) => (s.id === r.id ? { ...s, block: r.block, narration: r.narration, props: r.props } : s));
       setNote({ id: r.id, text: r.note });
       setText('');
     },

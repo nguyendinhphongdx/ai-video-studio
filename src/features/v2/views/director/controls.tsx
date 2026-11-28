@@ -38,10 +38,10 @@ export function Slider({ label, value, min, max, step, show, disabled, onChange 
 }
 
 /** Cast pictures as buttons, with "none" first. */
-export function CastPicker({ label, ids, cast, value, noneLabel, disabled, onChange }: { label: string; ids: string[]; cast: Record<string, string>; value: string; noneLabel: string; disabled?: boolean; onChange: (v: string) => void }) {
+export function CastPicker({ label, ids, cast, value, noneLabel, disabled, onChange }: { label: string; ids: string[]; cast: Record<string, string>; value: string; noneLabel?: string; disabled?: boolean; onChange: (v: string) => void }) {
   return (
     <div className="castgrid" role="group" aria-label={label}>
-      {['', ...ids].map((id) => (
+      {(noneLabel ? ['', ...ids] : ids).map((id) => (
         <button key={id || '-'} type="button" className={`pick${value === id ? ' on' : ''}`} aria-pressed={value === id} disabled={disabled} onClick={() => onChange(id)} title={id || noneLabel}>
           {id && cast[id] ? (
             // eslint-disable-next-line @next/next/no-img-element

@@ -12,12 +12,14 @@ import type { Draft } from './useDraft';
 
 export type TabId = 'scene' | 'picture' | 'cast' | 'camera' | 'text' | 'audio';
 
+/** One layer of a scene; added people and things are `x:<index>`. */
+export type LayerId = 'picture' | 'hero' | 'companion' | 'item' | 'camera' | 'effect' | 'transition' | 'caption' | 'voice' | 'sfx' | 'hold' | `x:${number}`;
+
 export const PUPPET = 'remotion/puppet';
 const PICTURE = 'remotion/picture';
 
 interface Track {
-  /** Tells apart two lanes with the same name. */
-  key?: string;
+  id: LayerId;
   name: string;
   tab: TabId;
   tone: 'act' | 'cam' | 'dlg' | 'sfx' | 'fx';
@@ -35,6 +37,7 @@ interface Track {
 }
 
 interface Choice {
+  id: LayerId;
   label: string;
   add?: () => void;
   why?: string;
@@ -50,9 +53,9 @@ export interface TimelineProps {
   seconds: number;
   voiceSeconds: number | null;
   frame: number;
-  tab: TabId;
+  layer: LayerId | null;
   readOnly: boolean;
-  onTab: (t: TabId) => void;
+  onLayer: (id: LayerId) => void;
   onSeek: (frame: number) => void;
 }
 
@@ -82,21 +85,21 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
 
   const person = people.find((id) => id !== p.lead);
   const hero: Track = {
-    name: 'Vai chính', tab: 'cast', tone: 'act', ...timed('heroTime'),
+    id: 'hero', name: 'Vai chính', tab: 'cast', tone: 'act', ...timed('heroTime'),
     text: isPuppet ? [String(p.lead || 'Nhân vật chính'), label('action'), label('emotion')].filter(Boolean).join(' · ') : null,
     add: !isPuppet && puppetType ? stage({}) : undefined,
     remove: isPuppet && pictureType ? () => draft.change((x) => retype(x, pictureType)) : undefined,
     why: 'Phần này của video không dùng nhân vật diễn',
   };
   const companion: Track = {
-    name: 'Nhân vật phụ', tab: 'cast', tone: 'act', ...timed('companionTime'),
+    id: 'companion', name: 'Nhân vật phụ', tab: 'cast', tone: 'act', ...timed('companionTime'),
     text: isPuppet && p.companion ? [String(p.companion), label('companionAction')].filter(Boolean).join(' · ') : null,
     add: canStage && person ? stage({ companion: person }) : undefined,
     remove: set('companion', ''),
     why: person ? 'Phần này của video không dùng nhân vật diễn' : 'Series chưa có ảnh nhân vật phụ',
   };
   const item: Track = {
-    name: 'Vật phẩm', tab: 'cast', tone: 'act', ...timed('itemTime'),
+    id: 'item', name: 'Vật phẩm', tab: 'cast', tone: 'act', ...timed('itemTime'),
     text: isPuppet && p.item ? String(p.item) : null,
     add: canStage && things[0] ? stage({ item: things[0] }) : undefined,
     remove: set('item', ''),
@@ -107,11 +110,12 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
   const extras = tune.extras ?? [];
   const room = extras.length < MAX_EXTRAS;
   const added: Track[] = extras.map((x, i) => ({
-    key: `x${i}`, name: x.id, tab: 'cast', tone: 'act', text: x.id, from: x.time?.from ?? 0, to: x.time?.to ?? seconds,
+    id: `x:${i}`, name: x.id, tab: 'cast', tone: 'act', text: x.id, from: x.time?.from ?? 0, to: x.time?.to ?? seconds,
     time: { edges: ['from', 'to'], move: true, set: (from, to) => draft.setExtras((list) => list.map((e, k) => (k === i ? { ...e, time: { from, ...(to < seconds - 0.05 ? { to } : {}) } } : e)), `time:extra:${i}`) },
     remove: () => draft.setExtras((list) => list.filter((_, k) => k !== i), ''),
   }));
   const more = (kind: Extra['kind'], id: string): Choice => ({
+    id: `x:${extras.length}`,
     label: id,
     why: !canStage ? 'Phần này của video không dùng nhân vật diễn' : !room ? `Tối đa ${MAX_EXTRAS}` : undefined,
     add: canStage && room ? () => draft.change((x) => {
@@ -126,7 +130,7 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
   const effectKey = field('fx') ? 'fx' : field('mood') ? 'mood' : null;
   const none = effectKey === 'fx' ? 'none' : 'calm';
   const effect: Track = {
-    name: 'Hiệu ứng hình', tab: 'camera', tone: 'fx', ...timed('effectTime'),
+    id: 'effect', name: 'Hiệu ứng hình', tab: 'camera', tone: 'fx', ...timed('effectTime'),
     text: effectKey && p[effectKey] !== none ? label(effectKey) : null,
     add: effectKey ? set(effectKey, effectKey === 'fx' ? 'sheen' : 'magic') : undefined,
     remove: effectKey ? set(effectKey, none) : undefined,
@@ -137,22 +141,22 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
   const caption = Boolean(field('caption'));
 
   const tracks: Track[] = [
-    { name: 'Hình', tab: 'picture', tone: 'fx', text: field('imagePrompt') ? String(p.imagePrompt || 'Chưa có mô tả') : null, why: 'Loại cảnh này không dùng ảnh' },
+    { id: 'picture', name: 'Hình', tab: 'picture', tone: 'fx', text: field('imagePrompt') ? String(p.imagePrompt || 'Chưa có mô tả') : null, why: 'Loại cảnh này không dùng ảnh' },
     hero,
     companion,
     item,
     ...added,
-    { name: 'Máy quay', tab: 'camera', tone: 'cam', text: field('motion') ? [label('motion'), label('rhythm')].filter(Boolean).join(' · ') : null, why: isPuppet ? 'Cảnh nhân vật diễn tự đẩy máy chậm' : 'Loại cảnh này tự chuyển động' },
+    { id: 'camera', name: 'Máy quay', tab: 'camera', tone: 'cam', text: field('motion') ? [label('motion'), label('rhythm')].filter(Boolean).join(' · ') : null, why: isPuppet ? 'Cảnh nhân vật diễn tự đẩy máy chậm' : 'Loại cảnh này tự chuyển động' },
     effect,
     {
-      name: 'Chuyển cảnh', tab: 'camera', tone: 'cam', from: 0, to: 1,
+      id: 'transition', name: 'Chuyển cảnh', tab: 'camera', tone: 'cam', from: 0, to: 1,
       text: field('transition') && p.transition !== 'cut' ? label('transition') : null,
       add: field('transition') ? set('transition', 'fade') : undefined,
       remove: set('transition', 'cut'),
       why: 'Loại cảnh này không đổi được cách mở',
     },
     {
-      name: 'Chữ', tab: 'text', tone: 'sfx', ...timed('captionTime', 0.4),
+      id: 'caption', name: 'Chữ', tab: 'text', tone: 'sfx', ...timed('captionTime', 0.4),
       text: caption && p.caption && tune.captionPlace !== 'off' ? String(p.caption) : null,
       // Hidden words come back as they were; a scene with none gets a box to type in.
       add: caption ? () => draft.change((x) => {
@@ -164,7 +168,7 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
       why: 'Loại cảnh này không có chú thích',
     },
     {
-      name: 'Giọng đọc', tab: 'audio', tone: 'dlg', from: NARRATION_DELAY_SEC + delay, to: NARRATION_DELAY_SEC + delay + speech,
+      id: 'voice', name: 'Giọng đọc', tab: 'audio', tone: 'dlg', from: NARRATION_DELAY_SEC + delay, to: NARRATION_DELAY_SEC + delay + speech,
       // The voice has its own length: only its start moves.
       time: { edges: [], move: true, set: (from) => draft.setTune({ voiceDelay: Math.max(0, Math.min(MAX_VOICE_DELAY_SEC, from - NARRATION_DELAY_SEC)) }, 'time:voice') },
       text: s.narration.trim() ? s.narration : null,
@@ -173,13 +177,13 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
       remove: () => draft.setNarration(''),
     },
     {
-      name: 'Tiếng động', tab: 'audio', tone: 'sfx', from: 0, to: 0.8,
+      id: 'sfx', name: 'Tiếng động', tab: 'audio', tone: 'sfx', from: 0, to: 0.8,
       text: tune.sfxVolume === 0 ? null : tune.sfxVolume ? `♪ ${Math.round(tune.sfxVolume * 100)}%` : '♪ Tự động',
       add: () => draft.setTune({ sfxVolume: undefined }),
       remove: () => draft.setTune({ sfxVolume: 0 }),
     },
     {
-      name: 'Nghỉ cuối', tab: 'scene', tone: 'fx', from: seconds - (tune.holdSec ?? 0), to: seconds,
+      id: 'hold', name: 'Nghỉ cuối', tab: 'scene', tone: 'fx', from: seconds - (tune.holdSec ?? 0), to: seconds,
       // Dragging its left edge makes the pause longer or shorter.
       time: { edges: ['from'], move: false, set: (from) => draft.setTune({ holdSec: Math.max(0, Math.min(MAX_HOLD_SEC, Math.round((seconds - from) * 10) / 10)) }, 'time:hold') },
       text: tune.holdSec ? `${tune.holdSec}s` : null,
@@ -197,12 +201,12 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
 }
 
 /** The button under the lanes: opens the kinds of layer that can still be added to this scene. */
-function AddLayer({ tracks, more, onAdd }: { tracks: Track[]; more: { title: string; choices: Choice[] }[]; onAdd: (add: () => void, tab: TabId) => void }) {
+function AddLayer({ tracks, more, onAdd }: { tracks: Track[]; more: { title: string; choices: Choice[] }[]; onAdd: (add: () => void, id: LayerId) => void }) {
   const [open, setOpen] = useState(false);
   const missing = tracks.filter((t) => t.text === null && (t.add || t.why));
   const groups = [
-    { title: 'Lớp', choices: missing.map((t) => ({ label: t.name, tab: t.tab, add: t.add, why: t.add ? undefined : t.why })) },
-    ...more.map((g) => ({ title: g.title, choices: g.choices.map((c) => ({ ...c, tab: 'cast' as TabId })) })),
+    { title: 'Lớp', choices: missing.map((t) => ({ id: t.id, label: t.name, add: t.add, why: t.add ? undefined : t.why })) },
+    ...more,
   ].filter((g) => g.choices.length > 0);
   return (
     <div className="layermenu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
@@ -222,7 +226,7 @@ function AddLayer({ tracks, more, onAdd }: { tracks: Track[]; more: { title: str
                 title={c.why}
                 onClick={() => {
                   setOpen(false);
-                  onAdd(c.add!, c.tab);
+                  onAdd(c.add!, c.id);
                 }}
               >
                 {c.label}
@@ -291,7 +295,7 @@ function Clip({ track: t, seconds, selected, readOnly, onOpen }: { track: Track;
 
 /** A lane opens that layer's settings, the ruler moves the playhead. */
 export function Timeline(props: TimelineProps) {
-  const { seconds, frame, tab, readOnly, onTab, onSeek } = props;
+  const { seconds, frame, layer, readOnly, onLayer, onSeek } = props;
   const pct = (s: number) => `${Math.max(0, Math.min(100, (s / seconds) * 100))}%`;
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -315,10 +319,12 @@ export function Timeline(props: TimelineProps) {
       {tracks
         .filter((t) => t.text !== null)
         .map((t) => (
-          <div className="trk" key={t.key ?? t.name}>
-            <b>{t.name}</b>
+          <div className="trk" key={t.id}>
+            <button type="button" className={`lname${layer === t.id ? ' sel' : ''}`} onClick={() => onLayer(t.id)}>
+              {t.name}
+            </button>
             <div className="lanebox" onClick={seek}>
-              <Clip track={t} seconds={seconds} selected={tab === t.tab} readOnly={readOnly} onOpen={() => onTab(t.tab)} />
+              <Clip track={t} seconds={seconds} selected={layer === t.id} readOnly={readOnly} onOpen={() => onLayer(t.id)} />
               <i className="head" style={{ left: pct(frame / FPS) }} />
             </div>
             {t.remove && !readOnly ? (
@@ -330,7 +336,7 @@ export function Timeline(props: TimelineProps) {
             )}
           </div>
         ))}
-      {!readOnly && <AddLayer tracks={tracks} more={more} onAdd={(add, to) => (add(), onTab(to))} />}
+      {!readOnly && <AddLayer tracks={tracks} more={more} onAdd={(add, id) => (add(), onLayer(id))} />}
     </div>
   );
 }

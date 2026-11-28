@@ -22,9 +22,10 @@ import { errorMessage } from '@/lib/api/client';
 import { episodeHref } from '../model';
 import { AiBox } from './director/AiBox';
 import { retype, SceneList, sceneOps } from './director/SceneList';
+import { Inspector } from './director/Inspector';
 import { DragLayer } from './director/Stage';
 import { AudioTab, CameraTab, CastTab, PictureTab, SceneTab, TextTab, tabsOf, type TabProps } from './director/Tabs';
-import { Timeline, type TabId } from './director/Timeline';
+import { Timeline, type LayerId, type TabId } from './director/Timeline';
 import { useDraft } from './director/useDraft';
 import { toSaveInput } from './episode/save';
 import { LockedScenes, scenesLocked } from './LockedScenes';
@@ -54,6 +55,10 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const s = draft.value;
 
   const [tab, setTab] = useState<TabId>('scene');
+  // A selected layer shows its own properties instead of the tabs. It belongs to one scene.
+  const [picked, setPicked] = useState<{ scene: string; layer: LayerId } | null>(null);
+  const layer = picked?.scene === sceneId ? picked.layer : null;
+  const select = (next: LayerId | null) => setPicked(next ? { scene: sceneId, layer: next } : null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const player = useRef<StageApi | null>(null);
@@ -65,7 +70,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const writePicture = useMutation({
     mutationFn: (scene: Scene) => episodeApi.suggestSceneFix(episodeId, scene.id, { request: '', narration: scene.narration, props: scene.props }).then((r) => ({ ...r, id: scene.id })),
     onSuccess: (r) => {
-      draft.change((x) => (x.id === r.id ? { ...x, props: r.props } : x));
+      draft.change((x) => (x.id === r.id ? { ...x, block: r.block, props: r.props } : x));
       toast.success(r.note || 'Đã viết lại mô tả ảnh');
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -219,7 +224,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           {!dirty && <SeriesUpdateBanner view={v} />}
           <div className="dstage">
             <StagePlayer key={`${sceneId}-${s.block}-${assets?.imageUrl ?? ''}`} block={s.block} props={previewProps} ordinal={ordinal} brand={brandOf(project.data ?? null)} durationSec={seconds} narrationSrc={voiceUrl} apiRef={player} onFrame={setFrame} onPlaying={setPlaying} />
-            {active === 'cast' && !readOnly && !playing && <DragLayer draft={draft} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
+            {(active === 'cast' || layer === 'hero' || layer === 'companion' || layer === 'item' || layer?.startsWith('x:')) && s.block === 'remotion/puppet' && !readOnly && !playing && <DragLayer draft={draft} onSelect={select} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
           </div>
           <div className="transport">
             <button className="btn sm" onClick={() => player.current?.toggle()} title="Phím cách">
@@ -235,36 +240,42 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             {assets?.imageStale && <span className="chip warn">Ảnh cần vẽ lại</span>}
             {assets?.voiceStale && <span className="chip warn">Giọng cần đọc lại</span>}
           </div>
-          <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} tab={active} readOnly={readOnly} onTab={setTab} onSeek={(f) => player.current?.seek(f)} />
+          <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} layer={layer} readOnly={readOnly} onLayer={select} onSeek={(f) => player.current?.seek(f)} />
           <span className="cap">Phím tắt: cách = phát/dừng · ↑↓ = đổi cảnh · ⌘Z = hoàn tác · ⌘S = lưu</span>
         </main>
 
         <aside className="edright">
           <AiBox episodeId={episodeId} draft={draft} disabled={readOnly || busy} />
-          <div className="dtabs" role="tablist">
-            {tabs.map((t) => (
-              <button key={t.id} role="tab" aria-selected={active === t.id} className={active === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="dpanel">
-            {active === 'scene' && (
-              <SceneTab
-                p={tabProps}
-                types={ops.types}
-                onType={(to) => draft.change((x) => retype(x, to))}
-                ops={{ canEdit: ops.canEdit, canMove: ops.canMove, disabled: opsDisabled, duplicate: () => apply(ops.duplicate()), remove: () => apply(ops.remove()), move: (d) => apply(ops.move(d)) }}
-                approve={{ run: (x) => approve.mutate(x), disabled: dirty || busy || closed || approve.isPending }}
-                goNext={nextId ? () => go(nextId) : null}
-              />
-            )}
-            {active === 'picture' && <PictureTab p={tabProps} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} />}
-            {active === 'cast' && <CastTab p={tabProps} people={people} things={things} />}
-            {active === 'camera' && <CameraTab p={tabProps} onReplay={replay} />}
-            {active === 'text' && <TextTab p={tabProps} />}
-            {active === 'audio' && <AudioTab p={tabProps} voiceUrl={voiceUrl} />}
-          </div>
+          {layer ? (
+            <Inspector p={tabProps} layer={layer} people={people} things={things} seconds={seconds} voiceUrl={voiceUrl} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} onReplay={replay} onSelect={select} />
+          ) : (
+            <>
+              <div className="dtabs" role="tablist">
+                {tabs.map((t) => (
+                  <button key={t.id} role="tab" aria-selected={active === t.id} className={active === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <div className="dpanel">
+                {active === 'scene' && (
+                  <SceneTab
+                    p={tabProps}
+                    types={ops.types}
+                    onType={(to) => draft.change((x) => retype(x, to))}
+                    ops={{ canEdit: ops.canEdit, canMove: ops.canMove, disabled: opsDisabled, duplicate: () => apply(ops.duplicate()), remove: () => apply(ops.remove()), move: (d) => apply(ops.move(d)) }}
+                    approve={{ run: (x) => approve.mutate(x), disabled: dirty || busy || closed || approve.isPending }}
+                    goNext={nextId ? () => go(nextId) : null}
+                  />
+                )}
+                {active === 'picture' && <PictureTab p={tabProps} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} />}
+                {active === 'cast' && <CastTab p={tabProps} people={people} things={things} />}
+                {active === 'camera' && <CameraTab p={tabProps} onReplay={replay} />}
+                {active === 'text' && <TextTab p={tabProps} />}
+                {active === 'audio' && <AudioTab p={tabProps} voiceUrl={voiceUrl} />}
+              </div>
+            </>
+          )}
         </aside>
       </div>
     </div>

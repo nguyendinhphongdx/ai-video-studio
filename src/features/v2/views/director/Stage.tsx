@@ -6,6 +6,7 @@ import type { Scene } from '@/core/domain/episode';
 import { tuneOf, type Extra, type Placement, type TuneLayer } from '@/core/domain/tune';
 import { ANCHOR_X, type Side } from '@video/puppet/rig';
 
+import type { LayerId } from './Timeline';
 import type { Draft } from './useDraft';
 
 const LABEL: Record<TuneLayer, string> = { hero: 'Vai chính', companion: 'Nhân vật phụ', item: 'Vật phẩm' };
@@ -27,7 +28,7 @@ function restingBoxes(scene: Scene): { layer: TuneLayer; x: number; bottom: numb
 const extraBox = (e: Extra) => (e.kind === 'item' ? { x: e.x, bottom: 0.17 + e.y, h: 0.33 * e.scale, w: 0.18 * e.scale } : { x: e.x, bottom: 0.17 + e.y, h: 0.57 * e.scale, w: 0.2 * e.scale });
 
 /** Handles over the preview: drag a figure to move it; the corner changes its size. */
-export function DragLayer({ draft, onGrab }: { draft: Draft; onGrab: () => void }) {
+export function DragLayer({ draft, onGrab, onSelect }: { draft: Draft; onGrab: () => void; onSelect: (layer: LayerId) => void }) {
   const scene = draft.value!;
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ layer: TuneLayer; mode: 'move' | 'size'; x: number; y: number; from: Placement; h: number } | null>(null);
@@ -39,6 +40,7 @@ export function DragLayer({ draft, onGrab }: { draft: Draft; onGrab: () => void 
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     held.current = { index, mode, x: e.clientX, y: e.clientY, from };
+    onSelect(`x:${index}`);
     onGrab();
   };
   const dragExtra = (e: React.PointerEvent) => {
@@ -61,6 +63,7 @@ export function DragLayer({ draft, onGrab }: { draft: Draft; onGrab: () => void 
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { layer, mode, x: e.clientX, y: e.clientY, h, from: tune[layer] ?? { dx: 0, dy: 0, scale: 1 } };
     setActive(layer);
+    onSelect(layer);
     onGrab();
   };
   const move = (e: React.PointerEvent) => {

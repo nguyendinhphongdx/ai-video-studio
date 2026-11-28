@@ -214,6 +214,30 @@ function ExtraPanel({ p, index, people, things, seconds, onSelect, onReplay }: P
     </label>
   );
   const person = x.kind === 'person';
+  const when = <When from={x.time?.from ?? 0} to={x.time?.to ?? seconds} seconds={seconds} disabled={off} onChange={(from, to) => patch({ time: { from, ...(to < seconds - 0.05 ? { to } : {}) } }, 'time')} onReset={() => patch({ time: undefined }, 'time')} />;
+  const buttons = (
+    <div className="row" style={{ gap: 6 }}>
+      <button type="button" className="btn sm" disabled={off || extras.length >= 8} onClick={() => (p.draft.setExtras((list) => [...list, { ...x, x: Math.min(1, x.x + 0.12) }], ''), onSelect(`x:${extras.length}`))}>
+        Nhân đôi
+      </button>
+      <button type="button" className="btn sm danger" disabled={off} onClick={() => (onSelect(null), p.draft.setExtras((list) => list.filter((_, i) => i !== index), ''))}>
+        Bỏ khỏi cảnh
+      </button>
+    </div>
+  );
+  if (x.kind === 'fx') {
+    return (
+      <>
+        <Section title="Vị trí và kích cỡ" hint="Cũng kéo thẳng trên khung hình được. Lấp lánh lặp lại suốt thời gian hiện; loé sáng và va đập nổ một lần lúc xuất hiện.">
+          <Slider label="Ngang" min={0} max={1} step={0.01} value={x.x} show={pct(x.x)} disabled={off} onChange={(v) => patch({ x: v }, 'x')} />
+          <Slider label="Cao" min={-0.2} max={0.8} step={0.01} value={x.y} show={pct(x.y)} disabled={off} onChange={(v) => patch({ y: v }, 'y')} />
+          <Slider label="Cỡ" min={0.4} max={2.2} step={0.05} value={x.scale} show={pct(x.scale)} disabled={off} onChange={(scale) => patch({ scale }, 'size')} />
+        </Section>
+        {when}
+        {buttons}
+      </>
+    );
+  }
   return (
     <>
       <Section title={person ? 'Ai' : 'Vật gì'}>
@@ -246,15 +270,8 @@ function ExtraPanel({ p, index, people, things, seconds, onSelect, onReplay }: P
         {toggle('Quay mặt ngược lại', 'flip')}
         {person && toggle('Đứng trước vai chính', 'front')}
       </Section>
-      <When from={x.time?.from ?? 0} to={x.time?.to ?? seconds} seconds={seconds} disabled={off} onChange={(from, to) => patch({ time: { from, ...(to < seconds - 0.05 ? { to } : {}) } }, 'time')} onReset={() => patch({ time: undefined }, 'time')} />
-      <div className="row" style={{ gap: 6 }}>
-        <button type="button" className="btn sm" disabled={off || extras.length >= 8} onClick={() => (p.draft.setExtras((list) => [...list, { ...x, x: Math.min(1, x.x + 0.12) }], ''), onSelect(`x:${extras.length}`))}>
-          Nhân đôi
-        </button>
-        <button type="button" className="btn sm danger" disabled={off} onClick={() => (onSelect(null), p.draft.setExtras((list) => list.filter((_, i) => i !== index), ''))}>
-          Bỏ khỏi cảnh
-        </button>
-      </div>
+      {when}
+      {buttons}
     </>
   );
 }
@@ -368,7 +385,7 @@ export function Inspector(props: Props) {
   return (
     <>
       <div className="dtabs inspect">
-        <b>{extra ? `${extra.kind === 'item' ? 'Vật phẩm' : 'Người'}: ${extra.id}` : NAME[layer]}</b>
+        <b>{extra ? (extra.kind === 'fx' ? `Hiệu ứng: ${EFFECT_NAME[extra.id as keyof typeof EFFECT_NAME]}` : `${extra.kind === 'item' ? 'Vật phẩm' : 'Người'}: ${extra.id}`) : NAME[layer]}</b>
         <button type="button" className="btn sm ghost" onClick={() => onSelect(null)}>
           Tất cả cài đặt
         </button>

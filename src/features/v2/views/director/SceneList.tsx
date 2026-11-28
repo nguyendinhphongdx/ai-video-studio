@@ -53,15 +53,21 @@ export function retype(scene: Scene, to: BlockInfo): Scene {
   return { ...scene, block: to.ref as Scene['block'], props: { ...to.defaults, ...keep } };
 }
 
-export function SceneList({ view, sceneId, blocks, canAdd, disabled, onOpen, onAdd }: { view: EpisodeView; sceneId: string; blocks: Map<string, BlockInfo>; canAdd: boolean; disabled: boolean; onOpen: (id: string) => void; onAdd: () => void }) {
+export function SceneList({ view, sceneId, blocks, canAdd, disabled, open, onClose, onOpen, onAdd }: { view: EpisodeView; sceneId: string; blocks: Map<string, BlockInfo>; canAdd: boolean; disabled: boolean; open: boolean; onClose: () => void; onOpen: (id: string) => void; onAdd: () => void }) {
   // Moving with the arrow keys keeps the open scene in sight.
   const current = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     // Braces matter: some browsers return a promise here, which React would take for a clean-up.
     current.current?.scrollIntoView({ block: 'nearest' });
-  }, [sceneId]);
+  }, [sceneId, open]);
   return (
     <aside className="edleft dlist" aria-label="Các cảnh">
+      <div className="dsheet-head dsmall">
+        <b>Chọn cảnh</b>
+        <button type="button" className="btn sm ghost" onClick={onClose}>
+          Đóng ✕
+        </button>
+      </div>
       <div className="dlist-scroll">
         {view.episode.scenes.map((s, i) => {
           const a = view.assets[s.id];

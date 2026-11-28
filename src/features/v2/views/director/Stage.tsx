@@ -13,6 +13,8 @@ const LABEL: Record<TuneLayer, string> = { hero: 'Vai chính', companion: 'Nhân
 
 /** Where each figure stands before any adjustment, as fractions of the frame (mirrors remotion/blocks/puppet.tsx). */
 function restingBoxes(scene: Scene): { layer: TuneLayer; x: number; bottom: number; w: number; h: number }[] {
+  // A painted picture has its figures in the paint: only added layers can be moved there.
+  if (scene.block !== 'remotion/puppet') return [];
   const side = (String(scene.props.side ?? 'center') || 'center') as Side;
   const stage = 0.66;
   const ground = 0.17;

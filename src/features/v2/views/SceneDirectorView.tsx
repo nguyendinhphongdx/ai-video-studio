@@ -26,6 +26,7 @@ import { Inspector } from './director/Inspector';
 import { DragLayer } from './director/Stage';
 import { AudioTab, CameraTab, CastTab, PictureTab, SceneTab, TextTab, tabsOf, type TabProps } from './director/Tabs';
 import { Timeline, type LayerId, type TabId } from './director/Timeline';
+import './director/responsive.css';
 import { useDraft } from './director/useDraft';
 import { toSaveInput } from './episode/save';
 import { LockedScenes, scenesLocked } from './LockedScenes';
@@ -59,6 +60,8 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const [picked, setPicked] = useState<{ scene: string; layer: LayerId } | null>(null);
   const layer = picked?.scene === sceneId ? picked.layer : null;
   const select = (next: LayerId | null) => setPicked(next ? { scene: sceneId, layer: next } : null);
+  // Small screens keep only the picture and its layers up; the scene list and the settings open over them.
+  const [sheet, setSheet] = useState<'scenes' | 'panel' | null>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const player = useRef<StageApi | null>(null);
@@ -156,7 +159,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const seconds = sceneSeconds(s, blocks, voiceLine);
   // The old voice would not match edited words or delivery.
   const voiceUrl = dirty && saved && (s.narration !== saved.narration || JSON.stringify(s.props._tune) !== JSON.stringify(saved.props._tune)) ? null : (assets?.voiceUrl ?? null);
-  const previewProps = { ...s.props, ...(assets?.imageUrl ? { image: assets.imageUrl } : {}), ...(s.block === 'remotion/puppet' ? { sprites: v.sprites, cast: v.cast } : {}) };
+  const previewProps = { ...s.props, ...(assets?.imageUrl ? { image: assets.imageUrl } : {}), ...(s.block === 'remotion/puppet' ? { sprites: v.sprites, cast: v.cast } : {}), ...(s.block === 'remotion/picture' ? { cast: v.cast } : {}) };
   const ordinal = v.episode.scenes.slice(0, index + 1).filter((x) => x.block === s.block).length;
 
   const ops = sceneOps(v, blocks, sceneId);
@@ -188,10 +191,10 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   };
 
   return (
-    <div className="ed director">
+    <div className="ed director" data-sheet={sheet ?? undefined} onKeyDown={(e) => e.key === 'Escape' && setSheet(null)}>
       <header className="edtop">
         <Link className="btn sm ghost" href={episodeHref(projectId, episodeId, 'script')}>
-          ← Các cảnh
+          ←<span className="dwide"> Các cảnh</span>
         </Link>
         <div className="col" style={{ gap: 0, flex: '1 1 160px', minWidth: 0 }}>
           <span className="cap">
@@ -200,24 +203,28 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           <b className="oneline">{String(s.props.caption || s.props.heading || s.props.title || block.name)}</b>
         </div>
         <button className="btn sm ghost" disabled={!draft.canUndo || readOnly} onClick={undo} title="Hoàn tác (⌘Z)">
-          ↶ Hoàn tác
+          ↶<span className="dwide"> Hoàn tác</span>
         </button>
         <button className="btn sm ghost" disabled={!draft.canRedo || readOnly} onClick={redoEdit} title="Làm lại (⇧⌘Z)">
           ↷
         </button>
-        {dirty && <span className="chip warn">Chưa lưu</span>}
+        <button type="button" className="btn sm dsmall" aria-expanded={sheet === 'scenes'} onClick={() => setSheet(sheet === 'scenes' ? null : 'scenes')}>
+          ▦ Cảnh {index + 1}/{ids.length}
+        </button>
+        {dirty && <span className="chip warn dwide">Chưa lưu</span>}
         {dirty && (
-          <button className="btn sm ghost" onClick={draft.reset}>
-            Bỏ thay đổi
+          <button className="btn sm ghost" onClick={draft.reset} aria-label="Bỏ thay đổi" title="Bỏ thay đổi">
+            <span className="dwide">Bỏ thay đổi</span>
+            <span className="dsmall">✕</span>
           </button>
         )}
         <button className={`btn${dirty ? ' pri' : ''}`} disabled={!dirty || save.isPending || busy || readOnly} onClick={saveNow} title="⌘S">
-          Lưu cảnh
+          Lưu<span className="dwide"> cảnh</span>
         </button>
       </header>
 
       <div className="edbody">
-        <SceneList view={v} sceneId={sceneId} blocks={blocks} canAdd={ops.canAdd} disabled={opsDisabled} onOpen={go} onAdd={() => apply(ops.add())} />
+        <SceneList view={v} sceneId={sceneId} blocks={blocks} canAdd={ops.canAdd} disabled={opsDisabled} open={sheet === 'scenes'} onClose={() => setSheet(null)} onOpen={(id) => (setSheet(null), go(id))} onAdd={() => (setSheet(null), apply(ops.add()))} />
 
         <main className="edcenter">
           <LockedScenes view={v} />
@@ -231,7 +238,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           {!dirty && <SeriesUpdateBanner view={v} />}
           <div className="dstage">
             <StagePlayer key={`${sceneId}-${s.block}-${assets?.imageUrl ?? ''}`} block={s.block} props={previewProps} ordinal={ordinal} brand={brandOf(project.data ?? null)} durationSec={seconds} narrationSrc={voiceUrl} apiRef={player} onFrame={setFrame} onPlaying={setPlaying} />
-            {(active === 'cast' || layer === 'hero' || layer === 'companion' || layer === 'item' || layer?.startsWith('x:')) && s.block === 'remotion/puppet' && !readOnly && !playing && <DragLayer draft={draft} onSelect={select} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
+            {(active === 'cast' || layer === 'hero' || layer === 'companion' || layer === 'item' || layer?.startsWith('x:')) && (s.block === 'remotion/puppet' || s.block === 'remotion/picture') && !readOnly && !playing && <DragLayer draft={draft} onSelect={select} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
           </div>
           <div className="transport">
             <button className="btn sm" onClick={() => player.current?.toggle()} title="Phím cách">
@@ -248,10 +255,16 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             {assets?.voiceStale && <span className="chip warn">Giọng cần đọc lại</span>}
           </div>
           <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} layer={layer} readOnly={readOnly} onLayer={select} onSeek={(f) => player.current?.seek(f)} />
-          <span className="cap">Phím tắt: cách = phát/dừng · ↑↓ = đổi cảnh · ⌘Z = hoàn tác · ⌘S = lưu</span>
+          <span className="cap dwide">Phím tắt: cách = phát/dừng · ↑↓ = đổi cảnh · ⌘Z = hoàn tác · ⌘S = lưu</span>
         </main>
 
-        <aside className="edright">
+        <aside className="edright" aria-label="Thiết lập">
+          <div className="dsheet-head dsmall">
+            <b>Thiết lập cảnh</b>
+            <button type="button" className="btn sm ghost" onClick={() => setSheet(null)}>
+              Đóng ✕
+            </button>
+          </div>
           <AiBox key={sceneId} episodeId={episodeId} draft={draft} disabled={readOnly || busy} />
           {layer ? (
             <Inspector p={tabProps} layer={layer} people={people} things={things} seconds={seconds} voiceUrl={voiceUrl} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} onReplay={replay} onSelect={select} />
@@ -285,6 +298,11 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           )}
         </aside>
       </div>
+      {sheet !== 'panel' && (
+        <button type="button" className="dfab dsmall" aria-label="Mở thiết lập" title="Mở thiết lập" onClick={() => setSheet('panel')}>
+          ⚙
+        </button>
+      )}
     </div>
   );
 }

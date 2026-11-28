@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 
 import { FPS } from '@/core/domain/catalog';
-import { MAX_EXTRAS, MAX_HOLD_SEC, MAX_VOICE_DELAY_SEC, newExtra, tuneOf, type Extra, type TimedKey } from '@/core/domain/tune';
+import { ARRIVE_EFFECTS, MAX_EXTRAS, MAX_HOLD_SEC, MAX_VOICE_DELAY_SEC, newExtra, tuneOf, type Extra, type TimedKey } from '@/core/domain/tune';
 import { estimateSpeechSec, NARRATION_DELAY_SEC } from '@/core/timeline';
 import type { BlockInfo } from '@/features/episode/services/episode.api';
 
@@ -14,6 +14,8 @@ export type TabId = 'scene' | 'picture' | 'cast' | 'camera' | 'text' | 'audio';
 
 /** One layer of a scene; added people and things are `x:<index>`. */
 export type LayerId = 'picture' | 'hero' | 'companion' | 'item' | 'camera' | 'effect' | 'transition' | 'caption' | 'voice' | 'sfx' | 'hold' | `x:${number}`;
+
+export const EFFECT_LAYER = { sparkle: 'Lấp lánh', flash: 'Loé sáng', impact: 'Va đập' } as const;
 
 export const PUPPET = 'remotion/puppet';
 const PICTURE = 'remotion/picture';
@@ -110,16 +112,18 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
   const extras = tune.extras ?? [];
   const room = extras.length < MAX_EXTRAS;
   const added: Track[] = extras.map((x, i) => ({
-    id: `x:${i}`, name: x.id, tab: 'cast', tone: 'act', text: x.id, from: x.time?.from ?? 0, to: x.time?.to ?? seconds,
+    id: `x:${i}`, name: x.kind === 'fx' ? EFFECT_LAYER[x.id as keyof typeof EFFECT_LAYER] : x.id, tab: 'cast', tone: 'act', text: x.id, from: x.time?.from ?? 0, to: x.time?.to ?? seconds,
     time: { edges: ['from', 'to'], move: true, set: (from, to) => draft.setExtras((list) => list.map((e, k) => (k === i ? { ...e, time: { from, ...(to < seconds - 0.05 ? { to } : {}) } } : e)), `time:extra:${i}`) },
     remove: () => draft.setExtras((list) => list.filter((_, k) => k !== i), ''),
   }));
+  const canLayer = canStage || s.block === PICTURE;
   const more = (kind: Extra['kind'], id: string): Choice => ({
     id: `x:${extras.length}`,
     label: id,
-    why: !canStage ? 'Phần này của video không dùng nhân vật diễn' : !room ? `Tối đa ${MAX_EXTRAS}` : undefined,
-    add: canStage && room ? () => draft.change((x) => {
-      const base = x.block === PUPPET ? x : retype(x, puppetType!);
+    why: !canLayer ? 'Phần này của video không dùng nhân vật diễn' : !room ? `Tối đa ${MAX_EXTRAS}` : undefined,
+    add: canLayer && room ? () => draft.change((x) => {
+      // A painted picture takes layers as it is; other scene types turn into a drawn-figure scene first.
+      const base = x.block === PUPPET || x.block === PICTURE ? x : retype(x, puppetType!);
       const { _tune: _old, ...props } = base.props;
       const old = tuneOf(base.props);
       return { ...base, props: { ...props, _tune: { ...old, extras: [...(old.extras ?? []), newExtra(id, kind, old.extras ?? [])] } } };
@@ -196,6 +200,7 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
     more: [
       { title: 'Thêm người vào khung', choices: people.map((id) => more('person', id)) },
       { title: 'Thêm vật phẩm vào khung', choices: things.map((id) => more('item', id)) },
+      { title: 'Thêm hiệu ứng tại một điểm', choices: ARRIVE_EFFECTS.map((id) => ({ ...more('fx', id), label: EFFECT_LAYER[id] })) },
     ],
   };
 }

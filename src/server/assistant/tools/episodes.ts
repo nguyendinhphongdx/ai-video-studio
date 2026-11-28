@@ -23,7 +23,7 @@ const label = async (ctx: ToolContext, id: string) => {
 };
 
 /** The script as the save endpoint wants it, so a single change keeps ids, assets and approvals of the other scenes. */
-function scriptInput(v: EpisodeView, scenes = v.episode.scenes) {
+export function scriptInput(v: EpisodeView, scenes = v.episode.scenes) {
   const e = v.episode;
   return { title: e.title, publish: e.publish, scenes: scenes.map((s) => ({ id: s.id, slotId: s.slotId, block: s.block, locked: s.locked, narration: s.narration, props: s.props })) };
 }
@@ -47,7 +47,9 @@ export const getEpisode = defineTool({
   schema: z.object({ episodeId: z.string() }),
   summarize: (a) => `Xem video ${a.episodeId}`,
   async run({ episodeId }, ctx) {
-    return { ok: true, message: asJson(describeEpisode(await ownEpisode(ctx, episodeId)), 12000) };
+    const view = await ownEpisode(ctx, episodeId);
+    // Who is a person and what is a thing decides how it can be put on screen.
+    return { ok: true, message: asJson({ ...describeEpisode(view), cast: await episodeService.cast(episodeId) }, 16000) };
   },
 });
 
@@ -198,6 +200,7 @@ export const setEpisodeOptions = defineTool({
     voice: z.enum(VOICE_IDS as [VoiceId, ...VoiceId[]]).optional(),
     formats: Formats.optional(),
     music: z.boolean().optional(),
+    musicVolume: z.number().min(0).max(0.6).optional().describe('Âm lượng nhạc nền, mặc định 0.12'),
     autoImages: z.boolean().optional(),
     autoVoice: z.boolean().optional(),
     skillId: z.string().optional(),

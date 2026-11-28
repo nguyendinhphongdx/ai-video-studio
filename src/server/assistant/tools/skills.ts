@@ -17,7 +17,7 @@ export const listBlocks = defineTool({
   async run() {
     const text = toolCatalog
       .tools()
-      .map((t) => `@${t.id}: ${t.summary}\n${t.blocks.map((b) => `  - @${t.id}/${b.id} (${b.name}): ${b.aiGuide} Thuộc tính: ${b.fields.map((f) => f.key).join(', ') || '(không có)'}${b.image ? '. Có ảnh AI: phong cách ảnh lấy từ imageStyle của skill' : ''}`).join('\n')}`)
+      .map((t) => `@${t.id}: ${t.summary}\n${t.blocks.map((b) => `  - @${t.id}/${b.id} (${b.name}): ${b.aiGuide} Thuộc tính: ${b.fields.map((f) => (f.options ? `${f.key} (${f.options.map((o) => `${o.value}=${o.label}`).join(', ')})` : f.key)).join('; ') || '(không có)'}${b.image ? '. Có ảnh AI: phong cách ảnh lấy từ imageStyle của skill' : ''}`).join('\n')}`)
       .join('\n');
     return { ok: true, message: text };
   },

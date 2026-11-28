@@ -92,6 +92,15 @@ describe('hand adjustments of a scene', () => {
     expect(moveAt(moves, 3.5)).toMatchObject({ x: 0.2, going: false });
   });
 
+  it('takes a partial change from the assistant and keeps the rest', () => {
+    const old = parseTune({ hero: { dx: -0.2, dy: 0, scale: 1.4 }, extras: [{ id: 'thai-at', kind: 'person', x: 0.8, emotion: 'happy', anim: { type: 'jump' } }] })!;
+    const patch = ToolTuneSchema.parse({ hero: { moves: [{ at: 2, x: 0.2 }] }, extras: [{ id: 'thai-at', anim: { type: 'none' } }] });
+    const next = patchTune(old, patch)!;
+    expect(next.hero).toMatchObject({ dx: -0.2, scale: 1.4, moves: [{ at: 2, over: 1, x: 0.2 }] });
+    expect(next.extras![0]).toMatchObject({ x: 0.8, emotion: 'happy' });
+    expect(next.extras![0]!.anim).toBeUndefined();
+  });
+
   it('stays on a scene the AI rewrote without changing what it says', () => {
     const base = { id: 'a', slotId: 'body', block: puppet.id, locked: false, narration: 'Một lời', approved: true, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
     const previous = [{ ...base, block: 'remotion/puppet' as const, props: { ...(puppet.defaults as object), _tune: { holdSec: 1 } } }];

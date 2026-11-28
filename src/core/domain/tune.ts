@@ -229,9 +229,9 @@ export function newExtra(id: string, kind: Extra['kind'], existing: Extra[]): Ex
 // What an AI may change, spelled out so a model sees every knob with its range. One shape for the in-screen fix and the
 // assistant: a key that is null or left out is kept, a key named in `reset` goes back to automatic.
 const aiAnim = z
-  .object({ type: z.enum(ANIMS).describe('bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại'), speed: z.number().nullable().describe('Nhịp 0.3..3, 1 là vừa'), power: z.number().nullable().describe('Độ mạnh 0.3..2, 1 là vừa'), start: z.number().nullable().describe('Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay'), lasts: z.number().nullable().describe('Cử động trong bao nhiêu giây; null = đến khi hình biến mất') })
+  .object({ type: z.enum([...ANIMS, 'none']).describe('none = bỏ hoạt ảnh; bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại'), speed: z.number().nullable().describe('Nhịp 0.3..3, 1 là vừa'), power: z.number().nullable().describe('Độ mạnh 0.3..2, 1 là vừa'), start: z.number().nullable().describe('Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay'), lasts: z.number().nullable().describe('Cử động trong bao nhiêu giây; null = đến khi hình biến mất') })
   .nullable()
-  .describe('Hoạt ảnh lặp lại làm hình cử động; null = đứng bình thường');
+  .describe('Hoạt ảnh lặp lại làm hình cử động; null = giữ như cũ, type none = bỏ');
 const aiMoves = z
   .array(
     z.object({
@@ -249,7 +249,7 @@ const aiMoves = z
     }),
   )
   .nullable()
-  .describe(`DIỄN BIẾN của hình này trong cảnh, tối đa ${MAX_MOVES} bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0`);
+  .describe(`DIỄN BIẾN của hình này trong cảnh (null = giữ như cũ, [] = bỏ hết), tối đa ${MAX_MOVES} bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0`);
 const aiPlace = z.object({ moves: aiMoves, anim: aiAnim,  dx: z.number().describe('-0.8..0.8, phần chiều rộng khung, phải là dương'), dy: z.number().describe('-0.8..0.8, phần chiều cao khung, xuống là dương'), scale: z.number().describe('0.3..2.2, 1 là cỡ chuẩn') });
 const aiSpan = z.object({ from: z.number().describe('Giây xuất hiện, tính từ đầu cảnh'), to: z.number().nullable().describe('Giây biến mất; null = đến hết cảnh') });
 const aiExtra = z.object({
@@ -274,7 +274,7 @@ export const TunePatchSchema = z.object({
   hero: aiPlace.nullable().describe('Dời, đổi cỡ vai chính'),
   companion: aiPlace.nullable().describe('Dời, đổi cỡ nhân vật phụ (ô companion)'),
   item: aiPlace.nullable().describe('Dời, đổi cỡ vật phẩm (ô item)'),
-  extras: z.array(aiExtra).nullable().describe(`Người, vật THÊM vào khung ngoài ba ô trên (tối đa ${MAX_EXTRAS}, chỉ cảnh nhân vật diễn). Khi đổi thì đưa danh sách ĐẦY ĐỦ`),
+  extras: z.array(aiExtra).nullable().describe(`Người, vật THÊM vào khung ngoài ba ô trên (tối đa ${MAX_EXTRAS}, chỉ cảnh nhân vật diễn). Khi đổi thì đưa đủ những ai có mặt (thiếu = bỏ khỏi khung); mục không nói tới của người đã có được giữ`),
   holdSec: z.number().nullable().describe(`Nghỉ cuối cảnh, 0..${MAX_HOLD_SEC} giây`),
   captionTime: aiSpan.nullable().describe('Lúc chữ hiện'),
   heroTime: aiSpan.nullable().describe('Lúc vai chính có mặt'),
@@ -289,22 +289,46 @@ export const TunePatchSchema = z.object({
   voiceSpeed: z.enum(VOICE_SPEEDS).nullable().describe('Tốc độ đọc'),
   reset: z.array(z.enum(TUNE_NAMES)).nullable().describe('Tên các chỉnh tay cần trả về tự động'),
 });
-/** The same knobs for a chat tool, where leaving a key out is allowed at every level that matters. */
-export const ToolTuneSchema = TunePatchSchema.partial().extend({ extras: z.array(aiExtra.partial().required({ id: true })).optional().describe(TunePatchSchema.shape.extras.description!) });
-export type TunePatch = Partial<Omit<z.output<typeof TunePatchSchema>, 'extras'>> & { extras?: (Partial<z.output<typeof aiExtra>> & { id: string; kind?: Extra['kind'] })[] | null };
+/** What must be named to know which thing a partial entry is about. */
+const NEEDED = new Set(['id', 'type', 'at', 'from']);
+
+/** The same schema where everything else may be left out, at any depth; descriptions are kept. */
+function lenient(schema: z.ZodType): z.ZodType {
+  let out: z.ZodType = schema;
+  if (schema instanceof z.ZodNullable) out = lenient(schema.unwrap() as z.ZodType).nullable();
+  else if (schema instanceof z.ZodArray) out = z.array(lenient(schema.element as z.ZodType));
+  else if (schema instanceof z.ZodObject) out = z.object(Object.fromEntries(Object.entries(schema.shape as Record<string, z.ZodType>).map(([key, value]) => [key, NEEDED.has(key) ? lenient(value) : lenient(value).optional()])));
+  return schema.description && out !== schema ? out.describe(schema.description) : out;
+}
+
+export type TunePatch = {
+  [K in Exclude<keyof z.output<typeof TunePatchSchema>, 'extras' | TuneLayer>]?: z.output<typeof TunePatchSchema>[K];
+} & {
+  [K in TuneLayer]?: (Partial<z.output<typeof aiPlace>> & object) | null;
+} & { extras?: (Partial<z.output<typeof aiExtra>> & { id: string; kind?: Extra['kind'] })[] | null };
+
+/** For a chat tool: send only what changes. */
+export const ToolTuneSchema = lenient(TunePatchSchema) as unknown as z.ZodType<TunePatch>;
 
 const withoutNulls = (value: object) => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== null && v !== undefined));
 
+/** Applies a patch on top of what the scene has: a key that is null or missing is kept, at every level. */
 export function patchTune(old: SceneTune, patch: TunePatch): SceneTune | null {
-  const { reset, extras, ...rest } = patch;
+  const { reset, extras, hero, companion, item, ...rest } = patch;
   const next: Record<string, unknown> = { ...old };
   for (const key of reset ?? []) delete next[key];
   Object.assign(next, withoutNulls(rest));
+  for (const [layer, change] of Object.entries({ hero, companion, item })) {
+    if (change) next[layer] = { dx: 0, dy: 0, scale: 1, ...(next[layer] as object | undefined), ...withoutNulls(change) };
+  }
   if (extras) {
+    // The list says who is on stage; one already there (same id, in order) keeps what the patch does not mention.
+    const had = [...((next.extras as Extra[] | undefined) ?? [])];
     const done: Extra[] = [];
     for (const e of extras) {
-      const kind = (e as { kind?: Extra['kind'] }).kind ?? 'person';
-      done.push({ ...newExtra(e.id, kind, done), ...(withoutNulls(e) as Partial<Extra>) });
+      const i = had.findIndex((x) => x.id === e.id);
+      const before = i >= 0 ? had.splice(i, 1)[0]! : newExtra(e.id, e.kind ?? 'person', done);
+      done.push({ ...before, ...(withoutNulls(e) as Partial<Extra>) });
     }
     next.extras = done;
   }

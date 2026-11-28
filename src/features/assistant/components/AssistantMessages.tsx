@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 
 import { attachmentUrl, type AssistantAttachment, type AssistantMessage } from '../services/assistant.api';
 
-import { RichText } from './RichText';
+import { Markdown } from './Markdown';
 
 const RISK_LABEL: Record<string, string> = { write: 'Ghi dữ liệu', paid: 'Tốn tiền hoặc chạy lâu', destructive: 'Xoá' };
 const STATE: Record<string, { label: string; icon: typeof CircleCheck; tone: string }> = {
@@ -100,7 +100,7 @@ function Live({ item, writing }: { item: LiveItem; writing: boolean }) {
         <MessageContent>
           <Bubble variant="outline" className="max-w-[92%]">
             <BubbleContent>
-              <RichText text={item.text} />
+              <Markdown text={item.text} live />
             </BubbleContent>
           </Bubble>
         </MessageContent>
@@ -170,10 +170,14 @@ export function AssistantMessages({ messages, running, live, onDecide, deciding 
       <MessageScroller>
         <MessageScrollerViewport aria-label="Tin nhắn">
           <MessageScrollerContent className="gap-3 px-3 py-4" role="log" aria-live="polite" aria-label="Cuộc trò chuyện với trợ lý">
-            {shown.map((m) => {
+            {[
+              ...shown.map((m) => {
               const { attachments: files, reasoning, stopped } = dataOf(m);
+              // A stored reply keeps the identity of the live item it replaces, so the screen does not rebuild (and jump) when it lands.
+              const same = m.role === 'assistant' ? (m.data as { liveId?: string } | null)?.liveId : undefined;
+              const id = same ? `text-${same}` : String(m.id);
               return (
-                <MessageScrollerItem key={m.id} messageId={String(m.id)} scrollAnchor={m.role === 'user'}>
+                <MessageScrollerItem key={id} messageId={id}>
                   {m.role === 'user' ? (
                     <Message align="end">
                       <MessageContent className="items-end">
@@ -192,7 +196,7 @@ export function AssistantMessages({ messages, running, live, onDecide, deciding 
                         {m.content.trim() ? (
                           <Bubble variant={m.status === 'error' ? 'destructive' : 'outline'} className="max-w-[92%]">
                             <BubbleContent>
-                              <RichText text={m.content} />
+                              <Markdown text={m.content} />
                             </BubbleContent>
                           </Bubble>
                         ) : null}
@@ -209,12 +213,13 @@ export function AssistantMessages({ messages, running, live, onDecide, deciding 
                   )}
                 </MessageScrollerItem>
               );
-            })}
-            {pending.map((item) => (
-              <MessageScrollerItem key={`${item.kind}-${item.id}`} messageId={`${item.kind}-${item.id}`}>
-                <Live item={item} writing={item === last} />
-              </MessageScrollerItem>
-            ))}
+              }),
+              ...pending.map((item) => (
+                <MessageScrollerItem key={`${item.kind}-${item.id}`} messageId={`${item.kind}-${item.id}`}>
+                  <Live item={item} writing={item === last} />
+                </MessageScrollerItem>
+              )),
+            ]}
             {running && !busy ? (
               <MessageScrollerItem messageId="running">
                 <div role="status" className="flex w-fit items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-caption text-muted-foreground">

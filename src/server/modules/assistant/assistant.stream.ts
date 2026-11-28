@@ -10,8 +10,8 @@ import { jobRepository } from '@/server/modules/job/job.repository';
 import { assistantRepository } from './assistant.repository';
 
 const logger = createLogger('assistant-stream');
-const FLUSH_MS = 150;
-const POLL_MS = 200;
+const FLUSH_MS = 60;
+const POLL_MS = 100;
 const BEAT_MS = 15_000;
 
 const DELTAS: string[] = [EventType.TEXT_MESSAGE_CONTENT, EventType.REASONING_MESSAGE_CONTENT];
@@ -57,7 +57,8 @@ export function eventStream(threadId: string, position: number, signal: AbortSig
       void runWithContext(context, async () => {
         const send = (text: string) => controller.enqueue(encoder.encode(text));
         try {
-          send('retry: 2000\n\n');
+          // Padding makes a buffering proxy release the first bytes, so the pieces after it arrive as they are written.
+          send(`retry: 1000\n: ${' '.repeat(2048)}\n\n`);
           while (!closed && !signal.aborted) {
             // Asked before reading, so the last events of a turn that just finished are not missed.
             const running = Boolean(await jobRepository.activeAssistant(threadId));

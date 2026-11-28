@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AssistantMessage } from '@/core/ports';
 import { AssistantMessages } from '@/features/assistant/components/AssistantMessages';
-import { RichText } from '@/features/assistant/components/RichText';
+import { Markdown } from '@/features/assistant/components/Markdown';
 
 const msg = (over: Partial<AssistantMessage>): AssistantMessage => ({ id: 1, threadId: 't', role: 'user', content: '', toolCalls: [], toolCallId: null, toolName: null, status: 'done', summary: '', data: null, focus: null, createdAt: '', ...over });
 
@@ -18,9 +18,9 @@ describe('assistant chat rendering', () => {
       />,
     );
     expect(html).toContain('Tạo video về chợ nổi');
-    expect(html).toContain('<b>video mới</b>');
+    expect(html).toMatch(/data-streamdown="strong">video mới</);
     expect(html).toContain('<ul');
-    expect(html).toContain('<li>cảnh 2</li>');
+    expect(html).toMatch(/<li[^>]*>cảnh 2<\/li>/);
     expect(html).toContain('<code');
   });
 
@@ -74,10 +74,11 @@ describe('assistant chat rendering', () => {
     expect(html).not.toContain('Trợ lý đang làm');
   });
 
-  it('renders plain paragraphs and ordered lists', () => {
-    const html = renderToStaticMarkup(<RichText text={'Một dòng\nhai dòng\n\n1. đầu\n2. sau'} />);
-    expect(html).toContain('<br/>');
-    expect(html).toContain('hai dòng');
+  it('renders headings, ordered lists and tables as Markdown', () => {
+    const html = renderToStaticMarkup(<Markdown text={'## Kế hoạch\n\n1. đầu\n2. sau\n\n| Tập | Tên |\n| --- | --- |\n| 1 | Mở đầu |'} />);
+    expect(html).toContain('<h2');
     expect(html).toContain('<ol');
+    expect(html).toContain('Mở đầu');
+    expect(html).toContain('<table');
   });
 });

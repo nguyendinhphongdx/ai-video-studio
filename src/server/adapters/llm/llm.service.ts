@@ -6,6 +6,7 @@ import { PROVIDERS, type LlmSettings, type LlmSettingsInput, type LlmTestResult 
 
 import { anthropicClient } from './anthropic';
 import { estimateTokens } from '@/core/usage/cost';
+import { createLogger } from '@/server/logger';
 import { usageService } from '@/server/modules/usage/usage.service';
 
 import type { LlmClient, LlmUsage } from './llm.types';
@@ -44,6 +45,8 @@ async function track(settings: LlmSettings, usage: LlmUsage | undefined, text: {
   });
 }
 
+const logger = createLogger('llm');
+
 export const llm: LlmPort = {
   async isReady() {
     return isReady(await settingsService.llm());
@@ -78,7 +81,8 @@ export const llm: LlmPort = {
       } catch (e) {
         const status = (e as { status?: number }).status;
         if (signal?.aborted || e instanceof UserFacingError || status === 401 || status === 403 || status === 429) throw e;
-        // The server or model cannot stream this request: ask for the whole answer instead.
+        // The server or model cannot stream this request: ask for the whole answer instead (the chat then shows it at once).
+        logger.warn('streaming failed, asking for the whole answer', { provider: settings.provider, model: settings.model, error: String((e as Error)?.message ?? e) });
         return await attempt(false);
       }
     } catch (e) {

@@ -61,7 +61,7 @@ export const usageService = {
       const price = pickPrice(await prices(), input.kind, input.provider, input.model);
       await usageRepository.insert({
         at: now(), kind: input.kind, provider: input.provider, model: input.model, purpose: input.purpose ?? scope.purpose ?? '',
-        channelId: scope.channelId ?? null, seriesId: scope.seriesId ?? null, episodeId: scope.episodeId ?? null, sceneId: input.sceneId ?? scope.sceneId ?? null, jobId: scope.jobId ?? null, threadId: scope.threadId ?? null,
+        channelId: scope.channelId ?? null, seriesId: scope.seriesId ?? null, episodeId: scope.episodeId ?? null, sceneId: input.sceneId ?? scope.sceneId ?? null, jobId: scope.jobId ?? null, threadId: scope.threadId ?? null, via: scope.via ?? '',
         inputTokens: input.usage.inputTokens, outputTokens: input.usage.outputTokens, cachedTokens: input.usage.cachedTokens, units: input.usage.units,
         costUsd: price ? costOf(input.usage, price) : null, estimated: input.estimated ?? false, durationMs: input.durationMs,
       });

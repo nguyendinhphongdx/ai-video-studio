@@ -61,6 +61,19 @@ describe('connection codes', () => {
     expect(await mcp.authenticate(code)).not.toBeNull();
   });
 
+  it('marks queued work and its cost as asked from outside', async () => {
+    const session = (await mcp.authenticate((await make('via')).code))!;
+    const { jobRepository } = await import('@/server/modules/job/job.repository');
+    const { usageService } = await import('@/server/modules/usage/usage.service');
+    const job = await run(session.context, () => jobRepository.insert(null, 'summarize', {}));
+    expect(job.payload.via).toBe('mcp');
+    // Run again from the studio, the same payload is no longer from outside.
+    expect((await run(A, () => jobRepository.insert(null, 'summarize', job.payload))).payload.via).toBeUndefined();
+    await run(session.context, () => usageService.record({ kind: 'llm', provider: 'x', model: 'y', usage: { inputTokens: 1, outputTokens: 1, cachedTokens: 0, units: 0 }, durationMs: 1 }));
+    expect(db.rowsOf(await db.orm().execute(sql`SELECT via FROM usage_events`))).toEqual([{ via: 'mcp' }]);
+    await db.orm().execute(sql`DELETE FROM jobs`);
+  });
+
   it('is invisible to another workspace, and members cannot manage codes', async () => {
     const { view } = await make('mine');
     expect(await run(B, () => mcp.codes())).toEqual([]);

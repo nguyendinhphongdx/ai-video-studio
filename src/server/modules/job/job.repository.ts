@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Job, JobKind } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
+import { maybeCtx } from '@/server/context';
 import { json, now, transaction } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
 import { jobs } from '@/server/schema';
@@ -30,7 +31,10 @@ const scopeOf = (r: Row) => ({ job: toJob(r), workspaceId: r.workspaceId, userId
 export const jobRepository = {
   async insert(episodeId: string | null, kind: JobKind, payload: Record<string, unknown>): Promise<Job> {
     const id = newId();
-    await orm().insert(jobs).values({ id, episodeId, kind, payload: JSON.stringify(payload), state: 'queued', createdAt: now(), ...owner() });
+    // Where this request came from, not where a retried job once did.
+    const { via: _before, ...rest } = payload;
+    const via = maybeCtx()?.usage.via;
+    await orm().insert(jobs).values({ id, episodeId, kind, payload: JSON.stringify(via ? { ...rest, via } : rest),state: 'queued', createdAt: now(), ...owner() });
     return (await jobRepository.find(id))!;
   },
   async find(id: string): Promise<Job | null> {

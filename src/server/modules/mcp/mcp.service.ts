@@ -61,7 +61,7 @@ export const mcpService = {
     const [user, workspace] = await Promise.all([authRepository.userById(r.userId), authRepository.workspaceById(r.workspaceId)]);
     if (!user || !workspace) return null;
     const { passwordHash: _, ...person } = user;
-    return { context: makeContext(person, workspace, 'owner'), codeId: r.id, level: r.level as AccessLevel };
+    return { context: { ...makeContext(person, workspace, 'owner'), usage: { via: 'mcp' } }, codeId: r.id, level: r.level as AccessLevel };
   },
 
   /** Inside the session's context. */

@@ -70,8 +70,8 @@ Each leaves `npm run check` green and is committed on its own.
 5. [x] The 43 existing tools over MCP: list by level, `projectId`, refused above level even by name, call record, 120 calls a minute per code — proof: tests per level and isolation; Assistant tests unchanged.
 6. [x] New data tools: projects (list, create, delete), running work, retry, series version, video approve and reject, series order and memory, skill upgrade, publish kit, costs — proof: tests per tool, including level and isolation.
 7. [x] Files: `view_scene_picture`, `get_video` (one still frame, the render's thumbnail, and one-hour links; links are random tokens kept hashed in `mcp_uploads`), `request_upload` (one-time link, one purpose, same type and size checks as the screens) — proof: tests for expiry, reuse, tampering, wrong type, other workspace.
-8. [ ] Guide and connection instructions — proof: test that every tool it names exists and is offered at the level it claims.
-9. [ ] Cost marked as MCP: the context carries `via`, a queued job keeps it, the worker passes it to the ledger — proof: test.
+8. [x] Guide and connection instructions — proof: test that every tool it names exists and is offered at the level it claims.
+9. [x] Cost marked as MCP: the context carries `via`, a queued job keeps it, the worker passes it to the ledger — proof: test.
 10. [ ] Screen "Kết nối AI bên ngoài" in Cài đặt, owner only: create (name, level, expiry), code shown once, ready text for Claude Code and Codex, list with last use and calls, "Thu hồi" — proof: 1400px and 375px.
 11. [ ] Connect Claude Code and Codex for real on a throw-away database, go from an empty workspace to an episode ready to produce using only the guide; update `docs/ARCHITECTURE.md`; independent review — proof: transcript of the run.
 

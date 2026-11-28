@@ -93,7 +93,7 @@ async function runScopedJob(job: Job): Promise<void> {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
     const episode = job.episodeId ? await episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
-    const result = await withMedia(job, channelId, () => withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? (typeof job.payload.seriesId === 'string' ? job.payload.seriesId : undefined), channelId }, () => HANDLERS[job.kind](job, progress)));
+    const result = await withMedia(job, channelId, () => withUsage({ via: typeof job.payload.via === 'string' ? job.payload.via : undefined, jobId: job.id,episodeId: episode?.id, seriesId: episode?.seriesId ?? (typeof job.payload.seriesId === 'string' ? job.payload.seriesId : undefined), channelId }, () => HANDLERS[job.kind](job, progress)));
     // Only jobs that produce data (not an episode change) keep their return value.
     await jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });

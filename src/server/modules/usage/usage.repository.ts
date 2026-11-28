@@ -30,6 +30,8 @@ export interface UsageEvent {
   costUsd: number | null;
   estimated: boolean;
   durationMs: number;
+  /** '' = asked from the studio, 'mcp' = by an outside AI. */
+  via?: string;
 }
 
 export interface Budget {
@@ -46,7 +48,7 @@ const toEvent = (r: typeof ev.$inferSelect): UsageEvent => ({
   id: r.id, at: r.at, kind: r.kind as UsageKind, provider: r.provider, model: r.model, purpose: r.purpose,
   channelId: r.channelId, seriesId: r.seriesId, episodeId: r.episodeId, sceneId: r.sceneId, jobId: r.jobId, threadId: r.threadId,
   inputTokens: r.inputTokens, outputTokens: r.outputTokens, cachedTokens: r.cachedTokens, units: r.units,
-  costUsd: r.costUsd, estimated: r.estimated, durationMs: r.durationMs,
+  costUsd: r.costUsd, estimated: r.estimated, durationMs: r.durationMs, via: r.via,
 });
 const toPrice = (r: typeof priceBook.$inferSelect): PriceRow => ({ id: r.id, kind: r.kind as UsageKind, provider: r.provider, pattern: r.pattern, inputPerMtok: r.inputPerMtok, outputPerMtok: r.outputPerMtok, cachedPerMtok: r.cachedPerMtok, perUnit: r.perUnit, note: r.note });
 const toBudget = (r: typeof budgets.$inferSelect): Budget => ({ id: r.id, scope: r.scope as Budget['scope'], channelId: r.channelId, period: r.period as Budget['period'], limitUsd: r.limitUsd, mode: r.mode as Budget['mode'], alertPct: r.alertPct });
@@ -91,7 +93,7 @@ export const usageRepository = {
       .values({
         id, at: e.at, kind: e.kind, provider: e.provider, model: e.model, purpose: e.purpose, channelId: e.channelId, seriesId: e.seriesId, episodeId: e.episodeId, sceneId: e.sceneId, jobId: e.jobId,
         threadId: e.threadId, runId: e.runId ?? null, inputTokens: e.inputTokens, outputTokens: e.outputTokens, cachedTokens: e.cachedTokens, units: e.units, costUsd: e.costUsd, estimated: e.estimated,
-        durationMs: e.durationMs, ...owner(),
+        durationMs: e.durationMs, via: e.via ?? '', ...owner(),
       });
     return id;
   },

@@ -16,6 +16,8 @@ export interface UsageTags {
   jobId?: string;
   threadId?: string;
   purpose?: string;
+  /** Where the work was asked from when it is not the studio itself: 'mcp'. A queued job keeps it. */
+  via?: string;
 }
 
 export interface RequestContext {

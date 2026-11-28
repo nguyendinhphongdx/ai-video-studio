@@ -74,6 +74,13 @@ export interface ChatMessage {
   toolCalls?: ChatToolCall[];
   toolCallId?: string;
   isError?: boolean;
+  /** Pictures a user message shows the model. */
+  images?: ChatImage[];
+}
+
+export interface ChatImage {
+  mime: string;
+  base64: string;
 }
 
 export interface ChatToolSpec {

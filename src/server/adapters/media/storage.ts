@@ -180,6 +180,8 @@ export function jobPrefixes(workspaceId: string, episodeId: string | null, chann
     ...(episodeId ? [{ prefix: `episodes/${episodeId}/` }] : []),
     ...(channelId ? [{ prefix: `channels/${channelId}/` }] : []),
     { prefix: `series-characters/${workspaceId}/` },
+    // Files attached to assistant conversations.
+    { prefix: `assistant/${workspaceId}/` },
     // Character pictures from before workspaces sit directly in series-characters/.
     { prefix: 'series-characters/', flat: true },
   ];

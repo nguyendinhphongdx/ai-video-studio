@@ -69,7 +69,13 @@ export function openaiClient(llm: LlmSettings): LlmClient {
     async chat({ system, messages, tools }) {
       const out: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
       for (const m of messages) {
-        if (m.role === 'user') out.push({ role: 'user', content: m.content });
+        if (m.role === 'user')
+          out.push({
+            role: 'user',
+            content: m.images?.length
+              ? [{ type: 'text' as const, text: m.content || '(xem ảnh)' }, ...m.images.map((i) => ({ type: 'image_url' as const, image_url: { url: `data:${i.mime};base64,${i.base64}` } }))]
+              : m.content,
+          });
         else if (m.role === 'assistant')
           out.push({
             role: 'assistant',

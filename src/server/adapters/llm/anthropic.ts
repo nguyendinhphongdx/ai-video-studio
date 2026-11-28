@@ -33,7 +33,13 @@ export function anthropicClient(llm: LlmSettings): LlmClient {
     async chat({ system, messages, tools }) {
       const out: Anthropic.MessageParam[] = [];
       for (const m of messages) {
-        if (m.role === 'user') out.push({ role: 'user', content: m.content });
+        if (m.role === 'user')
+          out.push({
+            role: 'user',
+            content: m.images?.length
+              ? [...m.images.map((i) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.mime as 'image/png' | 'image/jpeg' | 'image/webp', data: i.base64 } })), { type: 'text' as const, text: m.content || '(xem ảnh)' }]
+              : m.content,
+          });
         else if (m.role === 'assistant') {
           const blocks: Anthropic.ContentBlockParam[] = [];
           if (m.content.trim()) blocks.push({ type: 'text', text: m.content });

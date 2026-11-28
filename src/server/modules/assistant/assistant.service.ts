@@ -1,9 +1,14 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { checkAttachment, isPicture, MAX_ATTACHMENTS, TYPE_BY_EXT, type AssistantAttachment } from '@/core/assistant/attachments';
 import { ASSISTANT_RULES } from '@/core/assistant/guides';
 import { resolveApproval, runAssistantTurn, EMPTY_FOCUS, type AssistantRuntime } from '@/core/assistant/loop';
 import { PERMISSION_MODES, type AssistantFocus, type PermissionMode } from '@/core/assistant/tool';
 import { UserFacingError } from '@/core/domain/errors';
 import type { AssistantMessage } from '@/core/ports';
 import { ASSISTANT_TOOLS } from '@/server/assistant/tools';
+import { assistantDir, removeAssistantMedia, resolveMedia, saveAssistantFile } from '@/server/adapters/media/media.service';
 import { llm } from '@/server/adapters/llm/llm.service';
 import { conflict, notFound } from '@/server/http/api-error';
 import { aiRunStore } from '@/server/modules/ai-run/ai-run.repository';
@@ -49,7 +54,7 @@ export async function buildSystemPrompt(thread: { channelId: string; mode: Permi
 }
 
 export function createAssistantRuntime(model = llm): AssistantRuntime {
-  return { llm: model, store: assistantStore, tools: ASSISTANT_TOOLS, system: async (thread, focus) => await buildSystemPrompt(thread, focus), runs: aiRunStore };
+  return { llm: model, store: assistantStore, tools: ASSISTANT_TOOLS, system: async (thread, focus) => await buildSystemPrompt(thread, focus), runs: aiRunStore, readAttachment: async (a) => (await fs.readFile(resolveMedia(a.path))).toString(isPicture(a.mime) ? 'base64' : 'utf8') };
 }
 
 export interface ThreadView {
@@ -70,6 +75,21 @@ async function load(id: string): Promise<AssistantThread> {
 async function viewOf(thread: AssistantThread): Promise<ThreadView> {
   const messages = await assistantRepository.messages(thread.id);
   return { thread, messages, running: Boolean(await jobRepository.activeAssistant(thread.id)), awaiting: messages.find((m) => m.role === 'tool' && m.status === 'awaiting')?.id ?? null };
+}
+
+/** What the screen sends back about an uploaded file; everything else is read from the file itself. */
+async function attached(threadId: string, files: { path: string; name: string }[]): Promise<AssistantAttachment[]> {
+  if (files.length > MAX_ATTACHMENTS) throw new UserFacingError(`Mỗi tin tối đa ${MAX_ATTACHMENTS} tệp.`);
+  return await Promise.all(
+    files.map(async (f) => {
+      const dir = assistantDir(threadId);
+      const base = f.path.startsWith(dir) ? f.path.slice(dir.length) : '';
+      const mime = TYPE_BY_EXT[path.extname(base)];
+      const stat = /^[\w-]+\.\w+$/.test(base) && mime ? await fs.stat(resolveMedia(f.path)).catch(() => null) : null;
+      if (!stat || !mime) throw new UserFacingError('Tệp đính kèm không còn. Đính kèm lại.');
+      return { path: f.path, name: f.name.slice(0, 120), mime, size: stat.size };
+    }),
+  );
 }
 
 const enqueueTurn = async (threadId: string) => await jobRepository.insert(null, 'assistant_turn', { threadId });
@@ -100,18 +120,30 @@ export const assistantService = {
     await load(id);
     if (await jobRepository.activeAssistant(id)) throw conflict('Trợ lý đang làm việc, chờ xong rồi xoá.');
     await assistantRepository.removeThread(id);
+    await removeAssistantMedia(id);
+  },
+
+  /** Keeps one file for a message about to be written in this conversation. */
+  async upload(id: string, file: File): Promise<AssistantAttachment> {
+    await load(id);
+    const data = Buffer.from(await file.arrayBuffer());
+    const checked = checkAttachment(data, file.name);
+    if ('error' in checked) throw new UserFacingError(checked.error);
+    const rel = await saveAssistantFile(id, data, checked.ext);
+    return { path: rel, name: file.name.slice(0, 120), mime: TYPE_BY_EXT[checked.ext]!, size: data.length };
   },
 
   /** The person writes. A request still waiting for approval is dropped (they chose to say something else instead). */
-  async send(id: string, text: string, focus: Partial<AssistantFocus>): Promise<ThreadView> {
+  async send(id: string, text: string, focus: Partial<AssistantFocus>, files: { path: string; name: string }[] = []): Promise<ThreadView> {
     const thread = await load(id);
-    if (!text.trim()) throw new UserFacingError('Gõ nội dung trước nhé');
+    if (!text.trim() && !files.length) throw new UserFacingError('Gõ nội dung trước nhé');
+    const attachments = await attached(id, files);
     if (!(await llm.isReady())) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key.');
     if (await jobRepository.activeAssistant(id)) throw conflict('Trợ lý đang làm việc, chờ xong rồi gửi tiếp.');
     const rt = createAssistantRuntime();
     for (const m of await assistantRepository.messages(id)) if (m.role === 'tool' && m.status === 'awaiting') await resolveApproval(rt, m.id, id, false);
-    await assistantRepository.append(id, { role: 'user', content: text.trim(), toolCalls: [], toolCallId: null, toolName: null, status: 'done', summary: '', data: null, focus: { ...EMPTY_FOCUS, ...focus } });
-    if (!thread.title) await assistantRepository.updateThread(id, { title: text.trim().slice(0, 60) });
+    await assistantRepository.append(id, { role: 'user', content: text.trim(), toolCalls: [], toolCallId: null, toolName: null, status: 'done', summary: '', data: attachments.length ? { attachments } : null, focus: { ...EMPTY_FOCUS, ...focus } });
+    if (!thread.title) await assistantRepository.updateThread(id, { title: (text.trim() || attachments[0]!.name).slice(0, 60) });
     await enqueueTurn(id);
     return await viewOf(await load(id));
   },

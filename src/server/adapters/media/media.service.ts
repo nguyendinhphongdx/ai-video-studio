@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { newId } from '@/core/domain/ids';
 import { ctx } from '@/server/context';
 
 import type { MediaPort } from '@/core/ports';
@@ -19,6 +20,7 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.md': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
 };
 export const mimeOf = (file: string) => MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
@@ -73,6 +75,22 @@ export async function saveChannelFile(channelId: string, kind: 'logo' | 'logo-dr
   await fs.writeFile(file, data);
   await storage.put(path.relative(MEDIA_DIR, file));
   return path.relative(MEDIA_DIR, file);
+}
+
+/** The folder of one assistant conversation's attachments, inside the current workspace. */
+export const assistantDir = (threadId: string) => `assistant/${ctx().workspaceId}/${threadId}/`;
+
+export async function saveAssistantFile(threadId: string, data: Buffer, ext: string): Promise<string> {
+  const rel = `${assistantDir(threadId)}${newId()}${ext}`;
+  await fs.mkdir(path.dirname(resolveMedia(rel)), { recursive: true });
+  await fs.writeFile(resolveMedia(rel), data);
+  await storage.put(rel);
+  return rel;
+}
+
+export async function removeAssistantMedia(threadId: string) {
+  await fs.rm(resolveMedia(assistantDir(threadId)), { recursive: true, force: true });
+  await storage.remove(assistantDir(threadId));
 }
 
 /** Stores a series character picture in the current workspace's folder; returns the media-relative path. */

@@ -55,10 +55,13 @@ export const llm: LlmPort = {
     const started = Date.now();
     try {
       const { usage, ...out } = await clientFor(settings).chat(input);
-      await track(settings, usage, { in: input.system + JSON.stringify(input.messages), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
+      // The picture bytes are not text: leave them out of the estimate used when a provider reports no usage.
+      await track(settings, usage, { in: input.system + JSON.stringify(input.messages.map(({ images: _images, ...m }) => m)), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
       return { ...out, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;
+      if (input.messages.some((m) => m.images?.length) && /image|vision|multimodal|modalit/i.test(String((e as Error)?.message ?? e)))
+        throw new UserFacingError(`Model "${settings.model}" không đọc được ảnh này. Đổi model ở Cài đặt, hoặc gửi lại không kèm ảnh trong cuộc trò chuyện mới.`, String((e as Error)?.stack ?? e));
       throw new UserFacingError(`AI lỗi: ${describeLlmError(e, settings)}`, String((e as Error)?.stack ?? e));
     }
   },

@@ -12,6 +12,7 @@ import { episodeRepository } from '@/server/modules/episode/episode.repository';
  * - episodes/<episodeId>/… and channels/<channelId>/…: that episode or channel is in the workspace;
  * - series-characters/<workspaceId>/…: the workspace's own folder;
  * - series-characters/<file> (made before workspaces): a series of this workspace uses the file;
+ * - assistant/<workspaceId>/…: files people showed the assistant, in the workspace's own folder;
  * - tts-preview/…: shared voice samples of fixed text, open to anyone signed in.
  */
 export async function canReadMedia(rel: string): Promise<boolean> {
@@ -20,6 +21,7 @@ export async function canReadMedia(rel: string): Promise<boolean> {
   if (top === 'episodes') return await episodeRepository.find(owner) !== null;
   if (top === 'channels') return await channelRepository.find(owner) !== null;
   if (top === 'tts-preview') return true;
+  if (top === 'assistant') return owner === ctx().workspaceId && Boolean(rest);
   if (top === 'series-characters') {
     if (rest) return owner === ctx().workspaceId;
     // LIKE wildcards never appear in a generated file name; refuse them so a crafted path cannot match broadly.

@@ -1,21 +1,23 @@
 'use client';
 
-import { History, Plus, Send, Shield, ShieldAlert, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { History, Plus, Shield, ShieldAlert, ShieldCheck, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
+import { Item } from '@/components/ui/item';
 import { ROUTES } from '@/constants/routes';
 import { useAppConfig, useCurrentChannel } from '@/features/app';
 import { cn } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant-store';
 
 import { useAssistantActions, useFocus, useThread } from '../hooks/use-assistant';
+import { useAttachments } from '../hooks/use-attachments';
 import { MODE_INFO, type PermissionMode } from '../services/assistant.api';
 
 import { AssistantMessages } from './AssistantMessages';
+import { Composer } from './Composer';
 
 const MODE_ICON: Record<PermissionMode, typeof Shield> = { ask: ShieldCheck, auto: Shield, bypass: ShieldAlert };
 
@@ -39,7 +41,7 @@ export function AssistantDock() {
   const { threadId, threads, view, loading } = useThread(current?.id);
   const [draftMode, setDraftMode] = useState<PermissionMode>('auto');
   const mode = view?.thread.mode ?? draftMode;
-  const { send, decide, setMode, create } = useAssistantActions(current?.id, threadId, mode);
+  const { send, decide, setMode, create, ensureThread } = useAssistantActions(current?.id, threadId, mode);
   const [text, setText] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
   const aiReady = config?.llm.ready ?? false;
@@ -55,15 +57,29 @@ export function AssistantDock() {
   }, [open]);
   useEffect(() => {
     if (queued && open && current && aiReady && !running) {
-      send.mutate(queued);
+      send.mutate({ text: queued });
       clearQueued();
     }
   }, [queued, open, current, aiReady, running]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = (value = text) => {
-    const t = value.trim();
-    if (!t || running || !current || !aiReady) return;
-    send.mutate(t, { onSuccess: () => setText('') });
+  const files = useAttachments(threadId, ensureThread);
+  const usable = Boolean(current) && aiReady;
+  const [dragging, setDragging] = useState(false);
+  /** A suggestion sends just its own words; the box sends what is typed together with the attached files. */
+  const submit = (suggestion?: string) => {
+    const t = (suggestion ?? text).trim();
+    const attachments = suggestion ? [] : files.chips.flatMap((c) => (c.saved ? [{ path: c.saved.path, name: c.saved.name }] : []));
+    if ((!t && !attachments.length) || running || !usable || (!suggestion && files.uploading)) return;
+    send.mutate(
+      { text: t, attachments },
+      {
+        onSuccess: () => {
+          if (suggestion) return;
+          setText('');
+          files.clear();
+        },
+      },
+    );
   };
   const chips = useMemo(
     () => suggestions(focus.route, Boolean(focus.episodeId), Boolean(focus.seriesId), Boolean(current?.introDesign && current?.outroDesign)),
@@ -86,7 +102,21 @@ export function AssistantDock() {
   }
 
   return (
-    <aside aria-label="Trợ lý" className="fixed inset-0 z-50 flex flex-col bg-background md:inset-y-0 md:left-auto md:right-0 md:w-[420px] md:border-l md:shadow-lift">
+    <aside
+      aria-label="Trợ lý"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDragging(usable);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDragging(false)}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDragging(false);
+        if (usable) void files.add([...e.dataTransfer.files]);
+      }}
+      className="fixed inset-0 z-50 flex flex-col bg-background md:inset-y-0 md:left-auto md:right-0 md:w-[420px] md:border-l md:shadow-lift">
       <header className="flex items-center gap-2 border-b bg-card px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))]">
         <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
           <Sparkles className="size-4" aria-hidden />
@@ -142,63 +172,54 @@ export function AssistantDock() {
         </Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+      <div className="flex min-h-0 flex-1 flex-col">
         {!aiReady ? (
-          <div className="mb-4 rounded-xl border border-warning/40 bg-warning-soft p-3 text-small">
+          <div className="mx-3 mt-3 rounded-xl border border-warning/40 bg-warning-soft p-3 text-small">
             Chưa cài AI nên trợ lý chưa trả lời được.{' '}
             <Link href={ROUTES.settings} onClick={() => setOpen(false)} className="font-semibold text-primary hover:underline">
               Cài AI ở trang Cài đặt
             </Link>
           </div>
         ) : null}
-        {!current ? <p className="text-small text-muted-foreground">Tạo hoặc chọn một kênh để bắt đầu. Trợ lý làm việc trong từng kênh.</p> : null}
+        {!current ? <p className="px-3 py-4 text-small text-muted-foreground">Tạo hoặc chọn một kênh để bắt đầu. Trợ lý làm việc trong từng kênh.</p> : null}
         {current && !loading && !view?.messages.length ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 overflow-y-auto px-3 py-4">
             <p className="text-small text-slate-700">
               Mình làm được mọi việc trong studio: thiết kế intro/outro, soạn tri thức và skill, lập series, tạo video, sửa từng cảnh, tạo ảnh và giọng, duyệt và sản xuất. Bạn cứ nói bằng lời.
             </p>
             <div className="flex flex-col gap-2">
               {chips.map((c) => (
-                <button key={c} type="button" disabled={!aiReady || running} onClick={() => submit(c)} className="rounded-xl border bg-card px-3 py-2.5 text-left text-small hover:border-primary hover:bg-accent disabled:opacity-50">
-                  {c}
-                </button>
+                <Item key={c} asChild variant="outline" size="sm" className="bg-card text-left text-small hover:border-primary hover:bg-accent disabled:opacity-50">
+                  <button type="button" disabled={!aiReady || running} onClick={() => submit(c)}>
+                    {c}
+                  </button>
+                </Item>
               ))}
             </div>
           </div>
         ) : null}
-        {view ? <AssistantMessages messages={view.messages} running={running} deciding={decide.isPending} onDecide={(messageId, approve) => decide.mutate({ messageId, approve })} /> : null}
+        {view?.messages.length ? <AssistantMessages key={view.thread.id} messages={view.messages} running={running} deciding={decide.isPending} onDecide={(messageId, approve) => decide.mutate({ messageId, approve })} /> : null}
       </div>
 
-      <form
-        className="border-t bg-card p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
+      <div className="border-t bg-card p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         {waiting ? <p className="mb-2 text-caption text-warning">Trợ lý đang chờ bạn đồng ý ở trên. Gõ tin mới sẽ bỏ yêu cầu đó.</p> : null}
-        <div className="flex items-end gap-2">
-          <Textarea
-            ref={box}
-            value={text}
-            rows={1}
-            disabled={!current || !aiReady}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            placeholder={focus.episodeId ? 'Nhờ trợ lý về video/cảnh này…' : 'Nhờ trợ lý làm gì đó…'}
-            aria-label="Tin nhắn cho trợ lý"
-            className="max-h-32 min-h-11 resize-none"
-          />
-          <Button type="submit" size="icon" className="size-11 shrink-0" disabled={!text.trim() || running || !current || !aiReady} aria-label="Gửi">
-            <Send aria-hidden />
-          </Button>
-        </div>
-      </form>
+        <Composer
+          box={box}
+          text={text}
+          onText={setText}
+          chips={files.chips}
+          onFiles={(f) => void (usable && files.add(f))}
+          onRemove={files.remove}
+          onSubmit={() => submit()}
+          placeholder={focus.episodeId ? 'Nhờ trợ lý về video/cảnh này…' : 'Nhờ trợ lý làm gì đó…'}
+          disabled={!usable}
+          canSend={usable && !running && !files.uploading && (Boolean(text.trim()) || files.chips.length > 0)}
+          sending={send.isPending}
+        />
+      </div>
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary bg-background/90 text-small font-semibold text-primary">Thả ảnh hoặc tệp vào đây</div>
+      ) : null}
     </aside>
   );
 }

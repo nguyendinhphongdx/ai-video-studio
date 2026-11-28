@@ -119,3 +119,18 @@ describe('workspace isolation', () => {
     expect(claimed?.userId).toBe(A.user.id);
   });
 });
+
+describe('assistant attachments', () => {
+  it('keeps them in the workspace and removes them with the conversation', async () => {
+    const { assistantService } = await import('@/server/modules/assistant/assistant.service');
+    const { resolveMedia } = await import('@/server/adapters/media/media.service');
+    const thread = await run(A, async () => (await assistantService.create(channelId)).thread);
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2])], 'anh.png');
+    const a = await run(A, async () => await assistantService.upload(thread.id, png));
+    expect(await run(A, async () => await m.media.canReadMedia(a.path))).toBe(true);
+    expect(await run(B, async () => await m.media.canReadMedia(a.path))).toBe(false);
+    await expect(run(B, async () => await assistantService.upload(thread.id, png))).rejects.toThrow();
+    await run(A, async () => await assistantService.remove(thread.id));
+    expect(fs.existsSync(resolveMedia(a.path))).toBe(false);
+  });
+});

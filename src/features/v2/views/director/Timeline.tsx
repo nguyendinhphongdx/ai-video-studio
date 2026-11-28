@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 
 import { FPS } from '@/core/domain/catalog';
 import { ARRIVE_EFFECTS, MAX_EXTRAS, MAX_HOLD_SEC, MAX_VOICE_DELAY_SEC, newExtra, tuneOf, type Extra, type TimedKey } from '@/core/domain/tune';
@@ -59,6 +59,9 @@ export interface TimelineProps {
   readOnly: boolean;
   onLayer: (id: LayerId) => void;
   onSeek: (frame: number) => void;
+  /** The add-a-layer menu; the screen's bottom bar opens it too. */
+  adding: boolean;
+  onAdding: (open: boolean) => void;
 }
 
 /** Every layer this scene could have, in a fixed order, and the extra people and things it could still take. */
@@ -206,18 +209,25 @@ function layersOf({ draft, block, types, people, things, seconds, voiceSeconds }
 }
 
 /** The button under the lanes: opens the kinds of layer that can still be added to this scene. */
-function AddLayer({ tracks, more, onAdd }: { tracks: Track[]; more: { title: string; choices: Choice[] }[]; onAdd: (add: () => void, id: LayerId) => void }) {
-  const [open, setOpen] = useState(false);
+function AddLayer({ tracks, more, open, onOpen: setOpen, onAdd }: { open: boolean; onOpen: (open: boolean) => void; tracks: Track[]; more: { title: string; choices: Choice[] }[]; onAdd: (add: () => void, id: LayerId) => void }) {
   const missing = tracks.filter((t) => t.text === null && (t.add || t.why));
   const groups = [
     { title: 'Lớp', choices: missing.map((t) => ({ id: t.id, label: t.name, add: t.add, why: t.add ? undefined : t.why })) },
     ...more,
   ].filter((g) => g.choices.length > 0);
   return (
-    <div className="layermenu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+    <div className={`layermenu${open ? ' open' : ''}`} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
       <button type="button" className="btn sm" aria-expanded={open} onClick={() => setOpen(!open)}>
         + Thêm lớp
       </button>
+      {open && (
+        <div className="dsheet-head dsmall">
+          <b>Thêm lớp</b>
+          <button type="button" className="btn sm ghost" onClick={() => setOpen(false)}>
+            Đóng ✕
+          </button>
+        </div>
+      )}
       {open &&
         groups.map((g) => (
           <div key={g.title} className="group" role="group" aria-label={g.title}>
@@ -341,7 +351,7 @@ export function Timeline(props: TimelineProps) {
             )}
           </div>
         ))}
-      {!readOnly && <AddLayer tracks={tracks} more={more} onAdd={(add, id) => (add(), onLayer(id))} />}
+      {!readOnly && <AddLayer tracks={tracks} more={more} open={props.adding} onOpen={props.onAdding} onAdd={(add, id) => (add(), onLayer(id))} />}
     </div>
   );
 }

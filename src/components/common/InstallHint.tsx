@@ -47,7 +47,7 @@ export function InstallHint() {
     }
   };
   return (
-    <div role="dialog" aria-label="Cài ứng dụng" className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[80] flex items-center gap-3 rounded-xl bg-slate-900 p-3 text-sm text-white shadow-2xl">
+    <div role="dialog" aria-label="Cài ứng dụng" className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[80] max-[900px]:bottom-[calc(5rem+env(safe-area-inset-bottom))] flex items-center gap-3 rounded-xl bg-slate-900 p-3 text-sm text-white shadow-2xl">
       <p className="min-w-0 flex-1">
         {ask === 'ios' ? 'Cài vào màn hình chính: bấm nút Chia sẻ của trình duyệt, rồi chọn “Thêm vào MH chính”.' : 'Cài Video Studio vào màn hình chính để mở như một ứng dụng.'}
       </p>

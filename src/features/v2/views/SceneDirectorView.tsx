@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { LayoutGrid, Pause, Play, Plus, SlidersHorizontal, Sparkles, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,6 +19,7 @@ import { seriesKeys } from '@/features/series/hooks/use-series';
 import { seriesApi } from '@/features/series/services/series.api';
 import { usageApi } from '@/features/usage/services/usage.api';
 import { errorMessage } from '@/lib/api/client';
+import { useAssistantStore } from '@/stores/assistant-store';
 
 import { episodeHref } from '../model';
 import { AiBox } from './director/AiBox';
@@ -61,7 +63,8 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const layer = picked?.scene === sceneId ? picked.layer : null;
   const select = (next: LayerId | null) => setPicked(next ? { scene: sceneId, layer: next } : null);
   // Small screens keep only the picture and its layers up; the scene list and the settings open over them.
-  const [sheet, setSheet] = useState<'scenes' | 'panel' | null>(null);
+  const [sheet, setSheet] = useState<'scenes' | 'panel' | 'add' | null>(null);
+  const openAssistant = useAssistantStore((x) => x.setOpen);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const player = useRef<StageApi | null>(null);
@@ -208,9 +211,6 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
         <button className="btn sm ghost" disabled={!draft.canRedo || readOnly} onClick={redoEdit} title="Làm lại (⇧⌘Z)">
           ↷
         </button>
-        <button type="button" className="btn sm dsmall" aria-expanded={sheet === 'scenes'} onClick={() => setSheet(sheet === 'scenes' ? null : 'scenes')}>
-          ▦ Cảnh {index + 1}/{ids.length}
-        </button>
         {dirty && <span className="chip warn dwide">Chưa lưu</span>}
         {dirty && (
           <button className="btn sm ghost" onClick={draft.reset} aria-label="Bỏ thay đổi" title="Bỏ thay đổi">
@@ -241,7 +241,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             {(active === 'cast' || layer === 'hero' || layer === 'companion' || layer === 'item' || layer?.startsWith('x:')) && (s.block === 'remotion/puppet' || s.block === 'remotion/picture') && !readOnly && !playing && <DragLayer draft={draft} onSelect={select} onGrab={() => player.current?.seek(Math.round(Math.min(seconds / 2, 2) * FPS))} />}
           </div>
           <div className="transport">
-            <button className="btn sm" onClick={() => player.current?.toggle()} title="Phím cách">
+            <button className="btn sm dwide" onClick={() => player.current?.toggle()} title="Phím cách">
               {playing ? '❚❚ Dừng' : '▶ Phát'}
             </button>
             <button className="btn sm ghost" onClick={() => player.current?.seek(0)}>
@@ -254,7 +254,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
             {assets?.imageStale && <span className="chip warn">Ảnh cần vẽ lại</span>}
             {assets?.voiceStale && <span className="chip warn">Giọng cần đọc lại</span>}
           </div>
-          <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} layer={layer} readOnly={readOnly} onLayer={select} onSeek={(f) => player.current?.seek(f)} />
+          <Timeline draft={draft} block={block} types={ops.types} people={people} things={things} seconds={seconds} voiceSeconds={assets?.voiceSeconds ?? null} frame={frame} layer={layer} readOnly={readOnly} onLayer={select} adding={sheet === 'add'} onAdding={(on) => setSheet(on ? 'add' : null)} onSeek={(f) => player.current?.seek(f)} />
           <span className="cap dwide">Phím tắt: cách = phát/dừng · ↑↓ = đổi cảnh · ⌘Z = hoàn tác · ⌘S = lưu</span>
         </main>
 
@@ -298,11 +298,22 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
           )}
         </aside>
       </div>
-      {sheet !== 'panel' && (
-        <button type="button" className="dfab dsmall" aria-label="Mở thiết lập" title="Mở thiết lập" onClick={() => setSheet('panel')}>
-          ⚙
-        </button>
-      )}
+      <nav className="dbar dsmall" aria-label="Thao tác">
+        {(
+          [
+            { key: 'scenes', icon: LayoutGrid, label: `Cảnh ${index + 1}/${ids.length}`, run: () => setSheet(sheet === 'scenes' ? null : 'scenes') },
+            { key: 'play', icon: playing ? Pause : Play, label: playing ? 'Dừng' : 'Phát', run: () => (setSheet(null), player.current?.toggle()) },
+            { key: 'add', icon: Plus, label: 'Thêm lớp', off: readOnly, run: () => setSheet(sheet === 'add' ? null : 'add') },
+            { key: 'panel', icon: SlidersHorizontal, label: 'Thiết lập', run: () => setSheet(sheet === 'panel' ? null : 'panel') },
+            { key: 'ai', icon: Sparkles, label: 'Trợ lý', run: () => (setSheet(null), openAssistant(true)) },
+          ] as { key: string; icon: LucideIcon; label: string; off?: boolean; run: () => void }[]
+        ).map((a) => (
+          <button key={a.key} type="button" className={sheet === a.key ? 'on' : undefined} aria-pressed={sheet === a.key} disabled={a.off} onClick={a.run}>
+            <a.icon size={20} aria-hidden />
+            {a.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

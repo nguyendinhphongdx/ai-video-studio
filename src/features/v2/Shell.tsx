@@ -4,20 +4,42 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import { Menu, X } from 'lucide-react';
+import { Clapperboard, House, Images, Library, Menu, Palette, Puzzle, Settings, X, type LucideIcon } from 'lucide-react';
 
 import { LogoMark } from '@/components/brand/LogoMark';
 import { AccountBox } from '@/features/auth/AccountBox';
 
 import { projectHref } from './model';
+import './mobile.css';
 
-type NavItem = { href: string; label: string; exact?: boolean };
+/** `tab` puts the item in the bottom bar of narrow screens, under a shorter name. */
+type NavItem = { href: string; label: string; exact?: boolean; tab?: { label: string; icon: LucideIcon } };
 
-function Nav({ label, items, group }: { label: string; items: NavItem[]; group?: { at: number; text: string } }) {
+function useCurrent(items: NavItem[]) {
   const path = usePathname();
   const isOn = (i: NavItem) => (i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`));
   // The longest matching href wins, so "/" does not light up on every page.
-  const on = items.filter(isOn).sort((a, b) => b.href.length - a.href.length)[0];
+  return items.filter(isOn).sort((a, b) => b.href.length - a.href.length)[0];
+}
+
+function TabBar({ label, items }: { label: string; items: NavItem[] }) {
+  const on = useCurrent(items);
+  return (
+    <nav className="tabbar" aria-label={label}>
+      {items.map((i) =>
+        i.tab ? (
+          <Link key={i.href} href={i.href} className={i === on ? 'on' : undefined} aria-current={i === on ? 'page' : undefined}>
+            <i.tab.icon size={20} aria-hidden />
+            {i.tab.label}
+          </Link>
+        ) : null,
+      )}
+    </nav>
+  );
+}
+
+function Nav({ label, items, group }: { label: string; items: NavItem[]; group?: { at: number; text: string } }) {
+  const on = useCurrent(items);
   return (
     <nav className="nav" aria-label={label}>
       {items.map((i, n) => (
@@ -35,7 +57,7 @@ function Nav({ label, items, group }: { label: string; items: NavItem[]; group?:
 /** Lets the top bar open the side menu, which is a sheet over the page on narrow screens. */
 const MenuContext = createContext<() => void>(() => undefined);
 
-function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
+function Frame({ nav, tabs, children }: { nav: ReactNode; tabs: ReactNode; children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   // Going somewhere closes the sheet; so does Escape.
@@ -64,6 +86,7 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
           <AccountBox />
         </aside>
         <div className="main">{children}</div>
+        {tabs}
       </div>
     </MenuContext.Provider>
   );
@@ -72,24 +95,24 @@ function Frame({ nav, children }: { nav: ReactNode; children: ReactNode }) {
 /** Product level: overview of every project. */
 export function ProductShell({ children }: { children: ReactNode }) {
   const items: NavItem[] = [
-    { href: '/', label: 'Trang chủ', exact: true },
-    { href: '/library', label: 'Thư viện' },
-    { href: '/skills', label: 'Kho skill' },
-    { href: '/settings', label: 'Cài đặt và chi phí' },
+    { href: '/', label: 'Trang chủ', exact: true, tab: { label: 'Trang chủ', icon: House } },
+    { href: '/library', label: 'Thư viện', tab: { label: 'Thư viện', icon: Library } },
+    { href: '/skills', label: 'Kho skill', tab: { label: 'Kho skill', icon: Puzzle } },
+    { href: '/settings', label: 'Cài đặt và chi phí', tab: { label: 'Cài đặt', icon: Settings } },
   ];
-  return <Frame nav={<Nav label="Chính" items={items} />}>{children}</Frame>;
+  return <Frame nav={<Nav label="Chính" items={items} />} tabs={<TabBar label="Chính, thanh dưới" items={items} />}>{children}</Frame>;
 }
 
 /** Project level: everything one project owns. */
 export function ProjectShell({ projectId, name, children }: { projectId: string; name: string; children: ReactNode }) {
   const items: NavItem[] = [
     { href: '/', label: '← Tất cả dự án', exact: true },
-    { href: projectHref(projectId), label: 'Các tập', exact: false },
-    { href: projectHref(projectId, 'library'), label: 'Thư viện dự án' },
-    { href: projectHref(projectId, 'style'), label: 'Phong cách và skill' },
-    { href: projectHref(projectId, 'settings'), label: 'Cài đặt dự án' },
+    { href: projectHref(projectId), label: 'Các tập', exact: false, tab: { label: 'Các tập', icon: Clapperboard } },
+    { href: projectHref(projectId, 'library'), label: 'Thư viện dự án', tab: { label: 'Thư viện', icon: Images } },
+    { href: projectHref(projectId, 'style'), label: 'Phong cách và skill', tab: { label: 'Phong cách', icon: Palette } },
+    { href: projectHref(projectId, 'settings'), label: 'Cài đặt dự án', tab: { label: 'Cài đặt', icon: Settings } },
   ];
-  return <Frame nav={<Nav label="Dự án" items={items} group={{ at: 1, text: name || 'Dự án' }} />}>{children}</Frame>;
+  return <Frame nav={<Nav label="Dự án" items={items} group={{ at: 1, text: name || 'Dự án' }} />} tabs={<TabBar label="Dự án, thanh dưới" items={items} />}>{children}</Frame>;
 }
 
 /** A breadcrumb: plain text, or text that goes somewhere (every part but the last should). */

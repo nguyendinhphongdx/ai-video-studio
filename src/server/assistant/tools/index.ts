@@ -2,7 +2,7 @@
 import { validateTools, type StudioTool } from '@/core/assistant/tool';
 
 import { channelTools } from './channel';
-import { characterTools } from './characters';
+import { characterTools } from './character';
 import { episodeTools } from './episodes';
 import { sceneTools } from './scenes';
 import { seriesTools } from './series';

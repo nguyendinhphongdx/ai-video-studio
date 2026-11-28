@@ -21,6 +21,9 @@ src/server/                    db, http helpers, adapters (llm, image, tts, vide
 src/worker/                    job queue + outbox delivery (separate process)
 src/app/                       Next.js App Router (UI + thin route handlers)
 tests/                         vitest: core contracts and tool catalog
+.agent/                        the harness: agents/ skills/ commands/ (shared by every coding tool)
+docs/conventions/              the code conventions to follow; docs/features/ one dossier per delivered feature
+scripts/harness/               what a machine runs: dossier check, Stop hook
 ```
 
 ## Hard rules
@@ -55,6 +58,22 @@ Verify before reporting done: `npm run check` green; for pipeline changes run a 
 ## Working here (coding agents)
 
 Follow [docs/AGENT-PLAYBOOK.md](docs/AGENT-PLAYBOOK.md): the recipe for each kind of change, how to prove it works, and what needs the owner's yes. Anything the in-app AI generates must come with its harness (same file, "In-app AI harness").
+
+**Read [docs/conventions/](docs/conventions/README.md) for the layer you touch before writing code**: layers and imports, server modules, routes, database, extension points, frontend, AI calls and cost, testing, naming. Each rule says whether a machine checks it or a reviewer does. Copy the neighbouring file; do not invent a new shape.
+
+### The harness (`.agent/`)
+
+Subagents, skills and commands live in [.agent/](.agent/README.md), one place for every tool (`.claude/agents|skills|commands` are symlinks to it; never copy files out of `.agent`). A feature is delivered as a dossier in `docs/features/NNNN-slug/` (`spec.md`, `plan.md`, `review.md`; templates in `docs/features/_templates`):
+
+```text
+/spec <idea> → /plan NNNN → /build NNNN → /review NNNN → /deliver NNNN      (/check runs every machine check)
+```
+
+- The owner approves the spec, and the plan on large work. You never approve your own.
+- The code is reviewed by an agent that did not write it (`reviewer`, plus `arch-guard` for layers, data and AI calls).
+- Small fixes have no dossier: put `[small]` in the PR title. CI fails a PR that changes `src/`, `remotion/` or `drizzle/` with neither a dossier nor `[small]`.
+- `npm run check` and `node scripts/harness/check-dossiers.mjs` must be green; the Claude Stop hook (`scripts/harness/stop-check.sh`) refuses to finish while typecheck or lint is red.
+- A mistake the owner corrects twice becomes a line in `docs/conventions/` and a check, not a one-off fix.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

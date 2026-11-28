@@ -4,16 +4,50 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
+      - name: Feature dossiers are well-formed
+        run: node scripts/harness/check-dossiers.mjs
+      - name: Migrations match the schema (no drift)
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "schema.ts changed without a migration: run npm run db:generate and commit drizzle/" >&2
+            git status --porcelain drizzle >&2
+            exit 1
+          fi
+
+  dossier:
+    # A pull request that changes the product needs a dossier in docs/features, or [small] in its title.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Dossier or [small]
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          case "$TITLE" in *"[small]"*) echo "small change: no dossier needed"; exit 0 ;; esac
+          changed="$(git diff --name-only "$BASE"...HEAD)"
+          if ! echo "$changed" | grep -qE '^(src|remotion|drizzle)/'; then echo "no product code changed"; exit 0; fi
+          if echo "$changed" | grep -qE '^docs/features/[0-9]{4}-'; then echo "dossier touched"; exit 0; fi
+          echo "Product code changed with no dossier in docs/features/. Add one (/spec), or put [small] in the PR title." >&2
+          exit 1

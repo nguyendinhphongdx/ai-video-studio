@@ -9,5 +9,9 @@ next-env.d.ts
 data/
 # media from the pre-Next.js MVP
 projects/
-# local Claude Code state
-.claude/
+# local Claude Code state; the shared harness lives in .agent/ and .claude/ only links to it
+.claude/*
+!.claude/settings.json
+!.claude/agents
+!.claude/skills
+!.claude/commands

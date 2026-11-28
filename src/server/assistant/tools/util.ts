@@ -58,3 +58,19 @@ export function describeEpisode(v: EpisodeView) {
     }),
   };
 }
+
+/** The script as the save endpoint wants it, so a single change keeps ids, assets and approvals of the other scenes. */
+export function scriptInput(v: EpisodeView, scenes = v.episode.scenes) {
+  const e = v.episode;
+  return { title: e.title, publish: e.publish, scenes: scenes.map((s) => ({ id: s.id, slotId: s.slotId, block: s.block, locked: s.locked, narration: s.narration, props: s.props })) };
+}
+
+/** An episode's name for a line shown to people; its id when it cannot be read. */
+export async function episodeLabel(ctx: ToolContext, id: string) {
+  try {
+    const e = (await ownEpisode(ctx, id)).episode;
+    return `“${e.title || e.topic}”`;
+  } catch {
+    return id;
+  }
+}

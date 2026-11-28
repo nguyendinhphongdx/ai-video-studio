@@ -98,3 +98,49 @@ export function SceneThumbnail({ block, props, ordinal, brand, durationSec }: Om
     />
   );
 }
+
+export interface StageApi {
+  toggle: () => void;
+  seek: (frame: number) => void;
+  pause: () => void;
+}
+
+/** The director's picture: no built-in controls, so the screen's own transport and timeline drive it. */
+export function StagePlayer({ block, props, ordinal, brand, durationSec, narrationSrc, apiRef, onFrame, onPlaying }: Omit<ScenePlayerProps, 'startFrame'> & { apiRef: { current: StageApi | null }; onFrame: (frame: number) => void; onPlaying: (playing: boolean) => void }) {
+  const ref = useRef<PlayerRef>(null);
+  const durationInFrames = Math.max(1, Math.round(durationSec * FPS));
+  const inputProps: SceneClipProps = { block, props, ordinal, brand, durationSec, narrationSrc: narrationSrc ?? null, width: 1920, height: 1080 };
+  useEffect(() => {
+    const player = ref.current;
+    if (!player) return;
+    apiRef.current = { toggle: () => player.toggle(), seek: (f) => player.seekTo(Math.max(0, Math.min(durationInFrames - 1, f))), pause: () => player.pause() };
+    const frame = (e: { detail: { frame: number } }) => onFrame(e.detail.frame);
+    const play = () => onPlaying(true);
+    const pause = () => onPlaying(false);
+    player.addEventListener('frameupdate', frame);
+    player.addEventListener('play', play);
+    player.addEventListener('pause', pause);
+    return () => {
+      player.removeEventListener('frameupdate', frame);
+      player.removeEventListener('play', play);
+      player.removeEventListener('pause', pause);
+      apiRef.current = null;
+    };
+  }, [apiRef, onFrame, onPlaying, durationInFrames]);
+  return (
+    <Player
+      ref={ref}
+      component={SceneClip}
+      inputProps={inputProps}
+      durationInFrames={durationInFrames}
+      fps={FPS}
+      compositionWidth={1920}
+      compositionHeight={1080}
+      // Past the entrance, so an edit shows on a finished-looking frame.
+      initialFrame={Math.min(45, durationInFrames - 1)}
+      loop
+      acknowledgeRemotionLicense
+      style={{ width: '100%', aspectRatio: '16 / 9' }}
+    />
+  );
+}

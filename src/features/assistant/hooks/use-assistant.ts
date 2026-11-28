@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 
 import { errorMessage } from '@/lib/api/client';
@@ -16,13 +16,15 @@ export function useFocus(): Focus {
   const sceneId = useAssistantStore((s) => s.sceneId);
   return useMemo(() => {
     const m = (re: RegExp) => re.exec(pathname)?.[1] ?? null;
-    const episodeId = m(/^\/episodes\/([^/]+)/);
-    return { route: pathname, episodeId, seriesId: m(/^\/series\/([^/]+)/), sceneId: episodeId ? sceneId : null, skillId: m(/^\/skills\/([^/]+)/) };
+    // /episodes/<id>, /projects/<p>/episodes/<id>/..., /direct/<p>/<episode>/<scene>
+    const direct = /^\/direct\/[^/]+\/([^/]+)\/([^/]+)/.exec(pathname);
+    const episodeId = direct?.[1] ?? m(/\/episodes\/([^/]+)/);
+    return { route: pathname, episodeId, seriesId: m(/\/series\/([^/]+)/), sceneId: direct?.[2] ?? (episodeId ? sceneId : null), skillId: m(/\/skills\/([^/]+)/) };
   }, [pathname, sceneId]);
 }
 
 /** Queries that show data the assistant can change; refreshed whenever it finishes a step. */
-const DATA_KEYS = [['episode'], ['episodes'], ['channel'], ['channels'], ['series'], ['series-one'], ['series-episodes'], ['series-memory'], ['skills'], ['skill'], ['market'], ['knowledge'], ['config'], ['settings']];
+const DATA_KEYS = [['episode'], ['episodes'], ['channel'], ['channels'], ['series'], ['series-one'], ['series-episodes'], ['series-memory'], ['skills'], ['skill'], ['market'], ['knowledge'], ['config'], ['settings'], ['usage'], ['drawing'], ['logo-draft']];
 
 export function useThread(channelId: string | undefined) {
   const qc = useQueryClient();
@@ -33,7 +35,6 @@ export function useThread(channelId: string | undefined) {
     queryKey: ['assistant-thread', threadId],
     queryFn: () => assistantApi.get(threadId!),
     enabled: Boolean(threadId),
-    refetchInterval: (q) => (q.state.data?.running ? 900 : false),
   });
 
   // A remembered thread that no longer exists (deleted, other database): fall back to the newest one.
@@ -70,16 +71,21 @@ export function useAssistantActions(channelId: string | undefined, threadId: str
     qc.setQueryData(['assistant-thread', view.thread.id], view);
     void qc.invalidateQueries({ queryKey: ['assistant-threads', channelId] });
   };
+  // One conversation is created however many callers ask at once (two files dropped before the first message).
+  const creating = useRef<Promise<string> | null>(null);
+  const ensureThread = useCallback(async () => {
+    if (threadId) return threadId;
+    creating.current ??= assistantApi
+      .create(channelId!, mode)
+      .then((v) => {
+        setThread(channelId!, v.thread.id);
+        return v.thread.id;
+      })
+      .finally(() => (creating.current = null));
+    return creating.current;
+  }, [threadId, channelId, mode, setThread]);
   const send = useMutation({
-    mutationFn: async (text: string) => {
-      let id = threadId;
-      if (!id) {
-        const created = await assistantApi.create(channelId!, mode);
-        id = created.thread.id;
-        setThread(channelId!, id);
-      }
-      return assistantApi.send(id, text, focus);
-    },
+    mutationFn: async (m: { text: string; attachments?: { path: string; name: string }[] }) => assistantApi.send(await ensureThread(), m.text, focus, m.attachments),
     onSuccess: put,
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -100,5 +106,6 @@ export function useAssistantActions(channelId: string | undefined, threadId: str
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
-  return { send, decide, setMode, create, focus };
+  const stop = useMutation({ mutationFn: () => assistantApi.stop(threadId!), onSuccess: put, onError: (e) => toast.error(errorMessage(e)) });
+  return { send, decide, setMode, create, stop, focus, ensureThread };
 }

@@ -20,7 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: 'Cần duyệt', url: '/library?filter=review' },
-      { name: 'Series', url: '/series' },
+      { name: 'Dự án', url: '/projects' },
     ],
   };
 }

@@ -54,7 +54,12 @@ export interface PublicLlmSettings extends Omit<LlmSettings, 'apiKey'> {
   apiKey: string;
   hasKey: boolean;
   keySource: 'settings' | 'env' | null;
+  /** Ready to use: the workspace's own connection, or the shared one when it falls back to it. */
   ready: boolean;
+  /** The workspace has no working connection of its own and uses the system's shared one (the admin's keys). */
+  usingShared?: boolean;
+  /** The workspace may fall back to the shared keys (the admin allows it). */
+  sharedAllowed?: boolean;
 }
 
 export interface LlmSettingsInput {
@@ -97,6 +102,8 @@ export interface PublicImageSettings extends Omit<ImageSettings, 'apiKey'> {
   hasKey: boolean;
   keySource: 'settings' | 'env' | 'llm' | null;
   ready: boolean;
+  usingShared?: boolean;
+  sharedAllowed?: boolean;
 }
 
 export interface ImageSettingsInput {

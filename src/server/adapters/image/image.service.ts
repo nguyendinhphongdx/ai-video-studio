@@ -81,7 +81,7 @@ export const images: ImagePort = {
   async generate(prompt, outFile, meta, refs = []) {
     const s = await settingsService.image();
     if (!s.apiKey) throw new UserFacingError('Chưa cài đặt tạo ảnh AI. Mở Cài đặt, chọn nhà cung cấp ảnh và nhập API key.');
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
     for (let attempt = 0; ; attempt++) {
       try {
@@ -89,7 +89,7 @@ export const images: ImagePort = {
         await fs.mkdir(path.dirname(outFile), { recursive: true });
         await fs.writeFile(outFile, png);
         // One billed picture per success; a retry after an error was not billed.
-        usageService.record({ kind: 'image', provider: s.provider, model: s.model, purpose: meta?.purpose ?? 'scene_image', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: 1 } });
+        await usageService.record({ kind: 'image', provider: s.provider, model: s.model, purpose: meta?.purpose ?? 'scene_image', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: 1 } });
         return;
       } catch (e) {
         const status = (e as { status?: number })?.status;

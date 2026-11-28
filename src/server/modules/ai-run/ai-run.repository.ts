@@ -1,38 +1,40 @@
+import { and, desc, eq } from 'drizzle-orm';
+
 import type { AiRun } from '@/core/agent/runner';
 import type { AiRunStore } from '@/core/ports';
-import { db, json } from '@/server/db';
+import { json } from '@/server/db';
+import { orm, owner, scoped } from '@/server/orm';
+import { aiRuns } from '@/server/schema';
 
-type Row = Record<string, unknown>;
-
-const toRun = (r: Row): AiRun => ({
-  id: String(r.id),
-  task: String(r.task),
-  taskVersion: Number(r.task_version),
-  episodeId: (r.episode_id as string | null) ?? null,
-  seriesId: (r.series_id as string | null) ?? null,
-  model: (r.model as string | null) ?? null,
-  context: String(r.context),
+const toRun = (r: typeof aiRuns.$inferSelect): AiRun => ({
+  id: r.id,
+  task: r.task,
+  taskVersion: r.taskVersion,
+  episodeId: r.episodeId,
+  seriesId: r.seriesId,
+  model: r.model,
+  context: r.context,
   sections: json(r.sections, []),
-  prompt: String(r.prompt),
+  prompt: r.prompt,
   output: json(r.output, null),
-  error: (r.error as string | null) ?? null,
-  durationMs: Number(r.duration_ms),
-  createdAt: String(r.created_at),
+  error: r.error,
+  durationMs: r.durationMs,
+  createdAt: r.createdAt,
 });
 
 export const aiRunRepository = {
-  forEpisode(episodeId: string, limit = 20): AiRun[] {
-    return (db().prepare('SELECT * FROM ai_runs WHERE episode_id = ? ORDER BY created_at DESC LIMIT ?').all(episodeId, limit) as Row[]).map(toRun);
+  async forEpisode(episodeId: string, limit = 20): Promise<AiRun[]> {
+    return (await orm().select().from(aiRuns).where(and(eq(aiRuns.episodeId, episodeId), scoped(aiRuns))).orderBy(desc(aiRuns.createdAt)).limit(limit)).map(toRun);
   },
 };
 
 export const aiRunStore: AiRunStore = {
   async record(r) {
-    db()
-      .prepare(
-        `INSERT INTO ai_runs (id, episode_id, series_id, task, task_version, model, context, sections, prompt, output, error, duration_ms, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(r.id, r.episodeId, r.seriesId, r.task, r.taskVersion, r.model, r.context, JSON.stringify(r.sections), r.prompt, r.output === null ? null : JSON.stringify(r.output), r.error, r.durationMs, r.createdAt);
+    await orm()
+      .insert(aiRuns)
+      .values({
+        id: r.id, episodeId: r.episodeId, seriesId: r.seriesId, task: r.task, taskVersion: r.taskVersion, model: r.model, context: r.context, sections: JSON.stringify(r.sections), prompt: r.prompt,
+        output: r.output === null ? null : JSON.stringify(r.output), error: r.error, durationMs: r.durationMs, createdAt: r.createdAt, ...owner(),
+      });
   },
 };

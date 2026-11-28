@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AssistantMessage } from '@/core/ports';
 import { AssistantMessages } from '@/features/assistant/components/AssistantMessages';
-import { RichText } from '@/features/assistant/components/RichText';
+import { Markdown } from '@/features/assistant/components/Markdown';
 
 const msg = (over: Partial<AssistantMessage>): AssistantMessage => ({ id: 1, threadId: 't', role: 'user', content: '', toolCalls: [], toolCallId: null, toolName: null, status: 'done', summary: '', data: null, focus: null, createdAt: '', ...over });
 
@@ -18,9 +18,9 @@ describe('assistant chat rendering', () => {
       />,
     );
     expect(html).toContain('Tạo video về chợ nổi');
-    expect(html).toContain('<b>video mới</b>');
+    expect(html).toMatch(/data-streamdown="strong">video mới</);
     expect(html).toContain('<ul');
-    expect(html).toContain('<li>cảnh 2</li>');
+    expect(html).toMatch(/<li[^>]*>cảnh 2<\/li>/);
     expect(html).toContain('<code');
   });
 
@@ -53,10 +53,32 @@ describe('assistant chat rendering', () => {
     expect(html).not.toContain('rounded-bl-md');
   });
 
-  it('renders plain paragraphs and ordered lists', () => {
-    const html = renderToStaticMarkup(<RichText text={'Một dòng\nhai dòng\n\n1. đầu\n2. sau'} />);
-    expect(html).toContain('<br/>');
-    expect(html).toContain('hai dòng');
+  it('shows the running turn as it is written, without repeating what is already stored', () => {
+    const live = {
+      runId: 'r',
+      ended: null,
+      items: [
+        { kind: 'text' as const, id: 'old', text: 'đã lưu rồi' },
+        { kind: 'reasoning' as const, id: 'new', text: 'đang cân nhắc' },
+        { kind: 'text' as const, id: 'new', text: 'Câu đang viết' },
+        { kind: 'tool' as const, id: 'c9', text: 'Đọc kênh', name: 'get_channel', state: 'running' as const },
+      ],
+    };
+    const html = renderToStaticMarkup(<AssistantMessages running live={live} deciding={false} onDecide={() => {}} messages={[msg({ id: 1, role: 'assistant', content: 'Bản đã lưu', data: { liveId: 'old', reasoning: 'nghĩ trước', stopped: true } })]} />);
+    expect(html).not.toContain('đã lưu rồi');
+    expect(html).toContain('Câu đang viết');
+    expect(html).toContain('Đọc kênh');
+    expect(html).toContain('Đang chạy');
+    expect(html).toContain('Suy nghĩ');
+    expect(html).toContain('Đã dừng');
+    expect(html).not.toContain('Trợ lý đang làm');
+  });
+
+  it('renders headings, ordered lists and tables as Markdown', () => {
+    const html = renderToStaticMarkup(<Markdown text={'## Kế hoạch\n\n1. đầu\n2. sau\n\n| Tập | Tên |\n| --- | --- |\n| 1 | Mở đầu |'} />);
+    expect(html).toContain('<h2');
     expect(html).toContain('<ol');
+    expect(html).toContain('Mở đầu');
+    expect(html).toContain('<table');
   });
 });

@@ -11,7 +11,7 @@ export interface ReviseInput {
 export const reviseEpisodeTask = (catalog: ToolCatalog) =>
   defineTask<ReviseInput, ScriptDraft>({
     id: 'revise-episode',
-    version: 1,
+    version: 3,
     layers: 'all',
     schema: (_, ctx) => scriptSchema(ctx.slots, catalog),
     prompt: ({ current, feedback }) => `Đây là kịch bản hiện tại (JSON):

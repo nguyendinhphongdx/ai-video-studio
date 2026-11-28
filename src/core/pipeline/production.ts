@@ -37,6 +37,9 @@ export interface RenderOutput {
   /** Seconds per scene, in scene order. */
   durations: number[];
   clips: Record<string, string[]>;
+  /** When the clips were drawn. The clip paths stay the same between runs, so without this the steps after render
+   * would see unchanged inputs and keep the old video after the clips were drawn again. */
+  renderedAt?: string;
 }
 
 export interface AssembleOutput {

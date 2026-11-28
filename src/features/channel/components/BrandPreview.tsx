@@ -16,7 +16,7 @@ const stamp = (v: unknown) => {
 };
 
 /** The channel's own intro and outro, playing live with the design and values being edited. */
-export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtUrl, sampleTitle }: { input: ChannelInput; logoUrl: string | null; avatarUrl: string | null; introArtUrl: string | null; outroArtUrl: string | null; sampleTitle: string }) {
+export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtUrl, sampleTitle, only }: { only?: 'outro'; input: ChannelInput; logoUrl: string | null; avatarUrl: string | null; introArtUrl: string | null; outroArtUrl: string | null; sampleTitle: string }) {
   const brand: SceneBrand = {
     name: input.name || 'Tên kênh',
     font: input.font,
@@ -32,12 +32,13 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
   };
   const palette = input.palette.join(', ');
   const look = `Kênh: ${input.name}. Khán giả: ${input.audience}. Giọng văn: ${input.style}. Bảng màu: ${palette}. Font: ${input.font}.${input.imageStyle ? ` Phong cách ảnh: ${input.imageStyle.slice(0, 160)}.` : ''}`;
-  const introPrompt = `Thiết kế lại phần MỞ ĐẦU của kênh này (đọc thiết kế hiện tại bằng get_channel designs=true rồi sửa, giữ logo và bảng màu).\n${look}\nHiện tại: ${input.introDesign ? `${input.introDesign.layers.length} lớp, ${input.introDesign.seconds} giây` : 'chưa có thiết kế riêng'}.\n\nMuốn đổi: [mô tả điều bạn muốn, ví dụ: bố cục lạ hơn, chữ lớn và đậm hơn, chuyển động nhanh hơn, hợp phong cách của kênh hơn, thêm ảnh nền AI].`;
-  const outroPrompt = `Thiết kế lại phần KẾT của kênh này (đọc thiết kế hiện tại bằng get_channel designs=true rồi sửa, giữ nút đăng ký và bảng màu).\n${look}\nHiện tại: ${input.outroDesign ? `${input.outroDesign.layers.length} lớp, ${input.outroDesign.seconds} giây` : 'chưa có thiết kế riêng'}. Lời chào cuối: "${input.outroText}".\n\nMuốn đổi: [mô tả điều bạn muốn, ví dụ: ấm áp hơn, thêm lời kêu gọi theo dõi, đồng bộ với mở đầu].`;
+  const introPrompt = `Làm phần MỞ ĐẦU mới KHÁC HẲN bản đang có (đọc bản đang có bằng get_channel designs=true để tránh lặp lại): đổi kiểu bố cục, nền, hình trang trí và chuyển động, không chỉ dời vị trí hay đổi màu. Giữ logo và bảng màu.\n${look}\nHiện tại: ${input.introDesign ? `${input.introDesign.layers.length} lớp, ${input.introDesign.seconds} giây` : 'chưa có thiết kế riêng'}.\n\nÝ muốn thêm (có thể bỏ trống): `;
+  const outroPrompt = `Làm phần KẾT mới KHÁC HẲN bản đang có (đọc bản đang có bằng get_channel designs=true để tránh lặp lại): đổi kiểu bố cục, nền, hình trang trí và chuyển động, không chỉ dời vị trí hay đổi màu. Giữ nút đăng ký và bảng màu.\n${look}\nHiện tại: ${input.outroDesign ? `${input.outroDesign.layers.length} lớp, ${input.outroDesign.seconds} giây` : 'chưa có thiết kế riêng'}. Lời chào cuối: "${input.outroText}".\n\nÝ muốn thêm (có thể bỏ trống): `;
   const cardsPrompt = `Cảnh nội dung của kênh đang dùng màu chính ${input.palette[0] ?? ''} và font ${input.font}.\n${look}\n\nMuốn đổi: [ví dụ: đổi bảng màu và font cho hợp kênh hơn, rồi cập nhật kênh].`;
   const key = stamp([input.font, input.palette, input.name, input.outroText, input.subscribeText, logoUrl, avatarUrl, introArtUrl, outroArtUrl, input.introDesign, input.outroDesign]);
   return (
     <div className="flex flex-col gap-3">
+      {only !== 'outro' && (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Mở đầu của kênh {input.introDesign ? '' : '· chưa thiết kế, đang dùng bản tối giản'}</span>
@@ -45,6 +46,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
         </div>
         <ScenePlayer key={`t-${key}`} block="remotion/title" props={{ title: sampleTitle }} ordinal={1} brand={brand} durationSec={input.introDesign?.seconds ?? 4} />
       </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Kết của kênh {input.outroDesign ? '' : '· chưa thiết kế, đang dùng bản tối giản'}</span>
@@ -52,6 +54,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
         </div>
         <ScenePlayer key={`o-${key}`} block="remotion/outro" props={{}} ordinal={1} brand={brand} durationSec={input.outroDesign?.seconds ?? 5} />
       </div>
+      {only !== 'outro' && (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-caption font-semibold text-muted-foreground">Một cảnh nội dung · @remotion/cards (màu chính)</span>
@@ -66,6 +69,7 @@ export function BrandPreview({ input, logoUrl, avatarUrl, introArtUrl, outroArtU
           durationSec={3.5}
         />
       </div>
+      )}
     </div>
   );
 }

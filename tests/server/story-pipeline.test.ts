@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 const env = vi.hoisted(() => {
   process.env.AVS_DATA_DIR = `${process.env.TMPDIR ?? '/tmp'}/avs-story-test-${process.pid}`;
-  return { calls: [] as { purpose: string; user: string; system: string }[], smooth: 'ok' as 'ok' | 'bad-count' | 'throws' };
+  return { calls: [] as { purpose: string; user: string; system: string }[], smooth: 'ok' as 'ok' | 'bad-count' | 'throws', revise: false, review: [] as { scene: number; problem: string; fix: string }[] };
 });
 vi.mock('@/server/adapters/llm/llm.service', () => ({ llm: { isReady: async () => true, generateObject: async () => ({ object: {}, model: 'x' }) } }));
 vi.mock('@/server/adapters/image/image.service', () => ({ images: { isReady: async () => false, generate: async () => {} } }));
@@ -40,6 +40,11 @@ function fakeLlm(): CoreDeps['llm'] {
         const n = (user.match(/^\d+\. Cảnh/gm) ?? []).length;
         return { model: 'x', object: { lines: Array.from({ length: env.smooth === 'bad-count' ? 1 : n }, (_, i) => `Mượt ${i + 1}.`) } };
       }
+      if (purpose === 'revise-episode') {
+        if (!env.revise) throw new Error('boom');
+        return { model: 'x', object: { title: 'Biển sâu đã sửa', slots: { body: [scene(1), scene(2), scene(3), scene(4)] }, publish } };
+      }
+      if (purpose === 'review-script') return { model: 'x', object: { issues: env.review } };
       return { model: 'x', object: { title: 'Biển sâu', slots: { body: [scene(1), scene(2), scene(3), scene(4)] }, publish } };
     },
   };
@@ -70,7 +75,7 @@ describe('writing a script in three steps', () => {
     const id = await newEpisode();
     const deps = { ...s.deps.appDeps, llm: fakeLlm() } as CoreDeps;
     const e = await writeScript(deps, id, () => {});
-    expect(env.calls.map((c) => c.purpose)).toEqual(['plan-story', 'write-episode', 'smooth-narration']);
+    expect(env.calls.map((c) => c.purpose)).toEqual(['plan-story', 'write-episode', 'smooth-narration', 'review-script', 'revise-episode']);
     expect(env.calls[1]!.user).toContain('KHUNG MẠCH CHUYỆN');
     expect(env.calls[1]!.user).toContain('quả cầu thép');
     expect(env.calls[2]!.user).toContain('1. Cảnh 1 gốc.');
@@ -86,5 +91,18 @@ describe('writing a script in three steps', () => {
       const e = await writeScript({ ...s.deps.appDeps, llm: fakeLlm() } as CoreDeps, id, () => {});
       expect(e.scenes.filter((x) => !x.locked).map((x) => x.narration)).toEqual(['Cảnh 1 gốc.', 'Cảnh 2 gốc.', 'Cảnh 3 gốc.', 'Cảnh 4 gốc.']);
     }
+  });
+
+  it('sends what the self-review found back for one revision', async () => {
+    env.calls.length = 0;
+    env.smooth = 'ok';
+    env.revise = true;
+    env.review = [{ scene: 2, problem: 'Hình không có người mẹ.', fix: 'Vẽ người mẹ.' }];
+    const id = await newEpisode();
+    const e = await writeScript({ ...s.deps.appDeps, llm: fakeLlm() } as CoreDeps, id, () => {});
+    expect(env.calls.find((c) => c.purpose === 'revise-episode')!.user).toContain('Cảnh 2: Hình không có người mẹ.');
+    expect(e.title).toBe('Biển sâu đã sửa');
+    env.revise = false;
+    env.review = [];
   });
 });

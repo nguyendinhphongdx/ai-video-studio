@@ -2,9 +2,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { newId } from '@/core/domain/ids';
+import { ctx } from '@/server/context';
+
 import type { MediaPort } from '@/core/ports';
 import { ApiError } from '@/server/http/api-error';
 import { MEDIA_DIR, PUBLIC_DIR } from '@/server/config';
+
+import { storage } from './storage';
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -15,6 +20,7 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.md': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
 };
 export const mimeOf = (file: string) => MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
@@ -46,27 +52,53 @@ export const media: MediaPort = {
 
 export async function removeEpisodeMedia(episodeId: string) {
   await fs.rm(path.join(MEDIA_DIR, 'episodes', episodeId), { recursive: true, force: true });
+  await storage.remove(`episodes/${episodeId}/`);
 }
 
 export async function removeChannelMedia(channelId: string) {
   await fs.rm(path.join(MEDIA_DIR, 'channels', channelId), { recursive: true, force: true });
+  await storage.remove(`channels/${channelId}/`);
+}
+
+export async function removeLogoDraft(channelId: string) {
+  await fs.rm(path.join(MEDIA_DIR, 'channels', channelId, 'logo-draft'), { recursive: true, force: true });
+  await storage.remove(`channels/${channelId}/logo-draft/`);
 }
 
 /** Replaces the channel's previous file of this kind (logo, avatar or music); returns the media-relative path. */
-export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
+export async function saveChannelFile(channelId: string, kind: 'logo' | 'logo-draft' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
   const dir = path.join(MEDIA_DIR, 'channels', channelId, kind);
   await fs.rm(dir, { recursive: true, force: true });
+  await storage.remove(`${path.relative(MEDIA_DIR, dir)}/`);
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `${kind}-${Date.now()}${ext}`);
   await fs.writeFile(file, data);
+  await storage.put(path.relative(MEDIA_DIR, file));
   return path.relative(MEDIA_DIR, file);
 }
 
-/** Stores a series character reference picture; returns the media-relative path. */
+/** The folder of one assistant conversation's attachments, inside the current workspace. */
+export const assistantDir = (threadId: string) => `assistant/${ctx().workspaceId}/${threadId}/`;
+
+export async function saveAssistantFile(threadId: string, data: Buffer, ext: string): Promise<string> {
+  const rel = `${assistantDir(threadId)}${newId()}${ext}`;
+  await fs.mkdir(path.dirname(resolveMedia(rel)), { recursive: true });
+  await fs.writeFile(resolveMedia(rel), data);
+  await storage.put(rel);
+  return rel;
+}
+
+export async function removeAssistantMedia(threadId: string) {
+  await fs.rm(resolveMedia(assistantDir(threadId)), { recursive: true, force: true });
+  await storage.remove(assistantDir(threadId));
+}
+
+/** Stores a series character picture in the current workspace's folder; returns the media-relative path. */
 export async function saveCharacterFile(data: Buffer, ext: string): Promise<string> {
-  const dir = path.join(MEDIA_DIR, 'series-characters');
+  const dir = path.join(MEDIA_DIR, 'series-characters', ctx().workspaceId);
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `character-${Date.now().toString(36)}${ext}`);
   await fs.writeFile(file, data);
+  await storage.put(path.relative(MEDIA_DIR, file));
   return path.relative(MEDIA_DIR, file);
 }

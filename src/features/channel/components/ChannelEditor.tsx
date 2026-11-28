@@ -34,7 +34,7 @@ import { HashtagInput } from './HashtagInput';
 import { KnowledgeCard } from './KnowledgeCard';
 import { PaletteEditor } from './PaletteEditor';
 
-const IMAGE_STYLE_PRESETS = [
+export const IMAGE_STYLE_PRESETS = [
   { label: 'Ảnh chụp thực tế', value: 'photorealistic documentary photograph, natural lighting, shallow depth of field, authentic and candid, no text, no watermark' },
   { label: 'Minh hoạ phẳng', value: 'flat vector illustration, pastel palette, soft shadows, simple shapes, friendly and clean, no text' },
   { label: 'Hoạt hình 3D', value: 'cute 3D animated render, soft studio lighting, rounded shapes, vibrant but harmonious colours, no text' },
@@ -137,6 +137,13 @@ export function ChannelEditor({ channel }: { channel: ChannelView }) {
 
   return (
     <div className="flex flex-col gap-6 pb-24">
+      <p className="rounded-xl border bg-card px-4 py-3 text-small text-muted-foreground">
+        Cài đặt dự án có giao diện mới, gom đủ các phần này:{' '}
+        <a className="font-semibold text-primary underline" href={`/projects/${channel.id}/settings`}>
+          mở Cài đặt dự án
+        </a>
+        .
+      </p>
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
           <TabsTrigger value="info">Thông tin</TabsTrigger>

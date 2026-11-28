@@ -5,6 +5,6 @@ import { CreateEpisodeInput } from '@/server/modules/episode/episode.types';
 
 export const GET = route(async (req) => {
   const q = req.nextUrl.searchParams;
-  return episodeService.list({ channelId: q.get('channelId') ?? undefined, seriesId: q.get('seriesId') ?? undefined });
+  return await episodeService.list({ channelId: q.get('channelId') ?? undefined, seriesId: q.get('seriesId') ?? undefined });
 });
-export const POST = route(async (req) => episodeService.create(await parseJsonBody(req, CreateEpisodeInput)));
+export const POST = route(async (req) => await episodeService.create(await parseJsonBody(req, CreateEpisodeInput)));

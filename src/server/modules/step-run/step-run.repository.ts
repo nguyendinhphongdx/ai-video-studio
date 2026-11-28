@@ -1,14 +1,25 @@
+import { and, eq, sql } from 'drizzle-orm';
+
 import type { StepRunStore } from '@/core/ports';
-import { db, json, now } from '@/server/db';
+import { json, now } from '@/server/db';
+import { one, orm, owner, scoped } from '@/server/orm';
+import { stepRuns } from '@/server/schema';
 
 export const stepRunStore: StepRunStore = {
   async get(episodeId, step) {
-    const r = db().prepare('SELECT inputs_hash, outputs FROM step_runs WHERE episode_id = ? AND step = ?').get(episodeId, step) as { inputs_hash: string; outputs: string } | undefined;
-    return r ? { inputsHash: r.inputs_hash, outputs: json(r.outputs, null) } : null;
+    const r = await orm().select({ inputsHash: stepRuns.inputsHash, outputs: stepRuns.outputs }).from(stepRuns).where(and(eq(stepRuns.episodeId, episodeId), eq(stepRuns.step, step), scoped(stepRuns))).then(one);
+    return r ? { inputsHash: r.inputsHash, outputs: json(r.outputs, null) } : null;
   },
   async save(episodeId, step, inputsHash, outputs) {
-    db()
-      .prepare('INSERT INTO step_runs (episode_id, step, inputs_hash, outputs, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(episode_id, step) DO UPDATE SET inputs_hash = excluded.inputs_hash, outputs = excluded.outputs, updated_at = excluded.updated_at')
-      .run(episodeId, step, inputsHash, JSON.stringify(outputs), now());
+    // The episode id is unique, so the conflict key stays (episode_id, step); the workspace check keeps another
+    // workspace's row from being overwritten.
+    await orm()
+      .insert(stepRuns)
+      .values({ episodeId, step, inputsHash, outputs: JSON.stringify(outputs), updatedAt: now(), ...owner() })
+      .onConflictDoUpdate({
+        target: [stepRuns.episodeId, stepRuns.step],
+        set: { inputsHash: sql`excluded.inputs_hash`, outputs: sql`excluded.outputs`, updatedAt: sql`excluded.updated_at` },
+        setWhere: sql`${stepRuns.workspaceId} = excluded.workspace_id`,
+      });
   },
 };

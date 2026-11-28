@@ -14,7 +14,7 @@ export const queryKeys = {
 };
 
 export function useAppConfig() {
-  return useQuery({ queryKey: queryKeys.config, queryFn: appApi.config, refetchInterval: 15_000 });
+  return useQuery({ queryKey: queryKeys.config, queryFn: appApi.config, refetchOnWindowFocus: true });
 }
 
 /** A page about one channel's video or series makes that channel the current one, so the top bar and the assistant talk about the same channel. */

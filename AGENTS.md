@@ -12,7 +12,7 @@ in `src/core`, `src/tools` or `src/server`.
 ## Layout
 
 ```text
-market/skills/<id>/SKILL.md    the market: skills to install into a channel (a channel's own copies live in SQLite)
+market/skills/<id>/SKILL.md    the market: skills to install into a channel (a channel's own copies live in the database)
 remotion/                      React components for @remotion blocks (render + @remotion/player)
 seed/channels/<slug>/          first-run channels
 src/core/                      domain + extension points + workflows + the assistant loop (src/core/assistant). Never imports Next.js, the DB or Remotion.
@@ -21,6 +21,9 @@ src/server/                    db, http helpers, adapters (llm, image, tts, vide
 src/worker/                    job queue + outbox delivery (separate process)
 src/app/                       Next.js App Router (UI + thin route handlers)
 tests/                         vitest: core contracts and tool catalog
+.agent/                        the harness: agents/ skills/ commands/ (shared by every coding tool)
+docs/conventions/              the code conventions to follow; docs/features/ one dossier per delivered feature
+scripts/harness/               what a machine runs: dossier check, Stop hook
 ```
 
 ## Hard rules
@@ -31,19 +34,36 @@ tests/                         vitest: core contracts and tool catalog
 4. Long work (AI, voice, render) runs in the worker through the job queue. Route handlers validate, call a service, return.
 5. Series rules are versioned (`series_versions`); never mutate a version. Episodes pin the version they were written with.
 6. The web process never imports `src/tools/renderers.ts` or `@remotion/renderer`.
-7. Migrations in `src/server/db.ts` are append-only. Paid calls (LLM, picture, voice) must go through the adapters that record them in the cost ledger (see docs/ARCHITECTURE.md, Cost tracking).
+7. The database is Postgres. Tables are defined in `src/server/schema.ts`; after changing it run `npm run db:generate`, which writes a new migration into `drizzle/` (never edit one that has shipped). The app applies pending migrations when it starts. drizzle-kit leaves out the `USING` cast of a column whose type changes: add it by hand. Times are `timestamptz` read and written as ISO strings (`isoTime`), JSON is `jsonb` read and written as text (`jsonText`), flags are `boolean`. Paid calls (LLM, picture, voice) must go through the adapters that record them in the cost ledger (see docs/ARCHITECTURE.md, Cost tracking).
 8. UI text is Vietnamese; code, comments and commit messages are English.
+9. **Request context, never parameters.** Who is acting and in which workspace lives in one AsyncLocalStorage, `ctx()` from `src/server/context.ts` (NestJS-style request scope). The auth guard `route()` verifies the session and sets it for every API request; the worker sets it for every job and outbox event (`authService.contextFor` + `runWithContext`). Services and repositories read `ctx().workspaceId`, `ctx().userId`, `ctx().user`, `ctx().role`, and tag paid calls with `withUsage({...})`. Never pass the user, the workspace, the role or the session through function parameters. Only `src/server/modules/auth`, the worker's queue (`jobQueue`), outbox delivery and the live-feed hub (`changesRepository.since`, `firstId`, `prune`: one reader for every tab, each row sent only to its own workspace) may read across workspaces.
+10. **Every data table has `workspace_id` and `user_id`; every query filters by `workspace_id`** (and every insert sets both from `ctx()`). A row of another workspace is "not found" (404), never 403. New tables follow the same rule; `tests/server/workspace-isolation.test.ts` covers it.
+11. **The data layer is async.** Every repository function returns a Promise, and every call is awaited (or explicitly `void`ed). `npm run lint` checks this (no floating or misused promises). `transaction(async () => …)` holds only database calls, never network calls. Repositories query through Drizzle (`orm()`, with `scoped(table)`, `owner()` and `one` from `src/server/orm.ts`): filter by `scoped(table)` and spread `owner()` into inserts. Inside `transaction()`, `orm()` is the transaction itself (held in AsyncLocalStorage, like `ctx()`), so repositories join it without a parameter. Tests run on an in-memory PGlite per file (`tests/setup.ts`).
+12. **Media is files in `data/media`, optionally backed by object storage** (`src/server/adapters/media/storage.ts`, on when `S3_BUCKET` is set). Code keeps working with local paths. A worker job gets its media pulled before it runs and pushed after (`withMedia` in `src/worker/index.ts`); code in the web app that writes a media file calls `storage.put(rel)`, and code that reads one calls `storage.ensureLocal(rel)` first.
 
 ## Commands
 
 ```bash
+npm run db:dev      # the development Postgres (Docker, 127.0.0.1:5433)
 npm run dev         # Next.js on :3300 + worker
+npm run check       # typecheck + lint + test: run before reporting done
 npm run typecheck
+npm run lint
 npm test
 npm run studio      # Remotion Studio for the blocks
 ```
 
-Verify before reporting done: `npm run typecheck` and `npm test` green; for pipeline changes run a real job through the worker.
+Verify before reporting done: `npm run check` green; for pipeline changes run a real job through the worker.
+
+## Working here (coding agents)
+
+Follow [docs/AGENT-PLAYBOOK.md](docs/AGENT-PLAYBOOK.md): the recipe for each kind of change, how to prove it works, and what needs the owner's yes. Anything the in-app AI generates must come with its harness (same file, "In-app AI harness").
+
+**Read [docs/conventions/](docs/conventions/README.md) for the layer you touch before writing code**: layers and imports, server modules, routes, database, extension points, frontend, AI calls and cost, testing, naming. Each rule says whether a machine checks it or a reviewer does. Copy the neighbouring file; do not invent a new shape.
+
+### The harness (`.agent/`)
+
+Subagents, skills and commands live in [.agent/](.agent/README.md) (an index of where each thing is defined; `.claude/*` links to it, never copy out of it). A feature is delivered as a dossier in `docs/features/NNNN-slug/`; the loop, its gates and the `[small]` exception are defined once, in `.agent/skills/deliver-feature/SKILL.md`. CI fails a PR that changes `src/`, `remotion/` or `drizzle/` with neither a dossier nor `[small]` in its title, and the Claude Stop hook refuses to finish while typecheck or lint is red. A mistake the owner corrects twice becomes a line in `docs/conventions/` and a check.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

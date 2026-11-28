@@ -1,3 +1,4 @@
+import { isEffectId, patchTune, ToolTuneSchema, TUNE_KEY, tuneOf } from '@/core/domain/tune';
 import { z } from 'zod';
 
 import { defineTool, type ToolContext } from '@/core/assistant/tool';
@@ -22,7 +23,7 @@ const label = async (ctx: ToolContext, id: string) => {
 };
 
 /** The script as the save endpoint wants it, so a single change keeps ids, assets and approvals of the other scenes. */
-function scriptInput(v: EpisodeView, scenes = v.episode.scenes) {
+export function scriptInput(v: EpisodeView, scenes = v.episode.scenes) {
   const e = v.episode;
   return { title: e.title, publish: e.publish, scenes: scenes.map((s) => ({ id: s.id, slotId: s.slotId, block: s.block, locked: s.locked, narration: s.narration, props: s.props })) };
 }
@@ -46,7 +47,9 @@ export const getEpisode = defineTool({
   schema: z.object({ episodeId: z.string() }),
   summarize: (a) => `Xem video ${a.episodeId}`,
   async run({ episodeId }, ctx) {
-    return { ok: true, message: asJson(describeEpisode(await ownEpisode(ctx, episodeId)), 12000) };
+    const view = await ownEpisode(ctx, episodeId);
+    // Who is a person and what is a thing decides how it can be put on screen.
+    return { ok: true, message: asJson({ ...describeEpisode(view), cast: await episodeService.cast(episodeId) }, 16000) };
   },
 });
 
@@ -103,11 +106,11 @@ export const reviseScript = defineTool({
 
 export const editScene = defineTool({
   name: 'edit_scene',
-  description: 'Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
+  description: 'Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks), chỉnh tay (tune: bố trí, người và vật thêm, giờ xuất hiện từng lớp, chữ, giọng điệu, tiếng động; chỉ truyền mục cần đổi) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.',
   risk: 'write',
-  schema: z.object({ episodeId: z.string(), sceneId: z.string(), narration: z.string().max(600).optional(), props: z.record(z.string(), z.unknown()).optional(), block: z.string().optional().describe('Mã khối để đổi loại cảnh, ví dụ "remotion/counter"') }),
-  summarize: async (a, ctx) => `Sửa cảnh của video ${await label(ctx, a.episodeId)}: ${[a.block && `đổi loại thành @${a.block}`, a.narration !== undefined && 'lời đọc', a.props && Object.keys(a.props).join(', ')].filter(Boolean).join(' + ')}`,
-  async run({ episodeId, sceneId, narration, props, block }, ctx) {
+  schema: z.object({ episodeId: z.string(), sceneId: z.string(), narration: z.string().max(600).optional(), props: z.record(z.string(), z.unknown()).optional(), tune: ToolTuneSchema.optional(), block: z.string().optional().describe('Mã khối để đổi loại cảnh, ví dụ "remotion/counter"') }),
+  summarize: async (a, ctx) => `Sửa cảnh của video ${await label(ctx, a.episodeId)}: ${[a.block && `đổi loại thành @${a.block}`, a.narration !== undefined && 'lời đọc', a.props && Object.keys(a.props).join(', '), a.tune && 'chỉnh tay'].filter(Boolean).join(' + ')}`,
+  async run({ episodeId, sceneId, narration, props, block, tune }, ctx) {
     const v = await ownEpisode(ctx, episodeId);
     const scene = v.episode.scenes.find((s) => s.id === sceneId);
     if (!scene) throw new UserFacingError('Không tìm thấy cảnh này trong video.');
@@ -115,9 +118,35 @@ export const editScene = defineTool({
     // Changing the type starts from the new block's own defaults (the old block's props mean nothing to it).
     const target = block && block !== scene.block ? toolCatalog.block(block) : undefined;
     if (block && block !== scene.block && !target) throw new UserFacingError(`Khối @${block} không tồn tại. Xem list_blocks.`);
+    const unknown = tune?.extras?.filter((e) => !v.cast[e.id] && !isEffectId(e.id)).map((e) => e.id);
+    if (unknown?.length) throw new UserFacingError(`Chưa có ảnh cho: ${unknown.join(', ')}. Xem cast trong get_episode.`);
     const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, ...(target ? { block: target.ref } : {}), narration: narration ?? s.narration, props: target ? { ...(target.defaults as Record<string, unknown>), ...(props ?? {}) } : { ...s.props, ...(props ?? {}) } } : s));
+    if (tune) {
+      const edited = scenes.find((s) => s.id === sceneId)!;
+      const items = new Set((await episodeService.cast(episodeId)).filter((c) => c.kind === 'item').map((c) => c.id));
+      const extras = tune.extras?.map((e) => ({ ...e, kind: items.has(e.id) ? ('item' as const) : ('person' as const) }));
+      const next = patchTune(tuneOf(edited.props), { ...tune, ...(extras ? { extras } : {}) });
+      const { [TUNE_KEY]: _old, ...rest } = edited.props;
+      edited.props = next ? { ...rest, [TUNE_KEY]: next } : rest;
+    }
     const after = await episodeService.saveScript(episodeId, scriptInput(v, scenes));
     return { ok: true, message: `Đã sửa cảnh ${after.episode.scenes.findIndex((s) => s.id === sceneId) + 1}. Cần tạo lại ảnh/giọng nếu nội dung liên quan đã đổi, rồi duyệt lại.` };
+  },
+});
+
+export const aiFixScene = defineTool({
+  name: 'ai_fix_scene',
+  description: 'Nhờ AI chuyên sửa cảnh viết lại MỘT cảnh rồi lưu: để trống request thì viết lại mô tả ảnh, nhân vật, cảm xúc, động tác cho khớp lời đọc; có request thì sửa đúng điều đó (lời đọc, ai đứng đâu, to nhỏ, không khí...). Ưu tiên công cụ này khi người dùng chê hình không khớp lời hoặc muốn ghép lại nhân vật. Sau đó cần tạo lại ảnh/giọng đã lỗi thời (generate_scene_assets, tốn tiền, hỏi trước).',
+  risk: 'write',
+  schema: z.object({ episodeId: z.string(), sceneId: z.string(), request: z.string().max(600).default('') }),
+  summarize: async (a, ctx) => `AI sửa một cảnh của video ${await label(ctx, a.episodeId)}: ${a.request || 'viết hình cho khớp lời đọc'}`,
+  async run({ episodeId, sceneId, request }, ctx) {
+    const v = await ownEpisode(ctx, episodeId);
+    const fix = await episodeService.suggestSceneFix(episodeId, sceneId, { request });
+    const scenes = v.episode.scenes.map((s) => (s.id === sceneId ? { ...s, block: fix.block, narration: fix.narration, props: fix.props } : s));
+    const after = await episodeService.saveScript(episodeId, scriptInput(v, scenes));
+    const a = after.assets[sceneId];
+    return { ok: true, message: `${fix.note} Đã lưu.${a?.imageStale ? ' Ảnh cũ không còn khớp, cần vẽ lại.' : ''}${a?.voiceStale ? ' Giọng cũ không còn khớp, cần đọc lại.' : ''}` };
   },
 });
 
@@ -171,6 +200,7 @@ export const setEpisodeOptions = defineTool({
     voice: z.enum(VOICE_IDS as [VoiceId, ...VoiceId[]]).optional(),
     formats: Formats.optional(),
     music: z.boolean().optional(),
+    musicVolume: z.number().min(0).max(0.6).optional().describe('Âm lượng nhạc nền, mặc định 0.12'),
     autoImages: z.boolean().optional(),
     autoVoice: z.boolean().optional(),
     skillId: z.string().optional(),
@@ -253,4 +283,4 @@ export const deleteEpisode = defineTool({
   },
 });
 
-export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, addScene, removeScene, setEpisodeOptions, estimateCost, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];
+export const episodeTools = [listEpisodes, getEpisode, createEpisode, writeScript, reviseScript, editScene, aiFixScene, addScene, removeScene, setEpisodeOptions, estimateCost, generateSceneAssets, approveScenes, produceVideo, deleteEpisode];

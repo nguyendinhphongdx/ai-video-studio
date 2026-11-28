@@ -50,9 +50,9 @@ export const configService = {
       ttsGoogle: await googleTtsAvailable(),
       llm: { ready: llm.ready, provider: llm.provider, providerLabel: PROVIDERS[llm.provider].short, model: llm.model },
       image: { ready: image.ready, providerLabel: IMAGE_PROVIDERS[image.provider].label },
-      activeJobs: jobRepository.listActive().length,
+      activeJobs: (await jobRepository.listActive()).length,
       ffmpeg: await ffmpegAvailable(),
-      worker: { alive: Date.now() - (prefsService.workerSeenAt() ?? 0) < WORKER_ALIVE_MS },
+      worker: { alive: Date.now() - (await prefsService.workerSeenAt() ?? 0) < WORKER_ALIVE_MS },
       musicTracks: (await fs.readdir(path.join(PUBLIC_DIR, 'audio')).catch(() => [])).filter((f) => /\.(wav|mp3)$/.test(f)).sort(),
     };
   },

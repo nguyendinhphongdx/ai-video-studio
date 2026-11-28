@@ -1,0 +1,4422 @@
+[
+  {
+    "name": "get_settings_status",
+    "risk": "read",
+    "description": "Xem studio đã cài gì: AI viết (provider, model), tạo ảnh, giọng đọc. Dùng khi một việc cần AI/ảnh/giọng mà có thể chưa được cài, để báo người dùng vào Cài đặt.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_channel",
+    "risk": "read",
+    "description": "Xem kênh hiện tại: tên, mô tả, khán giả, giọng văn, giọng đọc, bảng màu, font, hashtag, câu chào cuối, chữ nút đăng ký, phong cách ảnh, logo/avatar có chưa, skill mặc định, các skill đã cài, tri thức (phiên bản), số series/video. designs=true để lấy cả JSON thiết kế mở đầu/kết (cần khi sửa thiết kế).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "designs": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  {
+    "name": "update_channel",
+    "risk": "write",
+    "description": "Sửa thông tin kênh (chỉ truyền các trường cần đổi): tên, mô tả, khán giả, giọng văn cho AI, giọng đọc, bảng màu (#RRGGBB, màu đầu là màu chính), font, hashtag, câu chào cuối, chữ nút đăng ký, phong cách ảnh AI (tiếng Anh), skill mặc định.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "audience": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "style": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "voice": {
+          "type": "string",
+          "enum": [
+            "vi-VN-HoaiMyNeural",
+            "vi-VN-NamMinhNeural",
+            "gemini-Kore",
+            "gemini-Zephyr",
+            "gemini-Leda",
+            "gemini-Aoede",
+            "gemini-Charon",
+            "gemini-Orus",
+            "gemini-Puck",
+            "gemini-Fenrir"
+          ]
+        },
+        "palette": {
+          "minItems": 1,
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "Baloo2",
+            "PatrickHand"
+          ]
+        },
+        "hashtags": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outroText": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "subscribeText": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "imageStyle": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "defaultSkillId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "set_intro_design",
+    "risk": "write",
+    "description": "Lưu thiết kế cảnh mở đầu RIÊNG của kênh (thay toàn bộ thiết kế mở đầu hiện có). Truyền cả thiết kế đầy đủ. Cách thiết kế cảnh mở đầu / kết:\n- Mỗi kênh một bản sắc riêng, rút ra từ chủ đề, khán giả và giọng văn của kênh. Không thiết kế chung chung: kênh tin tức, tài chính, thiếu nhi, nấu ăn, kể chuyện cần cảm giác khác hẳn nhau (bảng màu, kiểu chữ, mật độ, chuyển động).\n- Một thiết kế gồm nền (đơn sắc, chuyển màu hoặc toả tròn, có thể có hoạ tiết và tối góc) và 3-12 lớp xếp từ dưới lên: chữ, hình khối trang trí, logo, avatar, ảnh nền AI, nút đăng ký.\n- Toạ độ là phần trăm khung hình, tâm của lớp. Giữ chữ cách mép ít nhất 8%. Chữ không được tràn khỏi khung rộng (w) của nó: chữ dài thì giảm cỡ hoặc tăng w. Mỗi lớp có hai vị trí: ngang 16:9 (land) và dọc 9:16 (port); bố cục dọc phải sắp xếp lại (xếp chồng, tăng w), không chỉ co nhỏ.\n- Khi người dùng yêu cầu làm lại / đổi thiết kế, kết quả phải KHÁC rõ rệt, không chỉ chỉnh vài con số: đổi kiểu bố cục, không giữ lại chồng \"logo - tên kênh - đường kẻ - tiêu đề\" ở giữa. Các kiểu bố cục để chọn: (1) tiêu đề khổng lồ căn trái, ở góc dưới trái, logo nhỏ góc trên phải; (2) chia đôi màn hình, một nửa ảnh/khối màu, một nửa chữ; (3) dải màu chéo hoặc khung viền quanh tiêu đề như bìa tạp chí; (4) tiêu đề ở giữa rất lớn, các chữ phụ nhỏ ở bốn góc; (5) thẻ/khung giữa nền ảnh, chữ trong khung; (6) dòng chữ chạy từng từ (type) trên nền gần như trống; (7) logo lớn ở giữa, chữ xếp quanh theo vòng. Đổi cả nền (màu, kiểu, họa tiết), cỡ chữ và chuyển động. Sau khi lưu, đọc kết quả công cụ: nếu báo \"giống bản cũ\", làm lại với bố cục khác. Nói cho người dùng biết đã đổi những gì.\n- Nếu dùng lớp art (ảnh nền AI): đặt opacity 0.85-1, và KHÔNG đặt hình chữ nhật phủ kín khung hình ngay trên nó (chỉ dùng tối góc hoặc dải gradient nhẹ ở chỗ có chữ), nếu không ảnh sẽ chìm mất.\n- Phân cấp rõ: một thứ nổi bật nhất (thường là {title} ở mở đầu, {outro} ở kết), thứ hai nhỏ hơn (tên kênh), phần còn lại là điểm nhấn. Tương phản chữ/nền đủ cao.\n- Giá trị anim hợp lệ (chỉ các giá trị này): none, fade, slide-up, slide-down, slide-left, slide-right, pop, wipe, type, float, pulse, materialize, stamp, glitch, blur-in, drop, spin-in, crash-in.\n- Vốn từ để làm mở/kết có cá tính (đừng chỉ xếp chữ giữa màn hình): chữ — materialize (giãn rộng rồi tụ lại, hợp tên kênh/thương hiệu), stamp (dấu mộc, hợp kênh nghiêm túc, tài liệu), glitch (công nghệ), crash-in (MỘT chữ hero phóng từ rất lớn), drop (vui, thiếu nhi); hình — shape glow (quầng sáng mềm sau chữ), rays (tia toả từ tâm sau logo), grid (lưới kỹ thuật); lớp marquee (bảng đèn chạy chữ lớn, thường outline, opacity thấp, hai dòng ngược hướng làm nền). Mỗi thiết kế dùng 2-3 thứ trong số này, không dồn hết.\n- Chuyển động có nhịp: các lớp hiện lần lượt (delay tăng dần 0 → 1.5s), mỗi lớp một hiệu ứng hợp tính cách kênh (kênh nghiêm túc: fade, slide, wipe, type; kênh vui: pop, float, pulse). Không để mọi lớp dùng cùng một hiệu ứng.\n- Mở đầu dùng chỗ giữ {title} cho tên video và {channel} cho tên kênh. Kết dùng {outro} cho câu chào cuối và một lớp subscribe cho nút đăng ký. Chữ khác viết thẳng nội dung ngắn, đúng giọng kênh; không bịa tên riêng.\n- Chỉ dùng lớp logo khi kênh có logo, lớp avatar khi kênh có avatar (xem get_channel). Lớp art chỉ khi người dùng muốn ảnh nền AI: đặt nó là lớp đầu, thêm lớp tối/mờ để chữ vẫn đọc rõ, viết artPrompt (tiếng Anh, không chữ trong ảnh), rồi gọi generate_channel_art. Không dùng art thì để artPrompt là \"\".\n- Màu: lấy từ bảng màu của kênh (màu chính chủ đạo, màu nhấn cho điểm nhấn); kênh chưa có bảng màu thì cập nhật bảng màu bằng update_channel trước.\n- Khi sửa theo yêu cầu: đọc thiết kế hiện tại bằng get_channel (designs=true), SỬA nó, giữ nguyên những gì không được nhắc tới.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "design": {
+          "type": "object",
+          "properties": {
+            "background": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "solid",
+                    "linear",
+                    "radial"
+                  ]
+                },
+                "colors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Màu #RRGGBB"
+                  },
+                  "description": "1-3 màu; solid dùng màu đầu"
+                },
+                "angle": {
+                  "type": "number",
+                  "description": "Góc của linear, 0-360"
+                },
+                "texture": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "grid",
+                    "dots",
+                    "lines",
+                    "paper",
+                    "noise"
+                  ]
+                },
+                "vignette": {
+                  "type": "boolean",
+                  "description": "Tối dần ở góc"
+                }
+              },
+              "required": [
+                "mode",
+                "colors",
+                "angle",
+                "texture",
+                "vignette"
+              ]
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Nội dung. Chỗ giữ: {channel} tên kênh, {title} tên video (intro), {outro} câu chào cuối, {subscribe} chữ nút đăng ký. Tối đa 90 ký tự"
+                      },
+                      "size": {
+                        "type": "number",
+                        "description": "Cỡ chữ, 2-40 (% cạnh ngắn của khung hình; 8 là tiêu đề lớn, 3 là chữ nhỏ)"
+                      },
+                      "weight": {
+                        "type": "string",
+                        "enum": [
+                          "400",
+                          "600",
+                          "800"
+                        ]
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "font": {
+                        "type": "string",
+                        "enum": [
+                          "brand",
+                          "mono",
+                          "serif",
+                          "hand",
+                          "impact"
+                        ],
+                        "description": "brand = font của kênh; mono = máy chữ; serif = có chân; hand = viết tay; impact = dày, tiêu đề"
+                      },
+                      "upper": {
+                        "type": "boolean",
+                        "description": "In hoa"
+                      },
+                      "spacing": {
+                        "type": "number",
+                        "description": "Giãn chữ, 0-20 (% cỡ chữ)"
+                      },
+                      "align": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "center",
+                          "right"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "text",
+                      "size",
+                      "weight",
+                      "color",
+                      "font",
+                      "upper",
+                      "spacing",
+                      "align"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "shape"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "shape": {
+                        "type": "string",
+                        "enum": [
+                          "rect",
+                          "ellipse",
+                          "line",
+                          "ring",
+                          "glow",
+                          "rays",
+                          "grid"
+                        ],
+                        "description": "glow = quầng sáng mềm (fill là màu sáng, đặt phía sau chữ); rays = tia toả từ tâm; grid = lưới đường kẻ mảnh"
+                      },
+                      "fill": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1"
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "Bo góc hình chữ nhật, 0-50 (%)"
+                      },
+                      "rotate": {
+                        "type": "number",
+                        "description": "Xoay, -45 đến 45 độ"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "shape",
+                      "fill",
+                      "opacity",
+                      "radius",
+                      "rotate"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "marquee"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Cụm chữ lặp lại chạy ngang như bảng đèn chạy (tối đa 40 ký tự, thường in hoa)"
+                      },
+                      "size": {
+                        "type": "number",
+                        "description": "Cỡ chữ, 3-30 (% cạnh ngắn của khung hình); chữ lớn làm hoạ tiết nền"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "outline": {
+                        "type": "boolean",
+                        "description": "true = chữ rỗng chỉ có viền (hợp làm nền, không tranh với chữ chính)"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "right"
+                        ],
+                        "description": "Hướng chạy; dùng hai dòng ngược hướng để có nhịp"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1; hoạ tiết nền thường 0.15-0.5"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "text",
+                      "size",
+                      "color",
+                      "outline",
+                      "direction",
+                      "opacity"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "logo"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "circle": {
+                        "type": "boolean",
+                        "description": "Cắt tròn"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "circle"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "avatar"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "circle": {
+                        "type": "boolean"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "description": "Màu viền, \"\" nếu không viền"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "circle",
+                      "ring"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "art"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1; ảnh nền AI của kênh (chỉ hiện khi kênh đã tạo ảnh)"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "opacity"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "subscribe"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "fill": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "Bo góc, 0-50 (%); 50 là viên thuốc"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "fill",
+                      "color",
+                      "radius"
+                    ]
+                  }
+                ]
+              },
+              "description": "Từ dưới lên trên, 3-12 lớp"
+            },
+            "artPrompt": {
+              "type": "string",
+              "description": "Tiếng Anh, mô tả ảnh nền AI hợp với thiết kế này (không chữ trong ảnh); \"\" nếu thiết kế không cần ảnh nền"
+            },
+            "seconds": {
+              "type": "number",
+              "description": "Thời lượng cảnh, 3-7 giây"
+            }
+          },
+          "required": [
+            "background",
+            "layers",
+            "artPrompt",
+            "seconds"
+          ]
+        }
+      },
+      "required": [
+        "design"
+      ]
+    }
+  },
+  {
+    "name": "set_outro_design",
+    "risk": "write",
+    "description": "Lưu thiết kế cảnh kết RIÊNG của kênh (thay toàn bộ thiết kế kết hiện có). Truyền cả thiết kế đầy đủ. Cách thiết kế cảnh mở đầu / kết:\n- Mỗi kênh một bản sắc riêng, rút ra từ chủ đề, khán giả và giọng văn của kênh. Không thiết kế chung chung: kênh tin tức, tài chính, thiếu nhi, nấu ăn, kể chuyện cần cảm giác khác hẳn nhau (bảng màu, kiểu chữ, mật độ, chuyển động).\n- Một thiết kế gồm nền (đơn sắc, chuyển màu hoặc toả tròn, có thể có hoạ tiết và tối góc) và 3-12 lớp xếp từ dưới lên: chữ, hình khối trang trí, logo, avatar, ảnh nền AI, nút đăng ký.\n- Toạ độ là phần trăm khung hình, tâm của lớp. Giữ chữ cách mép ít nhất 8%. Chữ không được tràn khỏi khung rộng (w) của nó: chữ dài thì giảm cỡ hoặc tăng w. Mỗi lớp có hai vị trí: ngang 16:9 (land) và dọc 9:16 (port); bố cục dọc phải sắp xếp lại (xếp chồng, tăng w), không chỉ co nhỏ.\n- Khi người dùng yêu cầu làm lại / đổi thiết kế, kết quả phải KHÁC rõ rệt, không chỉ chỉnh vài con số: đổi kiểu bố cục, không giữ lại chồng \"logo - tên kênh - đường kẻ - tiêu đề\" ở giữa. Các kiểu bố cục để chọn: (1) tiêu đề khổng lồ căn trái, ở góc dưới trái, logo nhỏ góc trên phải; (2) chia đôi màn hình, một nửa ảnh/khối màu, một nửa chữ; (3) dải màu chéo hoặc khung viền quanh tiêu đề như bìa tạp chí; (4) tiêu đề ở giữa rất lớn, các chữ phụ nhỏ ở bốn góc; (5) thẻ/khung giữa nền ảnh, chữ trong khung; (6) dòng chữ chạy từng từ (type) trên nền gần như trống; (7) logo lớn ở giữa, chữ xếp quanh theo vòng. Đổi cả nền (màu, kiểu, họa tiết), cỡ chữ và chuyển động. Sau khi lưu, đọc kết quả công cụ: nếu báo \"giống bản cũ\", làm lại với bố cục khác. Nói cho người dùng biết đã đổi những gì.\n- Nếu dùng lớp art (ảnh nền AI): đặt opacity 0.85-1, và KHÔNG đặt hình chữ nhật phủ kín khung hình ngay trên nó (chỉ dùng tối góc hoặc dải gradient nhẹ ở chỗ có chữ), nếu không ảnh sẽ chìm mất.\n- Phân cấp rõ: một thứ nổi bật nhất (thường là {title} ở mở đầu, {outro} ở kết), thứ hai nhỏ hơn (tên kênh), phần còn lại là điểm nhấn. Tương phản chữ/nền đủ cao.\n- Giá trị anim hợp lệ (chỉ các giá trị này): none, fade, slide-up, slide-down, slide-left, slide-right, pop, wipe, type, float, pulse, materialize, stamp, glitch, blur-in, drop, spin-in, crash-in.\n- Vốn từ để làm mở/kết có cá tính (đừng chỉ xếp chữ giữa màn hình): chữ — materialize (giãn rộng rồi tụ lại, hợp tên kênh/thương hiệu), stamp (dấu mộc, hợp kênh nghiêm túc, tài liệu), glitch (công nghệ), crash-in (MỘT chữ hero phóng từ rất lớn), drop (vui, thiếu nhi); hình — shape glow (quầng sáng mềm sau chữ), rays (tia toả từ tâm sau logo), grid (lưới kỹ thuật); lớp marquee (bảng đèn chạy chữ lớn, thường outline, opacity thấp, hai dòng ngược hướng làm nền). Mỗi thiết kế dùng 2-3 thứ trong số này, không dồn hết.\n- Chuyển động có nhịp: các lớp hiện lần lượt (delay tăng dần 0 → 1.5s), mỗi lớp một hiệu ứng hợp tính cách kênh (kênh nghiêm túc: fade, slide, wipe, type; kênh vui: pop, float, pulse). Không để mọi lớp dùng cùng một hiệu ứng.\n- Mở đầu dùng chỗ giữ {title} cho tên video và {channel} cho tên kênh. Kết dùng {outro} cho câu chào cuối và một lớp subscribe cho nút đăng ký. Chữ khác viết thẳng nội dung ngắn, đúng giọng kênh; không bịa tên riêng.\n- Chỉ dùng lớp logo khi kênh có logo, lớp avatar khi kênh có avatar (xem get_channel). Lớp art chỉ khi người dùng muốn ảnh nền AI: đặt nó là lớp đầu, thêm lớp tối/mờ để chữ vẫn đọc rõ, viết artPrompt (tiếng Anh, không chữ trong ảnh), rồi gọi generate_channel_art. Không dùng art thì để artPrompt là \"\".\n- Màu: lấy từ bảng màu của kênh (màu chính chủ đạo, màu nhấn cho điểm nhấn); kênh chưa có bảng màu thì cập nhật bảng màu bằng update_channel trước.\n- Khi sửa theo yêu cầu: đọc thiết kế hiện tại bằng get_channel (designs=true), SỬA nó, giữ nguyên những gì không được nhắc tới.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "design": {
+          "type": "object",
+          "properties": {
+            "background": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "solid",
+                    "linear",
+                    "radial"
+                  ]
+                },
+                "colors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Màu #RRGGBB"
+                  },
+                  "description": "1-3 màu; solid dùng màu đầu"
+                },
+                "angle": {
+                  "type": "number",
+                  "description": "Góc của linear, 0-360"
+                },
+                "texture": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "grid",
+                    "dots",
+                    "lines",
+                    "paper",
+                    "noise"
+                  ]
+                },
+                "vignette": {
+                  "type": "boolean",
+                  "description": "Tối dần ở góc"
+                }
+              },
+              "required": [
+                "mode",
+                "colors",
+                "angle",
+                "texture",
+                "vignette"
+              ]
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Nội dung. Chỗ giữ: {channel} tên kênh, {title} tên video (intro), {outro} câu chào cuối, {subscribe} chữ nút đăng ký. Tối đa 90 ký tự"
+                      },
+                      "size": {
+                        "type": "number",
+                        "description": "Cỡ chữ, 2-40 (% cạnh ngắn của khung hình; 8 là tiêu đề lớn, 3 là chữ nhỏ)"
+                      },
+                      "weight": {
+                        "type": "string",
+                        "enum": [
+                          "400",
+                          "600",
+                          "800"
+                        ]
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "font": {
+                        "type": "string",
+                        "enum": [
+                          "brand",
+                          "mono",
+                          "serif",
+                          "hand",
+                          "impact"
+                        ],
+                        "description": "brand = font của kênh; mono = máy chữ; serif = có chân; hand = viết tay; impact = dày, tiêu đề"
+                      },
+                      "upper": {
+                        "type": "boolean",
+                        "description": "In hoa"
+                      },
+                      "spacing": {
+                        "type": "number",
+                        "description": "Giãn chữ, 0-20 (% cỡ chữ)"
+                      },
+                      "align": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "center",
+                          "right"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "text",
+                      "size",
+                      "weight",
+                      "color",
+                      "font",
+                      "upper",
+                      "spacing",
+                      "align"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "shape"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "shape": {
+                        "type": "string",
+                        "enum": [
+                          "rect",
+                          "ellipse",
+                          "line",
+                          "ring",
+                          "glow",
+                          "rays",
+                          "grid"
+                        ],
+                        "description": "glow = quầng sáng mềm (fill là màu sáng, đặt phía sau chữ); rays = tia toả từ tâm; grid = lưới đường kẻ mảnh"
+                      },
+                      "fill": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1"
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "Bo góc hình chữ nhật, 0-50 (%)"
+                      },
+                      "rotate": {
+                        "type": "number",
+                        "description": "Xoay, -45 đến 45 độ"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "shape",
+                      "fill",
+                      "opacity",
+                      "radius",
+                      "rotate"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "marquee"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Cụm chữ lặp lại chạy ngang như bảng đèn chạy (tối đa 40 ký tự, thường in hoa)"
+                      },
+                      "size": {
+                        "type": "number",
+                        "description": "Cỡ chữ, 3-30 (% cạnh ngắn của khung hình); chữ lớn làm hoạ tiết nền"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "outline": {
+                        "type": "boolean",
+                        "description": "true = chữ rỗng chỉ có viền (hợp làm nền, không tranh với chữ chính)"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "right"
+                        ],
+                        "description": "Hướng chạy; dùng hai dòng ngược hướng để có nhịp"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1; hoạ tiết nền thường 0.15-0.5"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "text",
+                      "size",
+                      "color",
+                      "outline",
+                      "direction",
+                      "opacity"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "logo"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "circle": {
+                        "type": "boolean",
+                        "description": "Cắt tròn"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "circle"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "avatar"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "circle": {
+                        "type": "boolean"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "description": "Màu viền, \"\" nếu không viền"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "circle",
+                      "ring"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "art"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "0-1; ảnh nền AI của kênh (chỉ hiện khi kênh đã tạo ảnh)"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "opacity"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "subscribe"
+                      },
+                      "anim": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "fade",
+                          "slide-up",
+                          "slide-down",
+                          "slide-left",
+                          "slide-right",
+                          "pop",
+                          "wipe",
+                          "type",
+                          "float",
+                          "pulse",
+                          "materialize",
+                          "stamp",
+                          "glitch",
+                          "blur-in",
+                          "drop",
+                          "spin-in",
+                          "crash-in"
+                        ],
+                        "description": "Hiệu ứng xuất hiện (type và materialize chỉ dành cho chữ; float/pulse chạy liên tục sau khi hiện; materialize = chữ giãn rộng tụ lại và nét dần; stamp = dập xuống như con dấu; glitch = giật nhiễu rồi ổn định; blur-in = mờ rồi nét; drop = rơi và nảy; spin-in = xoay vào; crash-in = từ rất lớn thu về, dùng cho MỘT chữ hero)"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Trễ trước khi hiện, 0-3 giây; lớp sau nên trễ hơn lớp trước để xuất hiện lần lượt"
+                      },
+                      "land": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video ngang 16:9"
+                      },
+                      "port": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Tâm ngang, 0-100 (% chiều rộng khung hình)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Tâm dọc, 0-100 (% chiều cao khung hình)"
+                          },
+                          "w": {
+                            "type": "number",
+                            "description": "Rộng, 1-100 (% chiều rộng)"
+                          },
+                          "h": {
+                            "type": "number",
+                            "description": "Cao, 1-100 (% chiều cao)"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "w",
+                          "h"
+                        ],
+                        "description": "Vị trí khi video dọc 9:16 (bố trí lại, không chỉ co nhỏ)"
+                      },
+                      "fill": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Màu #RRGGBB"
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "Bo góc, 0-50 (%); 50 là viên thuốc"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "anim",
+                      "delay",
+                      "land",
+                      "port",
+                      "fill",
+                      "color",
+                      "radius"
+                    ]
+                  }
+                ]
+              },
+              "description": "Từ dưới lên trên, 3-12 lớp"
+            },
+            "artPrompt": {
+              "type": "string",
+              "description": "Tiếng Anh, mô tả ảnh nền AI hợp với thiết kế này (không chữ trong ảnh); \"\" nếu thiết kế không cần ảnh nền"
+            },
+            "seconds": {
+              "type": "number",
+              "description": "Thời lượng cảnh, 3-7 giây"
+            }
+          },
+          "required": [
+            "background",
+            "layers",
+            "artPrompt",
+            "seconds"
+          ]
+        }
+      },
+      "required": [
+        "design"
+      ]
+    }
+  },
+  {
+    "name": "generate_channel_art",
+    "risk": "paid",
+    "description": "Tạo ảnh nền AI cho cảnh mở đầu hoặc kết của kênh (tốn tiền ảnh, chạy nền ~20 giây). prompt bằng tiếng Anh, không chữ trong ảnh; để trống thì dùng artPrompt trong thiết kế.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "intro",
+            "outro"
+          ]
+        },
+        "prompt": {
+          "default": "",
+          "type": "string",
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    }
+  },
+  {
+    "name": "draw_logo",
+    "risk": "paid",
+    "description": "Vẽ một bản nháp logo bằng AI cho dự án (tốn tiền 1 ảnh, chạy nền ~20 giây). prompt bằng tiếng Anh, tả hình biểu tượng, không chữ; để trống thì dùng ý tưởng logo đã có của dự án. Logo CHƯA đổi: người dùng xem bản nháp rồi tự bấm \"Dùng logo này\" ở Cài đặt dự án, mục Thương hiệu.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "default": "",
+          "type": "string",
+          "maxLength": 400
+        }
+      }
+    }
+  },
+  {
+    "name": "get_knowledge",
+    "risk": "read",
+    "description": "Đọc tri thức hiện tại của kênh (toàn văn, kèm số phiên bản).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "save_knowledge",
+    "risk": "write",
+    "description": "Lưu tri thức của kênh thành một phiên bản mới (truyền TOÀN BỘ văn bản Markdown). Video đã viết trước đó sẽ được gợi ý viết lại. Tri thức của kênh là kho kiến thức mà mọi video của kênh dựa vào. Viết cụ thể và dùng được ngay: sự kiện, số liệu, tên riêng, quy trình, thuật ngữ, quy tắc nội dung, sai lầm phổ biến, nguồn đáng tin (loại nguồn hoặc tên tổ chức, không bịa đường dẫn). Chỉ ghi điều bạn chắc chắn đúng; điều chưa chắc đặt vào mục \"Cần kiểm chứng\" hoặc ghi \"(cần kiểm chứng)\". Ưu tiên tư liệu người dùng cung cấp hơn kiến thức chung. Cấu trúc gợi ý: ## Về kênh và chủ đề, ## Khán giả, ## Kiến thức cốt lõi (nhóm theo chủ đề nhỏ), ## Thuật ngữ, ## Quy tắc nội dung, ## Sai lầm phổ biến, ## Nguồn đáng tin, ## Cần kiểm chứng. Khi cập nhật: lấy văn bản hiện tại từ get_knowledge, sửa, và lưu TOÀN BỘ văn bản mới.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "markdown": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60000
+        },
+        "note": {
+          "default": "",
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "list_blocks",
+    "risk": "read",
+    "description": "Danh sách các công cụ dựng và khối cảnh có thể dùng trong skill, kèm cách dùng và các thuộc tính của từng khối. Đọc trước khi soạn skill.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_skills",
+    "risk": "read",
+    "description": "Các skill kênh đang có (id, tên, mô tả, công cụ, nguồn). market=true để xem thêm các skill trong market có thể cài (kèm đã cài chưa).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "market": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_skill",
+    "risk": "read",
+    "description": "Đọc toàn văn SKILL.md của một skill thuộc kênh.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "skillId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "skillId"
+      ]
+    }
+  },
+  {
+    "name": "install_market_skill",
+    "risk": "write",
+    "description": "Cài một skill từ market về kênh (sao chép thành skill riêng của kênh, sau đó sửa tự do). Xem list_skills market=true để biết mã.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "marketId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "marketId"
+      ]
+    }
+  },
+  {
+    "name": "save_skill",
+    "risk": "write",
+    "description": "Tạo skill mới hoặc ghi đè skill của kênh bằng toàn bộ nội dung SKILL.md. File SKILL.md = phần khai báo YAML giữa hai dòng --- rồi nội dung Markdown. Khai báo: name, description, tools (mã công cụ/khối), scenes (\"min-max\"), và imageStyle nếu video có ảnh AI. Skill tốt rất cụ thể và có chiều sâu, không phải vài gạch đầu dòng. Soạn xong thì lưu bằng save_skill.\n\nTrước khi soạn: đọc get_channel và get_knowledge để bám đúng kênh; đọc list_blocks để biết khối thật và thuộc tính của chúng. Nếu người dùng nêu một phong cách có sẵn (Vox, whiteboard, tài liệu, hoạt hình...), hãy tự nêu ra các đặc điểm thật của phong cách đó (chất liệu, màu, bố cục, nhịp dựng, cách kể) thay vì viết chung chung.\n\nimageStyle (tiếng Anh, 80-160 từ, một đoạn) là phần quyết định ảnh AI trông thế nào, được nối vào mô tả chủ thể của MỌI cảnh. Phải có chiều sâu, không phẳng: nêu chất liệu/kỹ thuật; ba lớp tiền cảnh - chủ thể - hậu cảnh (mỗi lớp có gì); ánh sáng một hướng cụ thể và bóng đổ; góc nhìn (hơi nghiêng, không chính diện phẳng); bảng màu giới hạn kèm một màu nhấn; kết cấu bề mặt (hạt giấy, mực, sần); khung 16:9 với chủ thể gần giữa và chừa lề trống ở bốn góc cho nhãn chữ; kết bằng \"absolutely no text, no letters, no watermark\". Tránh các từ làm phẳng như \"flat\", \"minimalist\", \"simple\". Không tả chủ thể cụ thể của một video (chủ thể do từng cảnh điền).\n\nSkill phải dạy AI viết mạch chuyện cuốn hút (câu hỏi dẫn dắt, mồi nối giữa các cảnh, leo thang, bước ngoặt, chi tiết cụ thể, kết trả lời và mở hàm ý) và dạy đa dạng hình thức: nếu khối có thuộc tính bố cục/kiểu khung/chuyển động thì nêu rõ quy tắc xoay vòng (không lặp hai cảnh liền nhau, mỗi lựa chọn không quá 2 lần/video) kèm danh sách lựa chọn và khi nào dùng. imageStyle KHÔNG được ấn định vị trí chủ thể hay cỡ cảnh (để từng cảnh tự đổi bố cục).\n\nPhần nội dung nên gồm: Mục tiêu và cách kể của loại video; Cấu trúc (các phần theo thứ tự, tỉ lệ, mẫu mở/kết); Văn phong lời đọc; Độ chính xác (số liệu, nguồn, điều không chắc, dựa vào tri thức của kênh); Ngôn ngữ hình ảnh (quy tắc nhất quán, bố cục, nhịp xen kẽ các loại cảnh); Thư viện loại cảnh với mẫu mô tả ảnh cho từng loại (vật thể, bản đồ, người, tài liệu, biểu đồ, so sánh, quy trình, ẩn dụ...) kèm ví dụ tốt/chưa tốt; Cách dùng từng khối (từng thuộc tính điền thế nào); Ví dụ hoàn chỉnh 8-10 cảnh; Kiểm tra trước khi giao; Lỗi thường gặp. Mô tả chủ thể của từng cảnh chỉ nói cái gì có trong ảnh và bố cục, không lặp lại phong cách (đã có imageStyle). Chỉ khai báo và nhắc tới khối có thật bằng cú pháp @tool/khối. Cảnh mở/kết của kênh dùng thiết kế riêng của kênh (@remotion/title, @remotion/outro): nếu kênh chưa có thiết kế thì đề nghị thiết kế trước, vì nếu không chúng sẽ rơi về nền trơn không hợp phong cách.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "skillId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 48
+        },
+        "markdown": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 100000
+        },
+        "create": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "skillId",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "delete_skill",
+    "risk": "destructive",
+    "description": "Xoá một skill khỏi kênh (không xoá được skill đang được video/series dùng hoặc là mặc định).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "skillId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "skillId"
+      ]
+    }
+  },
+  {
+    "name": "list_series",
+    "risk": "read",
+    "description": "Các series của kênh với tiến độ (số tập theo trạng thái).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_series",
+    "risk": "read",
+    "description": "Xem một series: bible, mẫu đăng bài, khung một tập (các khe) và lộ trình các tập (số, chủ đề, trạng thái, id).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "seriesId"
+      ]
+    }
+  },
+  {
+    "name": "create_series",
+    "risk": "write",
+    "description": "Tạo một series mới của kênh cùng lộ trình các tập (mỗi tập chưa viết kịch bản). Khung một tập được dựng tự động từ skill đã chọn (skill phải thuộc kênh). Series là chương trình nhiều tập của kênh. Bible gồm: ý tưởng chương trình (1-2 câu), nhân vật dẫn kèm tính cách, 1-3 câu cửa miệng, các điều không bao giờ dùng, hướng dẫn viết (giọng điệu, xưng hô, nhịp kể, cách nối tiếp giữa các tập). Lộ trình sắp từ dễ đến khó, mỗi tập một chủ đề và một mục tiêu rõ ràng, không trùng nhau, đúng số tập người dùng muốn. Khung một tập được dựng tự động từ skill đã chọn; người dùng chỉnh sau trong phần Format của series.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "skillId": {
+          "type": "string"
+        },
+        "premise": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "host": {
+          "default": "",
+          "type": "string",
+          "maxLength": 200
+        },
+        "catchphrases": {
+          "default": [],
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "avoid": {
+          "default": [],
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "instructions": {
+          "default": "",
+          "type": "string",
+          "maxLength": 20000
+        },
+        "hashtags": {
+          "default": [],
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#\\S+$"
+          }
+        },
+        "titleTemplate": {
+          "default": "{series} | Tập {n}: {topic}",
+          "type": "string",
+          "maxLength": 120
+        },
+        "roadmap": {
+          "minItems": 1,
+          "maxItems": 60,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300
+              },
+              "goal": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "topic"
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "skillId",
+        "premise",
+        "roadmap"
+      ]
+    }
+  },
+  {
+    "name": "update_series",
+    "risk": "write",
+    "description": "Sửa series (chỉ truyền trường cần đổi): bible (premise, host, catchphrases, avoid, instructions), mẫu đăng bài (titleTemplate, hashtags, descriptionFooter) hoặc đổi tên. Mỗi lần sửa bible/đăng bài tạo phiên bản series mới; tập đã viết giữ phiên bản cũ.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "premise": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "host": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "catchphrases": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "avoid": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "instructions": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "titleTemplate": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "hashtags": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#\\S+$"
+          }
+        },
+        "descriptionFooter": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "seriesId"
+      ]
+    }
+  },
+  {
+    "name": "add_series_episodes",
+    "risk": "write",
+    "description": "Thêm các tập mới vào cuối lộ trình của series (chưa viết kịch bản). Dùng write_script để viết từng tập.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string"
+        },
+        "episodes": {
+          "minItems": 1,
+          "maxItems": 60,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300
+              },
+              "goal": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "topic"
+            ]
+          }
+        }
+      },
+      "required": [
+        "seriesId",
+        "episodes"
+      ]
+    }
+  },
+  {
+    "name": "list_characters",
+    "risk": "read",
+    "description": "Mọi nhân vật và đạo cụ của một series: tên, mô tả, có phải nhân vật chính, đạo cụ của ai, ảnh nào đã vẽ và còn thiếu. Gọi trước khi sửa hoặc vẽ.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string",
+          "description": "Id series (list_series)"
+        }
+      },
+      "required": [
+        "seriesId"
+      ]
+    }
+  },
+  {
+    "name": "save_character",
+    "risk": "write",
+    "description": "Tạo nhân vật hoặc đạo cụ mới, hoặc sửa tên, mô tả, đánh dấu \"Chính\", loại, và chủ của đạo cụ (owner = id nhân vật; null = đạo cụ chung). Chỉ truyền trường cần đổi. Mô tả dùng để vẽ ảnh nên tả ngoại hình cụ thể (tuổi, tóc, trang phục, màu). Mỗi lần lưu là một bản series mới; tập đã viết giữ bản cũ.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string",
+          "description": "Id series (list_series)"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+          "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "main": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "character",
+            "prop"
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+              "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "seriesId",
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "save_character_action",
+    "risk": "write",
+    "description": "Thêm, sửa hoặc xoá một hành động riêng của nhân vật chính đầu tiên (các nhân vật khác chưa có hành động riêng). description tả tư thế để vẽ (tiếng Anh vẽ chuẩn hơn); bỏ trống = xoá.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string",
+          "description": "Id series (list_series)"
+        },
+        "characterId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+          "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+        },
+        "actionId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+          "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+        },
+        "description": {
+          "default": "",
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "seriesId",
+        "characterId",
+        "actionId"
+      ]
+    }
+  },
+  {
+    "name": "remove_character",
+    "risk": "destructive",
+    "description": "Xoá một nhân vật hoặc đạo cụ khỏi series (phụ kiện của nhân vật đó thành đạo cụ chung). Tập đã viết giữ bản series cũ nên vẫn dựng được.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string",
+          "description": "Id series (list_series)"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+          "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+        }
+      },
+      "required": [
+        "seriesId",
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "draw_character_pictures",
+    "risk": "paid",
+    "description": "Vẽ ảnh còn thiếu của một nhân vật hoặc đạo cụ (TỐN TIỀN: một ảnh mỗi ô; chạy nền, tự lưu vào series). keys lấy từ \"chuaVe\" của list_characters (\"neutral\" là ảnh chính). Chỉ vẽ đúng những gì người dùng cần; bỏ keys = vẽ mọi ô còn thiếu.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string",
+          "description": "Id series (list_series)"
+        },
+        "characterId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,23}$",
+          "description": "Id nhân vật hoặc đạo cụ: chữ thường không dấu, số, gạch ngang, ví dụ \"ly-tinh\""
+        },
+        "keys": {
+          "minItems": 1,
+          "maxItems": 40,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      },
+      "required": [
+        "seriesId",
+        "characterId"
+      ]
+    }
+  },
+  {
+    "name": "list_episodes",
+    "risk": "read",
+    "description": "Các video của kênh (có thể lọc theo series hoặc trạng thái): id, tên, trạng thái, tiến độ duyệt cảnh.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "planned",
+            "draft",
+            "script_review",
+            "producing",
+            "video_review",
+            "published"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "get_episode",
+    "risk": "read",
+    "description": "Xem chi tiết một video: kịch bản từng cảnh (id, khối, lời đọc, thuộc tính), ảnh/giọng/duyệt của từng cảnh, việc đang chạy, lỗi kiểm tra tự động.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "create_episode",
+    "risk": "write",
+    "description": "Tạo một video mới (chưa viết kịch bản). skillId là skill của kênh (bỏ trống thì dùng skill mặc định của kênh); seriesId nếu là một tập của series (dùng skill của series). Sau đó gọi write_script để AI viết kịch bản.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+        },
+        "goal": {
+          "default": "",
+          "type": "string",
+          "maxLength": 300
+        },
+        "notes": {
+          "default": "",
+          "type": "string",
+          "maxLength": 1000
+        },
+        "skillId": {
+          "type": "string"
+        },
+        "seriesId": {
+          "type": "string"
+        },
+        "formats": {
+          "default": [
+            "landscape"
+          ],
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "landscape",
+              "portrait"
+            ]
+          }
+        },
+        "voice": {
+          "type": "string",
+          "enum": [
+            "vi-VN-HoaiMyNeural",
+            "vi-VN-NamMinhNeural",
+            "gemini-Kore",
+            "gemini-Zephyr",
+            "gemini-Leda",
+            "gemini-Aoede",
+            "gemini-Charon",
+            "gemini-Orus",
+            "gemini-Puck",
+            "gemini-Fenrir"
+          ]
+        },
+        "sceneCount": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 20
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "topic"
+      ]
+    }
+  },
+  {
+    "name": "write_script",
+    "risk": "paid",
+    "description": "Giao cho AI viết (hoặc viết lại) kịch bản của một video theo skill, tri thức và giọng văn của kênh (ba bước: dựng mạch chuyện, viết cảnh theo mạch, làm mượt lời đọc; tốn ba lượt gọi AI, chạy nền 30-90 giây). Viết lại cả kịch bản thay các cảnh bằng cảnh mới nên ẢNH, GIỌNG và TRẠNG THÁI DUYỆT của cảnh cũ mất (chỉ cảnh giống hệt được giữ). Nếu video đã có ảnh/giọng/cảnh đã duyệt, chỉ gọi khi người dùng xác nhận rõ muốn làm lại từ đầu (discardWork=true); thay đổi một phần thì dùng revise_script hoặc edit_scene.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "discardWork": {
+          "default": false,
+          "description": "true khi người dùng đã xác nhận bỏ ảnh/giọng/duyệt đang có để viết lại từ đầu",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "revise_script",
+    "risk": "paid",
+    "description": "Nhờ AI sửa kịch bản hiện có theo một yêu cầu (VD \"ngắn gọn hơn\", \"thêm 2 cảnh về con mèo\"). Dùng khi yêu cầu ảnh hưởng nhiều cảnh; sửa một cảnh cụ thể thì dùng edit_scene. Tốn lượt gọi AI, chạy nền.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "feedback": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 600
+        }
+      },
+      "required": [
+        "episodeId",
+        "feedback"
+      ]
+    }
+  },
+  {
+    "name": "edit_scene",
+    "risk": "write",
+    "description": "Sửa MỘT cảnh của video: lời đọc (narration), các thuộc tính của khối (props, chỉ truyền thuộc tính cần đổi; xem get_episode và list_blocks), chỉnh tay (tune: bố trí, người và vật thêm, giờ xuất hiện từng lớp, chữ, giọng điệu, tiếng động; chỉ truyền mục cần đổi) và/hoặc ĐỔI LOẠI CẢNH sang khối khác mà skill cho phép (block, ví dụ từ remotion/picture sang remotion/counter; khi đổi loại hãy điền đủ props của khối mới, thuộc tính bỏ trống lấy mặc định của khối mới). Sửa xong cảnh mất trạng thái duyệt, ảnh/giọng cũ thành lỗi thời nếu mô tả ảnh hoặc lời đọc đổi. Không sửa được cảnh khoá của series.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "narration": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "props": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "tune": {
+          "type": "object",
+          "properties": {
+            "hero": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "moves": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "at": {
+                                "type": "number",
+                                "description": "Giây bắt đầu bước, tính từ lúc hình hiện"
+                              },
+                              "over": {
+                                "type": "number",
+                                "description": "Di chuyển, đổi cỡ mất bao nhiêu giây"
+                              },
+                              "emotion": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "neutral",
+                                      "happy",
+                                      "angry",
+                                      "sad",
+                                      "surprised"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi biểu cảm từ bước này; null = giữ"
+                              },
+                              "action": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "idle",
+                                      "talk",
+                                      "wave",
+                                      "point"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi hành động từ bước này; null = giữ"
+                              },
+                              "x": {
+                                "description": "Đi tới: lệch ngang so với chỗ đứng gốc, phần chiều rộng khung, phải là dương; null = đứng nguyên",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "y": {
+                                "description": "Đi tới: lệch cao so với chỗ đứng gốc, phần chiều cao khung, lên là dương; null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "scale": {
+                                "description": "Cỡ khi tới (1 = chuẩn, lớn hơn = to ra); null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "spin": {
+                                "description": "Xoay tít khi bay (vật phẩm)",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "arc": {
+                                "description": "Độ cong đường đi -0.6..0.6; null = thẳng",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "then": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "bounce",
+                                      "jump",
+                                      "sway",
+                                      "shake",
+                                      "nod",
+                                      "pulse",
+                                      "float",
+                                      "spin",
+                                      "pace"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Cử động giữ ở đó đến bước sau, ví dụ pulse, shake"
+                              },
+                              "effect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkle",
+                                      "flash",
+                                      "impact"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Khi tới: sparkle lấp lánh, flash loé sáng, impact va đập"
+                              }
+                            },
+                            "required": [
+                              "at"
+                            ]
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "DIỄN BIẾN của hình này trong cảnh (null = giữ như cũ, [] = bỏ hết), tối đa 8 bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0"
+                    },
+                    "anim": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bounce",
+                                "jump",
+                                "sway",
+                                "shake",
+                                "nod",
+                                "pulse",
+                                "float",
+                                "spin",
+                                "pace",
+                                "none"
+                              ],
+                              "description": "none = bỏ hoạt ảnh; bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại"
+                            },
+                            "speed": {
+                              "description": "Nhịp 0.3..3, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "power": {
+                              "description": "Độ mạnh 0.3..2, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "start": {
+                              "description": "Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "lasts": {
+                              "description": "Cử động trong bao nhiêu giây; null = đến khi hình biến mất",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Hoạt ảnh lặp lại làm hình cử động; null = giữ như cũ, type none = bỏ"
+                    },
+                    "dx": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều rộng khung, phải là dương"
+                    },
+                    "dy": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều cao khung, xuống là dương"
+                    },
+                    "scale": {
+                      "type": "number",
+                      "description": "0.3..2.2, 1 là cỡ chuẩn"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Dời, đổi cỡ vai chính"
+            },
+            "companion": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "moves": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "at": {
+                                "type": "number",
+                                "description": "Giây bắt đầu bước, tính từ lúc hình hiện"
+                              },
+                              "over": {
+                                "type": "number",
+                                "description": "Di chuyển, đổi cỡ mất bao nhiêu giây"
+                              },
+                              "emotion": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "neutral",
+                                      "happy",
+                                      "angry",
+                                      "sad",
+                                      "surprised"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi biểu cảm từ bước này; null = giữ"
+                              },
+                              "action": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "idle",
+                                      "talk",
+                                      "wave",
+                                      "point"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi hành động từ bước này; null = giữ"
+                              },
+                              "x": {
+                                "description": "Đi tới: lệch ngang so với chỗ đứng gốc, phần chiều rộng khung, phải là dương; null = đứng nguyên",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "y": {
+                                "description": "Đi tới: lệch cao so với chỗ đứng gốc, phần chiều cao khung, lên là dương; null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "scale": {
+                                "description": "Cỡ khi tới (1 = chuẩn, lớn hơn = to ra); null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "spin": {
+                                "description": "Xoay tít khi bay (vật phẩm)",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "arc": {
+                                "description": "Độ cong đường đi -0.6..0.6; null = thẳng",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "then": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "bounce",
+                                      "jump",
+                                      "sway",
+                                      "shake",
+                                      "nod",
+                                      "pulse",
+                                      "float",
+                                      "spin",
+                                      "pace"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Cử động giữ ở đó đến bước sau, ví dụ pulse, shake"
+                              },
+                              "effect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkle",
+                                      "flash",
+                                      "impact"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Khi tới: sparkle lấp lánh, flash loé sáng, impact va đập"
+                              }
+                            },
+                            "required": [
+                              "at"
+                            ]
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "DIỄN BIẾN của hình này trong cảnh (null = giữ như cũ, [] = bỏ hết), tối đa 8 bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0"
+                    },
+                    "anim": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bounce",
+                                "jump",
+                                "sway",
+                                "shake",
+                                "nod",
+                                "pulse",
+                                "float",
+                                "spin",
+                                "pace",
+                                "none"
+                              ],
+                              "description": "none = bỏ hoạt ảnh; bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại"
+                            },
+                            "speed": {
+                              "description": "Nhịp 0.3..3, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "power": {
+                              "description": "Độ mạnh 0.3..2, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "start": {
+                              "description": "Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "lasts": {
+                              "description": "Cử động trong bao nhiêu giây; null = đến khi hình biến mất",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Hoạt ảnh lặp lại làm hình cử động; null = giữ như cũ, type none = bỏ"
+                    },
+                    "dx": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều rộng khung, phải là dương"
+                    },
+                    "dy": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều cao khung, xuống là dương"
+                    },
+                    "scale": {
+                      "type": "number",
+                      "description": "0.3..2.2, 1 là cỡ chuẩn"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Dời, đổi cỡ nhân vật phụ (ô companion)"
+            },
+            "item": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "moves": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "at": {
+                                "type": "number",
+                                "description": "Giây bắt đầu bước, tính từ lúc hình hiện"
+                              },
+                              "over": {
+                                "type": "number",
+                                "description": "Di chuyển, đổi cỡ mất bao nhiêu giây"
+                              },
+                              "emotion": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "neutral",
+                                      "happy",
+                                      "angry",
+                                      "sad",
+                                      "surprised"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi biểu cảm từ bước này; null = giữ"
+                              },
+                              "action": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "idle",
+                                      "talk",
+                                      "wave",
+                                      "point"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Người: đổi hành động từ bước này; null = giữ"
+                              },
+                              "x": {
+                                "description": "Đi tới: lệch ngang so với chỗ đứng gốc, phần chiều rộng khung, phải là dương; null = đứng nguyên",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "y": {
+                                "description": "Đi tới: lệch cao so với chỗ đứng gốc, phần chiều cao khung, lên là dương; null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "scale": {
+                                "description": "Cỡ khi tới (1 = chuẩn, lớn hơn = to ra); null = giữ",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "spin": {
+                                "description": "Xoay tít khi bay (vật phẩm)",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "arc": {
+                                "description": "Độ cong đường đi -0.6..0.6; null = thẳng",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "then": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "bounce",
+                                      "jump",
+                                      "sway",
+                                      "shake",
+                                      "nod",
+                                      "pulse",
+                                      "float",
+                                      "spin",
+                                      "pace"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Cử động giữ ở đó đến bước sau, ví dụ pulse, shake"
+                              },
+                              "effect": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "sparkle",
+                                      "flash",
+                                      "impact"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Khi tới: sparkle lấp lánh, flash loé sáng, impact va đập"
+                              }
+                            },
+                            "required": [
+                              "at"
+                            ]
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "DIỄN BIẾN của hình này trong cảnh (null = giữ như cũ, [] = bỏ hết), tối đa 8 bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0"
+                    },
+                    "anim": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bounce",
+                                "jump",
+                                "sway",
+                                "shake",
+                                "nod",
+                                "pulse",
+                                "float",
+                                "spin",
+                                "pace",
+                                "none"
+                              ],
+                              "description": "none = bỏ hoạt ảnh; bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại"
+                            },
+                            "speed": {
+                              "description": "Nhịp 0.3..3, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "power": {
+                              "description": "Độ mạnh 0.3..2, 1 là vừa",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "start": {
+                              "description": "Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "lasts": {
+                              "description": "Cử động trong bao nhiêu giây; null = đến khi hình biến mất",
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Hoạt ảnh lặp lại làm hình cử động; null = giữ như cũ, type none = bỏ"
+                    },
+                    "dx": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều rộng khung, phải là dương"
+                    },
+                    "dy": {
+                      "type": "number",
+                      "description": "-0.8..0.8, phần chiều cao khung, xuống là dương"
+                    },
+                    "scale": {
+                      "type": "number",
+                      "description": "0.3..2.2, 1 là cỡ chuẩn"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Dời, đổi cỡ vật phẩm (ô item)"
+            },
+            "extras": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Id người hoặc vật trong dàn đã có ảnh; hoặc sparkle, flash, impact = một hiệu ứng đặt tại điểm x, y (không cần ảnh)"
+                      },
+                      "x": {
+                        "description": "Vị trí ngang: 0 mép trái, 1 mép phải",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "y": {
+                        "description": "Độ cao so với mặt đất, phần chiều cao khung (0 = đứng trên đất; vật phẩm thường 0.3)",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "scale": {
+                        "description": "0.3..2.2, 1 là cỡ chuẩn",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "action": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "idle",
+                              "talk",
+                              "wave",
+                              "point"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Người: idle đứng nghe, talk đang nói, wave vẫy tay, point chỉ tay"
+                      },
+                      "emotion": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "neutral",
+                              "happy",
+                              "angry",
+                              "sad",
+                              "surprised"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Người: biểu cảm"
+                      },
+                      "flip": {
+                        "description": "Quay mặt ngược lại",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "front": {
+                        "description": "Đứng trước vai chính thay vì phía sau",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "enter": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "fade",
+                              "left",
+                              "right",
+                              "pop"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Cách xuất hiện: fade hiện dần, left/right đi vào từ bên đó, pop bật ra"
+                      },
+                      "motion": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "float",
+                              "still",
+                              "spin"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Vật phẩm: float lơ lửng, still đứng yên, spin xoay tròn"
+                      },
+                      "glow": {
+                        "description": "Vật phẩm: toả sáng",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "anim": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "bounce",
+                                  "jump",
+                                  "sway",
+                                  "shake",
+                                  "nod",
+                                  "pulse",
+                                  "float",
+                                  "spin",
+                                  "pace",
+                                  "none"
+                                ],
+                                "description": "none = bỏ hoạt ảnh; bounce nhún, jump nhảy lên, sway lắc lư, shake run rẩy, nod cúi gật, pulse phập phồng, float bay lơ lửng, spin xoay tròn, pace đi qua lại"
+                              },
+                              "speed": {
+                                "description": "Nhịp 0.3..3, 1 là vừa",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "power": {
+                                "description": "Độ mạnh 0.3..2, 1 là vừa",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "start": {
+                                "description": "Bắt đầu cử động sau khi hình hiện bao nhiêu giây; null = ngay",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "lasts": {
+                                "description": "Cử động trong bao nhiêu giây; null = đến khi hình biến mất",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Hoạt ảnh lặp lại làm hình cử động; null = giữ như cũ, type none = bỏ"
+                      },
+                      "moves": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "at": {
+                                  "type": "number",
+                                  "description": "Giây bắt đầu bước, tính từ lúc hình hiện"
+                                },
+                                "over": {
+                                  "type": "number",
+                                  "description": "Di chuyển, đổi cỡ mất bao nhiêu giây"
+                                },
+                                "emotion": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "neutral",
+                                        "happy",
+                                        "angry",
+                                        "sad",
+                                        "surprised"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Người: đổi biểu cảm từ bước này; null = giữ"
+                                },
+                                "action": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "idle",
+                                        "talk",
+                                        "wave",
+                                        "point"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Người: đổi hành động từ bước này; null = giữ"
+                                },
+                                "x": {
+                                  "description": "Đi tới: lệch ngang so với chỗ đứng gốc, phần chiều rộng khung, phải là dương; null = đứng nguyên",
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "y": {
+                                  "description": "Đi tới: lệch cao so với chỗ đứng gốc, phần chiều cao khung, lên là dương; null = giữ",
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "scale": {
+                                  "description": "Cỡ khi tới (1 = chuẩn, lớn hơn = to ra); null = giữ",
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "spin": {
+                                  "description": "Xoay tít khi bay (vật phẩm)",
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "arc": {
+                                  "description": "Độ cong đường đi -0.6..0.6; null = thẳng",
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "then": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "bounce",
+                                        "jump",
+                                        "sway",
+                                        "shake",
+                                        "nod",
+                                        "pulse",
+                                        "float",
+                                        "spin",
+                                        "pace"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Cử động giữ ở đó đến bước sau, ví dụ pulse, shake"
+                                },
+                                "effect": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "sparkle",
+                                        "flash",
+                                        "impact"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Khi tới: sparkle lấp lánh, flash loé sáng, impact va đập"
+                                }
+                              },
+                              "required": [
+                                "at"
+                              ]
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "DIỄN BIẾN của hình này trong cảnh (null = giữ như cũ, [] = bỏ hết), tối đa 8 bước theo thời gian (đổi biểu cảm, hành động, di chuyển). Ví dụ vòng bay ra giữa to dần rồi nhấp nháy, lao vào đối thủ, bay về = 3 bước. x, y là ĐỘ LỆCH so với chỗ đứng gốc. Chỗ đứng gốc (ngang 0..1): vai chính left .27, center .5, right .73; nhân vật phụ ở phía đối diện; vật phẩm cạnh vai chính (±.17, cao hơn); người, vật thêm ở đúng x của nó. Về chỗ cũ là x 0, y 0"
+                      },
+                      "time": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "number",
+                                "description": "Giây xuất hiện, tính từ đầu cảnh"
+                              },
+                              "to": {
+                                "description": "Giây biến mất; null = đến hết cảnh",
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "from"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Người, vật THÊM vào khung ngoài ba ô trên (tối đa 8, cảnh nhân vật diễn hoặc cảnh tranh). Ở cảnh tranh đây là lớp phủ lên tranh, nhân vật vẽ sẵn không cử động được nên đừng thêm người đã có trong tranh. Khi đổi thì đưa đủ những ai có mặt (thiếu = bỏ khỏi khung); mục không nói tới của người đã có được giữ"
+            },
+            "holdSec": {
+              "description": "Nghỉ cuối cảnh, 0..5 giây",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "captionTime": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "description": "Giây xuất hiện, tính từ đầu cảnh"
+                    },
+                    "to": {
+                      "description": "Giây biến mất; null = đến hết cảnh",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lúc chữ hiện"
+            },
+            "heroTime": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "description": "Giây xuất hiện, tính từ đầu cảnh"
+                    },
+                    "to": {
+                      "description": "Giây biến mất; null = đến hết cảnh",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lúc vai chính có mặt"
+            },
+            "companionTime": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "description": "Giây xuất hiện, tính từ đầu cảnh"
+                    },
+                    "to": {
+                      "description": "Giây biến mất; null = đến hết cảnh",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lúc nhân vật phụ có mặt"
+            },
+            "itemTime": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "description": "Giây xuất hiện, tính từ đầu cảnh"
+                    },
+                    "to": {
+                      "description": "Giây biến mất; null = đến hết cảnh",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lúc vật phẩm có mặt"
+            },
+            "effectTime": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "description": "Giây xuất hiện, tính từ đầu cảnh"
+                    },
+                    "to": {
+                      "description": "Giây biến mất; null = đến hết cảnh",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lúc hiệu ứng hình, thời tiết chạy"
+            },
+            "voiceDelay": {
+              "description": "Giọng đọc bắt đầu trễ thêm, 0..10 giây",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "sfxVolume": {
+              "description": "Tiếng động của cảnh: 0 tắt, 1 chuẩn, tối đa 2",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "captionLook": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "bar",
+                    "pill",
+                    "chip",
+                    "ribbon"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Kiểu chữ (cảnh tranh): bar dải mờ, pill viên trắng, chip thẻ màu, ribbon ruy băng"
+            },
+            "captionPlace": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "bottom",
+                    "off"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Chữ ở trên, dưới, hoặc off = ẩn"
+            },
+            "voiceStyle": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "cheerful",
+                    "gentle",
+                    "dramatic",
+                    "whisper"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Giọng điệu: cheerful vui, gentle nhẹ nhàng, dramatic kịch tính, whisper thì thầm"
+            },
+            "voiceSpeed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "slow",
+                    "fast"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tốc độ đọc"
+            },
+            "reset": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "hero",
+                      "companion",
+                      "item",
+                      "extras",
+                      "holdSec",
+                      "captionTime",
+                      "heroTime",
+                      "companionTime",
+                      "itemTime",
+                      "effectTime",
+                      "voiceDelay",
+                      "sfxVolume",
+                      "captionLook",
+                      "captionPlace",
+                      "voiceStyle",
+                      "voiceSpeed"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tên các chỉnh tay cần trả về tự động"
+            }
+          }
+        },
+        "block": {
+          "description": "Mã khối để đổi loại cảnh, ví dụ \"remotion/counter\"",
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "ai_fix_scene",
+    "risk": "write",
+    "description": "Nhờ AI chuyên sửa cảnh viết lại MỘT cảnh rồi lưu: để trống request thì viết lại mô tả ảnh, nhân vật, cảm xúc, động tác cho khớp lời đọc; có request thì sửa đúng điều đó (lời đọc, ai đứng đâu, to nhỏ, không khí...). Ưu tiên công cụ này khi người dùng chê hình không khớp lời hoặc muốn ghép lại nhân vật. Sau đó cần tạo lại ảnh/giọng đã lỗi thời (generate_scene_assets, tốn tiền, hỏi trước).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "request": {
+          "default": "",
+          "type": "string",
+          "maxLength": 600
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "add_scene",
+    "risk": "write",
+    "description": "Thêm một cảnh vào video. block là khối được khe cho phép (xem get_episode/list_blocks), props là các thuộc tính của khối (thuộc tính bỏ trống lấy mặc định). Thêm sau cảnh afterSceneId, hoặc cuối khe slotId.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "block": {
+          "type": "string"
+        },
+        "narration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "props": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "afterSceneId": {
+          "type": "string"
+        },
+        "slotId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "block",
+        "narration"
+      ]
+    }
+  },
+  {
+    "name": "remove_scene",
+    "risk": "destructive",
+    "description": "Xoá một cảnh khỏi video (không xoá được cảnh khoá của series).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "set_episode_options",
+    "risk": "write",
+    "description": "Đổi thiết lập của video: tên/chủ đề/mục tiêu (trước khi duyệt), giọng đọc, khung hình xuất ra, nhạc nền, tự tạo ảnh/giọng khi AI viết xong (autoImages/autoVoice). Đổi skill của video lẻ thì truyền skillId (xoá kịch bản và viết lại).",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300
+        },
+        "goal": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "voice": {
+          "type": "string",
+          "enum": [
+            "vi-VN-HoaiMyNeural",
+            "vi-VN-NamMinhNeural",
+            "gemini-Kore",
+            "gemini-Zephyr",
+            "gemini-Leda",
+            "gemini-Aoede",
+            "gemini-Charon",
+            "gemini-Orus",
+            "gemini-Puck",
+            "gemini-Fenrir"
+          ]
+        },
+        "formats": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "landscape",
+              "portrait"
+            ]
+          }
+        },
+        "music": {
+          "type": "boolean"
+        },
+        "musicVolume": {
+          "description": "Âm lượng nhạc nền, mặc định 0.12",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.6
+        },
+        "autoImages": {
+          "type": "boolean"
+        },
+        "autoVoice": {
+          "type": "boolean"
+        },
+        "skillId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "estimate_cost",
+    "risk": "read",
+    "description": "Ước tính chi phí để tạo phần ảnh và giọng còn thiếu của video (không gọi AI, không tốn tiền): số ảnh, số giây giọng, USD, VND. Dùng để báo giá cho người dùng TRƯỚC khi xin đồng ý tạo.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "generate_scene_assets",
+    "risk": "paid",
+    "description": "Tạo ảnh AI và/hoặc giọng đọc cho các cảnh (sceneIds; bỏ trống = mọi cảnh). Chỉ tạo phần còn thiếu hoặc lỗi thời. LUÔN gọi MỘT lần cho cả video (không gọi từng cảnh) và báo chi phí ước tính (estimate_cost) trước. Tốn tiền ảnh/giọng, chạy nền. Cảnh được tạo lại sẽ mất trạng thái duyệt.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneIds": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "image": {
+          "default": true,
+          "type": "boolean"
+        },
+        "voice": {
+          "default": true,
+          "type": "boolean"
+        },
+        "force": {
+          "default": false,
+          "description": "true = làm lại cả khi ảnh/giọng hiện tại vẫn khớp cảnh (khi người dùng bảo tạo lại, đổi ảnh khác)",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "approve_scenes",
+    "risk": "write",
+    "description": "Duyệt (approved=true) hoặc bỏ duyệt các cảnh (sceneIds; bỏ trống = mọi cảnh). Chỉ duyệt được cảnh đã có ảnh và giọng khớp nội dung hiện tại. Khi mọi cảnh đã duyệt mới sản xuất được.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneIds": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approved": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "produce_video",
+    "risk": "paid",
+    "description": "Sản xuất video: ghép các cảnh đã duyệt (ảnh, giọng, nhạc) thành video hoàn chỉnh. Chỉ chạy khi MỌI cảnh đã duyệt. Chạy nền vài phút.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "delete_episode",
+    "risk": "destructive",
+    "description": "Xoá hẳn một video cùng ảnh, giọng và bản dựng của nó.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId"
+      ]
+    }
+  },
+  {
+    "name": "move_scene",
+    "risk": "write",
+    "description": "Chuyển một cảnh đến ngay sau cảnh afterSceneId (cùng phần của khung video). Bỏ trống afterSceneId để đưa lên đầu phần đó. Ảnh, giọng và duyệt được giữ.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "afterSceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "duplicate_scene",
+    "risk": "write",
+    "description": "Nhân đôi một cảnh (lời đọc, thuộc tính, chỉnh tay), đặt ngay sau nó. Bản sao cần tạo lại ảnh/giọng nếu cảnh gốc có.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "list_scene_pictures",
+    "risk": "read",
+    "description": "Các ảnh đã từng vẽ cho một cảnh (mới nhất trước), kèm ảnh nào đang dùng. Bạn không nhìn thấy nội dung ảnh.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId"
+      ]
+    }
+  },
+  {
+    "name": "use_scene_picture",
+    "risk": "write",
+    "description": "Dùng lại một ảnh đã vẽ trước đó cho cảnh (name lấy từ list_scene_pictures). Không tốn tiền.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "episodeId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episodeId",
+        "sceneId",
+        "name"
+      ]
+    }
+  }
+]

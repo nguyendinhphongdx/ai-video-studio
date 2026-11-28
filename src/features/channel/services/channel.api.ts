@@ -1,5 +1,6 @@
 import { api } from '@/lib/api/client';
 import type { Job } from '@/core/domain';
+import type { LogoDraft } from '@/server/modules/channel/channel.service';
 import type { ChannelView } from '@/server/modules/channel/channel.service';
 import type { ChannelInput } from '@/server/modules/channel/channel.types';
 
@@ -19,8 +20,11 @@ export const channelApi = {
   uploadLogo: (id: string, file: File) => upload(`/channels/${id}/logo`, file),
   uploadAvatar: (id: string, file: File) => upload(`/channels/${id}/avatar`, file),
   generateArt: (id: string, kind: 'intro' | 'outro', prompt: string) => api<Job>(`/channels/${id}/art/${kind}`, { body: { prompt } }),
+  logoDraft: (id: string) => api<LogoDraft>(`/channels/${id}/logo/draft`),
+  drawLogo: (id: string, prompt: string) => api<Job>(`/channels/${id}/logo/draft`, { body: { prompt } }),
+  useLogoDraft: (id: string) => api<ChannelView>(`/channels/${id}/logo/draft`, { method: 'PUT' }),
+  discardLogoDraft: (id: string) => api<void>(`/channels/${id}/logo/draft`, { method: 'DELETE' }),
   removeArt: (id: string, kind: 'intro' | 'outro') => api<ChannelView>(`/channels/${id}/art/${kind}`, { method: 'DELETE' }),
-  job: (id: string) => api<Job>(`/jobs/${id}`),
   removeAvatar: (id: string) => api<ChannelView>(`/channels/${id}/avatar`, { method: 'DELETE' }),
   uploadMusic: (id: string, file: File) => upload(`/channels/${id}/music`, file),
 };

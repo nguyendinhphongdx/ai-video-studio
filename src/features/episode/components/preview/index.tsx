@@ -12,3 +12,5 @@ const box = (ratio: string) =>
 export const StoryboardPlayer = dynamic(() => import('./players').then((m) => m.StoryboardPlayer), { ssr: false, loading: box('16 / 9') });
 export const ScenePlayer = dynamic(() => import('./players').then((m) => m.ScenePlayer), { ssr: false, loading: box('16 / 9') });
 export const SceneThumbnail = dynamic(() => import('./players').then((m) => m.SceneThumbnail), { ssr: false, loading: box('16 / 9') });
+export const StagePlayer = dynamic(() => import('./players').then((m) => m.StagePlayer), { ssr: false, loading: box('16 / 9') });
+export type { StageApi } from './players';

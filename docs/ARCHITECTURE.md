@@ -4,14 +4,14 @@
 
 | Concept | What it is | Lives in |
 | --- | --- | --- |
-| Channel | Brand kit: audience, tone, voice, palette, logo, avatar, music, image style, and its own AI-designed intro and outro (`SceneDesign` JSON, optional AI background art) | SQLite `channels` |
+| Channel | Brand kit: audience, tone, voice, palette, logo, avatar, music, image style, and its own AI-designed intro and outro (`SceneDesign` JSON, optional AI background art) | `channels` |
 | Tool | A rendering engine a skill can name: `@remotion`, `@hyperframes` | `src/tools/<tool>/tool.ts` |
 | Block | A scene type of a tool with a props schema: `@remotion/cards` | `src/tools/<tool>/blocks/*.ts` |
-| Skill | Playbook for one kind of video; references tools/blocks. Belongs to a channel (SQLite `channel_skills`), installed from the market (`market/skills/<id>/SKILL.md`) or written by a person or the AI | SQLite `channel_skills` |
-| Series | The agent for a show: bible + format + publish template, versioned | SQLite `series`, `series_versions` |
-| Episode | One video, in a series (numbered) or one-off | SQLite `episodes`, `scenes` |
-| Knowledge | The channel's own facts, rules and sources; versioned, read by every AI call of the channel | SQLite `channel_knowledge_versions` |
-| Memory | What each approved episode covered, read by later episodes | SQLite `episode_memory`, `series_memory` |
+| Skill | Playbook for one kind of video; references tools/blocks. Belongs to a channel (`channel_skills`), installed from the market (`market/skills/<id>/SKILL.md`) or written by a person or the AI | `channel_skills` |
+| Series | The agent for a show: bible + format + publish template, versioned | `series`, `series_versions` |
+| Episode | One video, in a series (numbered) or one-off | `episodes`, `scenes` |
+| Knowledge | The channel's own facts, rules and sources; versioned, read by every AI call of the channel | `channel_knowledge_versions` |
+| Memory | What each approved episode covered, read by later episodes | `episode_memory`, `series_memory` |
 
 A one-off video uses a format derived from its skill (one AI slot), so every video goes through the same path.
 
@@ -39,7 +39,7 @@ The output schema of a script is generated from the episode's active **ai** slot
 | New production step | Pipeline step | `src/core/pipeline/steps/<x>.ts`, list in `steps/index.ts` | `core/pipeline/step.ts` |
 | React to something | Domain event subscriber | `src/server/subscribers.ts` | `core/events/events.ts` |
 | New quality rule | Quality check | `src/core/quality/checks/` | `core/quality/check.ts` |
-| New provider (AI, TTS, storage, upload) | Assistant tool | Something the one assistant chat can do | `src/server/assistant/tools/<x>.ts`, list in `tools/index.ts` | `core/assistant/tool.ts` |
+| New provider (AI, TTS, storage, upload) | Assistant tool | Something the one assistant chat can do | `src/server/assistant/tools/<group>/<name>.tool.ts`, list in the group's `index.ts` | `core/assistant/tool.ts` |
 | Port + adapter | `src/server/adapters/<x>` | `core/ports.ts` |
 
 Registries are validated at startup (`core/registry.ts`): duplicate ids, tools without renderers and step cycles fail at boot.
@@ -50,7 +50,7 @@ Registries are validated at startup (`core/registry.ts`): duplicate ids, tools w
 - **Worker**: claims jobs from `jobs` one at a time (`write_script`, `revise_script`, `produce`, `summarize`) and delivers `outbox` events to subscribers. Jobs left running by a crashed worker are failed on start, with a retry button in the UI.
 - **Scenes first, production last.** In the scenes step the person works scene by scene: edit, generate the picture (blocks that declare an `image` slot, such as `@remotion/vox` and `@remotion/picture`) and the voice, listen, and approve. Those are `scene_assets` worker jobs, the only place paid image/voice providers are called, and only on request (or automatically after a script when the video's `autoImages`/`autoVoice` are on). A scene stores its files with the hash of the prompt/text they were made for, so a later edit marks them stale and withdraws the approval; a rewritten script keeps finished work for scenes that did not change (`carryOver`). The script can only be approved for production when every scene is approved.
 - **Production** is a step graph (images ∥ voice → render → assemble → thumbnail → quality). The `images` and `voice` steps only collect the approved files of each scene (they fail with the scene number if one is missing or stale); rendering and assembling join them. Step outputs are cached in `step_runs` by input hash, so a retry resumes from the failed step.
-- **Storage**: SQLite (`node:sqlite`, WAL) in `data/app.db`; generated media in `data/media`; settings (API keys) in `data/settings.json`. All gitignored.
+- **Storage**: Postgres through Drizzle (`src/server/schema.ts`, migrations in `drizzle/`; `DATABASE_URL`); generated media in `data/media`; the shared AI keys in `data/settings.json` (gitignored).
 
 ## Channel-owned intro and outro
 
@@ -64,11 +64,26 @@ Skills and knowledge belong to a channel; nothing about a kind of channel is bui
 
 There is exactly one conversational AI. It sits in a panel on every page, knows where the person is (channel, video, scene) and does things through tools (`src/server/assistant/tools`): design the channel's intro/outro, edit brand fields, write knowledge and skills, install market skills, plan series, create videos, write and revise scripts, edit single scenes, generate pictures and voices, approve scenes, produce. Screens keep direct controls (forms, scene cards, save and approve buttons) but have no AI inputs of their own.
 
-- **Loop** (`src/core/assistant/loop.ts`): model call, tool calls, results, repeat. Every step is stored (`assistant_messages`), so a turn can stop for approval and continue. It runs as a worker job (`assistant_turn`); the UI polls the thread.
+- **Loop** (`src/core/assistant/loop.ts`): model call, tool calls, results, repeat. Every step is stored (`assistant_messages`), so a turn can stop for approval and continue. It runs as a worker job (`assistant_turn`).
+- **Live turn** (`core/assistant/stream.ts`, `server/modules/assistant/assistant.stream.ts`): the loop emits AG-UI events (answer and thinking pieces, tool start and result, ending as done, cancelled, interrupt for approval, or error). The worker writes them in batches to `assistant_stream_events`; `GET assistant/threads/<id>/events` serves them as server-sent events from any position, and the screen shows them until the stored messages catch up (if the stream breaks it falls back to refreshing the conversation every 1,5 s). `POST .../stop` sets a flag the worker checks while streaming and before every step and tool.
 - **Permission modes** per conversation: *ask* (confirm every change), *auto* (confirm only paid and destructive tools), *bypass* (never confirm). Tools declare a risk: read, write, paid, destructive. A call waiting for approval is a `tool` message with status `awaiting`; approving runs it and starts the turn again, saying something else drops it.
 - **Scope**: a conversation belongs to one channel; tools refuse ids of other channels. Long work (scripts, pictures, voices, production) stays in the existing worker jobs; the tools only enqueue it.
 - **Quality guidance** for what the assistant writes (design, knowledge, skills, series) is attached to the tool that saves it (`src/core/assistant/guides.ts`).
 - A provider needs tool calling (`LlmPort.chat`): Claude, OpenAI, Gemini work; small local models usually do not.
+
+## Live updates (one feed, no polling)
+
+Screens never ask "has it changed?" on a timer. Whatever changes something leaves a row in `changes` (topic, ref, small data, workspace), written by the repository in the same transaction as the change; `touch` and other bookkeeping never do. One hub per web process (`server/modules/changes/changes.hub.ts`) reads the newest rows a few times a second while a tab is connected, looks back over a short window so a late commit is not lost, and hands each row to the tabs of its workspace; `GET /api/v1/changes` serves them as server-sent events with `Last-Event-ID` catch-up, and re-checks the session at every heartbeat. In the browser `useLiveChanges` (mounted in the studio layout) turns a signal into cache work: job progress is written straight into the cached episode and job, everything else refreshes the queries it touches (`features/app/lib/live-signals.ts`). A reconnect refreshes what is on screen once; if the feed is down for 10 s, one 30 s refresh keeps screens right. The worker deletes rows older than a day. Rules: [conventions/10](conventions/10-live-updates.md).
+
+## Outside AI over MCP
+
+Claude Code, Codex and other MCP clients work in the studio through `/api/mcp` (`server/modules/mcp`). They use the same tools as the assistant: one class per file in `server/assistant/tools`, and `surfaces` on the class says who is offered it. No studio model runs for an MCP call unless the tool itself asks for one.
+
+- **Codes.** Only the workspace owner makes them (Cài đặt › AI bên ngoài). Stored hashed, shown once, may expire, and stop working when revoked or when their creator is no longer the owner. A code reaches every project of its workspace and nothing else.
+- **Levels.** `read`, `edit`, `full`. The level comes from the tool's `risk` (or `minLevel`); a tool above the level is not listed and cannot be called by name. Paid, deleting and video-approval work needs `full`, and is not asked again.
+- **Limits and record.** 120 calls a minute per code; each call is kept (500 per code). Costs of work asked from outside carry `via: 'mcp'` through the job into the ledger.
+- **Files.** Media is never sent through the protocol except small pictures. `view`, `get_video` and `request_upload` hand out random links (hashed in `mcp_uploads`): viewing lasts 60 minutes, an upload link lasts 15 minutes and works once.
+- **Guide.** `get_studio_guide` (`core/assistant/studio-guide.ts`) tells the outside model the concepts, the order of work and the preconditions. A test keeps the tool names in it true.
 
 ## Cost tracking
 

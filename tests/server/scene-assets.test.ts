@@ -60,7 +60,7 @@ async function newEpisode(scenes: Scene[]) {
   scenes = [locked('intro', 'remotion/title'), ...scenes.map((sc) => ({ ...sc, id: ids[sc.id]! })), locked('outro', 'remotion/outro')];
   const made = await s.episodes.episodeService.create({ channelId, seriesId: null, skillId: 'picture-story', topic: 'Chủ đề thử', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
   const id = made.episode.id;
-  s.repo.episodeRepository.update(id, { status: 'script_review', title: 'Thử', scenes });
+  await s.repo.episodeRepository.update(id, { status: 'script_review', title: 'Thử', scenes });
   return { id, ids };
 }
 
@@ -112,33 +112,33 @@ describe('scene pictures and voices', () => {
     const { id } = await newEpisode([pic('a', 'a market')]);
     env.imageReady = false;
     await expect(generateSceneAssets(fakeDeps(), id, { sceneIds: null, image: true, voice: false }, () => {})).rejects.toThrow(/Chưa cài đặt tạo ảnh/);
-    await expect(s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: true, voice: false })).rejects.toThrow(/Chưa cài đặt tạo ảnh/);
+    await expect(async () => s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: true, voice: false })).rejects.toThrow(/Chưa cài đặt tạo ảnh/);
     env.imageReady = true;
   });
 
   it('queues asset jobs only for real scenes and a usable voice', async () => {
     const { id, ids } = await newEpisode([pic('a', 'a market')]);
-    await expect(s.episodes.episodeService.requestAssets(id, { sceneIds: ['nope'], image: true, voice: false })).rejects.toThrow(/không thuộc/);
-    await expect(s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: false, voice: false })).rejects.toThrow(/Chọn tạo ảnh/);
+    await expect(async () => s.episodes.episodeService.requestAssets(id, { sceneIds: ['nope'], image: true, voice: false })).rejects.toThrow(/không thuộc/);
+    await expect(async () => s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: false, voice: false })).rejects.toThrow(/Chọn tạo ảnh/);
     env.voiceReady = false;
-    await expect(s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: false, voice: true })).rejects.toThrow(/Giọng đọc đang chọn/);
+    await expect(async () => s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: false, voice: true })).rejects.toThrow(/Giọng đọc đang chọn/);
     env.voiceReady = true;
     const view = await s.episodes.episodeService.requestAssets(id, { sceneIds: [ids.a!], image: true, voice: true });
     expect(view.job).toMatchObject({ kind: 'scene_assets', state: 'queued', payload: { sceneIds: [ids.a!], image: true, voice: true } });
-    await expect(s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: true, voice: false })).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.episodes.episodeService.requestAssets(id, { sceneIds: null, image: true, voice: false })).rejects.toMatchObject({ status: 409 });
   });
 });
 
 describe('approval gate', () => {
   it('approves a scene only when its picture and voice exist, and refuses to produce until all are approved', async () => {
     const { id, ids } = await newEpisode([pic('a', 'a market'), pic('b', 'a boat')]);
-    await expect(s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: true })).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: true })).rejects.toMatchObject({ status: 409 });
     await generateSceneAssets(fakeDeps(), id, { sceneIds: null, image: true, voice: true }, () => {});
     let view = await s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: true });
     expect(view.episode.scenes.filter((x) => !x.locked).map((x) => x.approved)).toEqual([true, false]);
     expect(view.assets[ids.a!]).toMatchObject({ ready: true, needsImage: true, needsVoice: true });
     expect(view.assets[ids.a!]!.imageUrl).toMatch(/^\/api\/v1\/media\//);
-    await expect(s.episodes.episodeService.approveScript(id)).rejects.toThrow(/Còn 1 cảnh chưa duyệt/);
+    await expect(async () => s.episodes.episodeService.approveScript(id)).rejects.toThrow(/Còn 1 cảnh chưa duyệt/);
     await expect(produce(fakeDeps(), id, () => {})).rejects.toThrow(/Còn 1 cảnh chưa duyệt/);
     view = await s.episodes.episodeService.setApproval(id, { sceneIds: null, approved: true });
     expect(view.episode.scenes.every((x) => x.approved)).toBe(true);
@@ -161,7 +161,7 @@ describe('approval gate', () => {
     expect(view.episode.scenes.filter((x) => !x.locked)[1]!.assets.imagePath).not.toBeNull();
     expect(view.assets[ids.b!]).toMatchObject({ imageUrl: null, imageStale: true, voiceStale: false, ready: false });
     expect(view.assets[ids.a!]!.ready).toBe(true);
-    await expect(s.episodes.episodeService.setApproval(id, { sceneIds: [ids.b!], approved: true })).rejects.toThrow(/còn thiếu ảnh/);
+    await expect(async () => s.episodes.episodeService.setApproval(id, { sceneIds: [ids.b!], approved: true })).rejects.toThrow(/còn thiếu ảnh/);
   });
 
   it('lets the person withdraw approval, and refuses approvals once the script is approved', async () => {
@@ -171,7 +171,7 @@ describe('approval gate', () => {
     expect((await s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: false })).episode.scenes.find((x) => x.id === ids.a)!.approved).toBe(false);
     await s.episodes.episodeService.setApproval(id, { sceneIds: null, approved: true });
     await s.episodes.episodeService.approveScript(id);
-    await expect(s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: false })).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.episodes.episodeService.setApproval(id, { sceneIds: [ids.a!], approved: false })).rejects.toMatchObject({ status: 409 });
   });
 });
 

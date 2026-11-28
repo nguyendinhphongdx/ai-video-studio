@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANCHOR_X, ENTER_SECONDS, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys } from '@video/puppet/rig';
+import { ANCHOR_X, ENTER_SECONDS, companionPoseAt, companionSpriteAt, expressionAt, isBlinking, poseAt, poseFromKeys, sampleKeys, spriteAt } from '@video/puppet/rig';
 
 describe('puppet rig', () => {
   it('interpolates keyframes and holds the ends', () => {
@@ -38,5 +38,80 @@ describe('puppet rig', () => {
   it('opens and closes the mouth while talking', () => {
     const shown = new Set(Array.from({ length: 60 }, (_, i) => expressionAt({ emotion: 'neutral', talking: true, t: 5 + i * 0.07, available: ['neutral', 'talk'] })));
     expect(shown.has('talk') && shown.has('neutral')).toBe(true);
+  });
+
+  describe('pose sprites', () => {
+    const faces = ['neutral', 'talk', 'blink', 'happy'];
+    const all = [...faces, 'walk1', 'walk2', 'walk3', 'walk4', 'wave1', 'wave2', 'point', 'bow', 'crouch', 'leap'];
+    const at = (action: Parameters<typeof spriteAt>[0]['action'], t: number, available = all, side: 'left' | 'center' | 'right' = 'left') =>
+      spriteAt({ action, side, emotion: 'happy', talking: true, t, duration: 6, available });
+
+    it('cycles the walk frames while entering, then falls back to the face', () => {
+      const frames = new Set([0, 0.2, 0.4, 0.6, 0.8].map((t) => at('enter', t).sprite));
+      expect(frames.size).toBeGreaterThan(2);
+      for (const f of frames) expect(f).toMatch(/^walk[1-4]$/);
+      expect(at('enter', ENTER_SECONDS + 0.5).posed).toBe(false);
+    });
+
+    it('mirrors the walk frames when the body travels to the left', () => {
+      expect(at('enter', 0.1, all, 'left').flip).toBe(false);
+      expect(at('enter', 0.1, all, 'right').flip).toBe(true);
+      expect(at('exit', 5.9, all, 'left').flip).toBe(true);
+    });
+
+    it('alternates the wave frames, then talks', () => {
+      expect(new Set([0, 0.45, 0.9, 1.3].map((t) => at('wave', t).sprite))).toEqual(new Set(['wave1', 'wave2']));
+      expect(at('wave', 4).posed).toBe(false);
+    });
+
+    it('crouches on the ground and leaps in the air when jumping', () => {
+      expect(at('jump', 0.05).sprite).toBe('crouch');
+      expect(at('jump', 0.6).sprite).toBe('leap');
+    });
+
+    it('holds a gesture pose and bows only for a moment', () => {
+      expect(at('point', 3).sprite).toBe('point');
+      // Drawn pointing right: from the right side it is mirrored to point back towards the middle.
+      expect(at('point', 3, all, 'left').flip).toBe(false);
+      expect(at('point', 3, all, 'right').flip).toBe(true);
+      expect(at('bow', 1).sprite).toBe('bow');
+      expect(at('bow', 4).posed).toBe(false);
+    });
+
+    it('acts as before with only face sprites', () => {
+      for (const action of ['enter', 'wave', 'jump', 'point', 'sit'] as const) expect(at(action, 0.6, faces).posed).toBe(false);
+      expect(poseAt('wave', 'center', 0.5, 6, true).angle).toBe(0);
+      expect(poseAt('wave', 'center', 0.5, 6, false).angle).not.toBe(0);
+    });
+  });
+
+  it('holds the series own pose while standing, walks while moving, ignores a pose it has no picture for', () => {
+    const available = ['neutral', 'walk1', 'walk2', 'pose:mua-thuong'];
+    const at = (pose: string, t: number) => spriteAt({ action: 'enter', side: 'left', emotion: 'neutral', talking: true, t, duration: 6, available, pose });
+    expect(at('mua-thuong', 0.2).sprite).toMatch(/^walk/);
+    expect(at('mua-thuong', 3).sprite).toBe('pose:mua-thuong');
+    expect(at('bay', 3).posed).toBe(false);
+  });
+
+  it('gives a supporting character its own mouth, wave and point', () => {
+    const all = ['talk', 'wave1', 'wave2', 'point'];
+    expect(new Set([0.5, 0.7, 0.9, 1.1, 1.3, 1.5].map((t) => companionPoseAt('talk', t, all)))).toEqual(new Set(['talk', null]));
+    expect(companionPoseAt('talk', 2, all, 1)).toBeNull();
+    expect(new Set([0, 0.45].map((t) => companionPoseAt('wave', t, all)))).toEqual(new Set(['wave1', 'wave2']));
+    expect(companionPoseAt('point', 3, all)).toBe('point');
+    expect(companionPoseAt('point', 3, [])).toBeNull();
+  });
+});
+
+describe('supporting character faces', () => {
+  const all = ['talk', 'blink', 'sad', 'point'];
+  it('shows the emotion of the scene, blinking now and then, and its own picture for a face it lacks', () => {
+    const at = (t: number, emotion: 'sad' | 'happy') => companionSpriteAt({ action: 'idle', emotion, t, available: all });
+    const seen = new Set(Array.from({ length: 200 }, (_, i) => at(i / 20, 'sad')));
+    expect(seen).toEqual(new Set(['sad', 'blink']));
+    expect(at(0.2, 'happy')).toBeNull();
+  });
+  it('lets a gesture win over the face', () => {
+    expect(companionSpriteAt({ action: 'point', emotion: 'sad', t: 1, available: all })).toBe('point');
   });
 });

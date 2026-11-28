@@ -59,6 +59,7 @@ export interface Episode {
   formats: Format[];
   voice: VoiceId;
   music: boolean;
+  musicVolume?: number;
   /** Generate pictures / voices for every scene as soon as a script is written, instead of one scene at a time. */
   autoImages: boolean;
   autoVoice: boolean;

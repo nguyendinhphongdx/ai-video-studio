@@ -1,57 +1,62 @@
+import { and, desc, eq, lt, sql } from 'drizzle-orm';
+
 import type { EpisodeMemory } from '@/core/domain';
 import type { MemoryStore } from '@/core/ports';
-import { db, json, now } from '@/server/db';
+import { json, now } from '@/server/db';
+import { one, orm, owner, scoped } from '@/server/orm';
+import { episodeMemory, seriesMemory } from '@/server/schema';
 
-type Row = Record<string, unknown>;
-
-const toMemory = (r: Row): EpisodeMemory => ({
-  episodeId: String(r.episode_id),
-  seriesId: String(r.series_id),
-  number: r.number === null ? null : Number(r.number),
-  title: String(r.title),
-  summary: String(r.summary),
+const toMemory = (r: typeof episodeMemory.$inferSelect): EpisodeMemory => ({
+  episodeId: r.episodeId,
+  seriesId: r.seriesId,
+  number: r.number,
+  title: r.title,
+  summary: r.summary,
   concepts: json(r.concepts, []),
   examples: json(r.examples, []),
   vocabulary: json(r.vocabulary, []),
   jokes: json(r.jokes, []),
-  createdAt: String(r.created_at),
+  createdAt: r.createdAt,
 });
 
+const ofSeries = (seriesId: string) => and(eq(episodeMemory.seriesId, seriesId), scoped(episodeMemory));
+/** On a conflict, only a row of this workspace is overwritten. */
+const sameWorkspace = (table: typeof episodeMemory | typeof seriesMemory) => sql`${table.workspaceId} = excluded.workspace_id`;
+
 export const memoryRepository = {
-  list(seriesId: string): EpisodeMemory[] {
-    return (db().prepare('SELECT * FROM episode_memory WHERE series_id = ? ORDER BY number DESC, created_at DESC').all(seriesId) as Row[]).map(toMemory);
+  async list(seriesId: string): Promise<EpisodeMemory[]> {
+    return (await orm().select().from(episodeMemory).where(ofSeries(seriesId)).orderBy(desc(episodeMemory.number), desc(episodeMemory.createdAt))).map(toMemory);
   },
-  setSeason(seriesId: string, summary: string) {
-    db().prepare('INSERT INTO series_memory (series_id, season_summary, updated_at) VALUES (?, ?, ?) ON CONFLICT(series_id) DO UPDATE SET season_summary = excluded.season_summary, updated_at = excluded.updated_at').run(seriesId, summary, now());
+  async setSeason(seriesId: string, summary: string) {
+    await orm()
+      .insert(seriesMemory)
+      .values({ seriesId, seasonSummary: summary, updatedAt: now(), ...owner() })
+      .onConflictDoUpdate({ target: seriesMemory.seriesId, set: { seasonSummary: sql`excluded.season_summary`, updatedAt: sql`excluded.updated_at` }, setWhere: sameWorkspace(seriesMemory) });
   },
 };
 
 export const memoryStore: MemoryStore = {
   async recent(seriesId, beforeNumber, limit) {
-    const rows = (
-      beforeNumber === null
-        ? db().prepare('SELECT * FROM episode_memory WHERE series_id = ? ORDER BY number DESC LIMIT ?').all(seriesId, limit)
-        : db().prepare('SELECT * FROM episode_memory WHERE series_id = ? AND number < ? ORDER BY number DESC LIMIT ?').all(seriesId, beforeNumber, limit)
-    ) as Row[];
-    return rows.map(toMemory);
+    const where = beforeNumber === null ? ofSeries(seriesId) : and(ofSeries(seriesId), lt(episodeMemory.number, beforeNumber));
+    return (await orm().select().from(episodeMemory).where(where).orderBy(desc(episodeMemory.number)).limit(limit)).map(toMemory);
   },
   async season(seriesId) {
-    const r = db().prepare('SELECT season_summary FROM series_memory WHERE series_id = ?').get(seriesId) as { season_summary: string } | undefined;
-    return r?.season_summary ?? null;
+    const r = await orm().select({ s: seriesMemory.seasonSummary }).from(seriesMemory).where(and(eq(seriesMemory.seriesId, seriesId), scoped(seriesMemory))).then(one);
+    return r?.s ?? null;
   },
   async setSeason(seriesId, summary) {
-    memoryRepository.setSeason(seriesId, summary);
+    await memoryRepository.setSeason(seriesId, summary);
   },
   async all(seriesId) {
-    return memoryRepository.list(seriesId).reverse();
+    return (await memoryRepository.list(seriesId)).reverse();
   },
   async save(m) {
-    db()
-      .prepare(
-        `INSERT INTO episode_memory (episode_id, series_id, number, title, summary, concepts, examples, vocabulary, jokes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(episode_id) DO UPDATE SET title = excluded.title, summary = excluded.summary, concepts = excluded.concepts, examples = excluded.examples,
-         vocabulary = excluded.vocabulary, jokes = excluded.jokes, created_at = excluded.created_at`,
-      )
-      .run(m.episodeId, m.seriesId, m.number, m.title, m.summary, JSON.stringify(m.concepts), JSON.stringify(m.examples), JSON.stringify(m.vocabulary), JSON.stringify(m.jokes), m.createdAt);
+    const row = {
+      title: m.title, summary: m.summary, concepts: JSON.stringify(m.concepts), examples: JSON.stringify(m.examples), vocabulary: JSON.stringify(m.vocabulary), jokes: JSON.stringify(m.jokes), createdAt: m.createdAt,
+    };
+    await orm()
+      .insert(episodeMemory)
+      .values({ episodeId: m.episodeId, seriesId: m.seriesId, number: m.number, ...row, ...owner() })
+      .onConflictDoUpdate({ target: episodeMemory.episodeId, set: row, setWhere: sameWorkspace(episodeMemory) });
   },
 };

@@ -1,4 +1,5 @@
 // What the core needs from the outside world. The server/worker provide implementations (adapters).
+import type { VoiceDelivery } from './domain/tune';
 import type { SfxPort } from './audio/sfx';
 import type { z } from 'zod';
 
@@ -73,6 +74,13 @@ export interface ChatMessage {
   toolCalls?: ChatToolCall[];
   toolCallId?: string;
   isError?: boolean;
+  /** Pictures a user message shows the model. */
+  images?: ChatImage[];
+}
+
+export interface ChatImage {
+  mime: string;
+  base64: string;
 }
 
 export interface ChatToolSpec {
@@ -88,16 +96,41 @@ export interface UsageMeta {
   purpose?: string;
 }
 
+/** A piece of an answer as the model produces it. */
+export interface ChatDelta {
+  type: 'text' | 'reasoning';
+  delta: string;
+}
+
+export interface ChatRequest {
+  system: string;
+  messages: ChatMessage[];
+  tools: ChatToolSpec[];
+  purpose?: string;
+  /** Asks for the answer piece by piece. A provider that cannot stream answers whole and never calls it. */
+  onDelta?: (delta: ChatDelta) => void;
+  /** Stops the call; what was produced so far comes back with `stopped`. */
+  signal?: AbortSignal;
+}
+
+export interface ChatReply {
+  text: string;
+  toolCalls: ChatToolCall[];
+  /** The model's thinking, when the provider returns it. */
+  reasoning?: string;
+  stopped?: boolean;
+}
+
 export interface LlmPort {
   isReady(): Promise<boolean>;
   /** One step of a tool-using conversation: the model answers with text and/or tool calls. */
-  chat(input: { system: string; messages: ChatMessage[]; tools: ChatToolSpec[]; purpose?: string }): Promise<{ text: string; toolCalls: ChatToolCall[]; model: string }>;
+  chat(input: ChatRequest): Promise<ChatReply & { model: string }>;
   generateObject(input: { system: string; user: string; schema: z.ZodType; purpose?: string }): Promise<{ object: unknown; model: string }>;
 }
 
 export interface TtsPort {
   /** Writes an mp3 and returns its length in seconds. */
-  synthesize(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<number>;
+  synthesize(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta, delivery?: VoiceDelivery): Promise<number>;
 }
 
 export interface MediaPort {

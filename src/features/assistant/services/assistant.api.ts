@@ -1,10 +1,11 @@
+import type { AssistantAttachment } from '@/core/assistant/attachments';
 import type { PermissionMode } from '@/core/assistant/tool';
 import type { AssistantMessage } from '@/core/ports';
 import { api } from '@/lib/api/client';
 import type { ThreadView } from '@/server/modules/assistant/assistant.service';
 import type { AssistantThread } from '@/server/modules/assistant/assistant.repository';
 
-export type { AssistantMessage, AssistantThread, PermissionMode, ThreadView };
+export type { AssistantAttachment, AssistantMessage, AssistantThread, PermissionMode, ThreadView };
 
 export interface Focus {
   route: string;
@@ -18,11 +19,21 @@ export const assistantApi = {
   threads: (channelId: string) => api<AssistantThread[]>(`/assistant/threads?channelId=${encodeURIComponent(channelId)}`),
   create: (channelId: string, mode: PermissionMode) => api<ThreadView>('/assistant/threads', { body: { channelId, mode } }),
   get: (id: string) => api<ThreadView>(`/assistant/threads/${id}`),
-  send: (id: string, text: string, focus: Focus) => api<ThreadView>(`/assistant/threads/${id}/messages`, { body: { text, focus } }),
+  send: (id: string, text: string, focus: Focus, attachments: { path: string; name: string }[] = []) => api<ThreadView>(`/assistant/threads/${id}/messages`, { body: { text, focus, attachments } }),
+  upload: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api<AssistantAttachment>(`/assistant/threads/${id}/attachments`, { form });
+  },
   decide: (id: string, messageId: number, approve: boolean) => api<ThreadView>(`/assistant/threads/${id}/decide`, { body: { messageId, approve } }),
+  stop: (id: string) => api<ThreadView>(`/assistant/threads/${id}/stop`, { method: 'POST' }),
+  /** Server-sent AG-UI events of the running turn. */
+  eventsUrl: (id: string) => `/api/v1/assistant/threads/${id}/events`,
   setMode: (id: string, mode: PermissionMode) => api<ThreadView>(`/assistant/threads/${id}/mode`, { method: 'PUT', body: { mode } }),
   remove: (id: string) => api<{ ok: true }>(`/assistant/threads/${id}`, { method: 'DELETE' }),
 };
+
+export const attachmentUrl = (path: string) => `/api/v1/media/${path.split('/').map(encodeURIComponent).join('/')}`;
 
 export const MODE_INFO: Record<PermissionMode, { label: string; hint: string }> = {
   ask: { label: 'Hỏi', hint: 'Hỏi bạn trước mọi thay đổi' },

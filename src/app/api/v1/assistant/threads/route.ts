@@ -10,10 +10,10 @@ import { assistantService } from '@/server/modules/assistant/assistant.service';
 export const GET = route(async (req) => {
   const channelId = req.nextUrl.searchParams.get('channelId');
   if (!channelId) throw new ApiError(400, 'validation_error', 'Thiếu channelId');
-  return assistantService.threads(channelId);
+  return await assistantService.threads(channelId);
 });
 
 export const POST = route(async (req) => {
   const body = await parseJsonBody(req, z.object({ channelId: z.string().min(1), mode: z.enum(PERMISSION_MODES as [PermissionMode, ...PermissionMode[]]).default('auto') }));
-  return assistantService.create(body.channelId, body.mode);
+  return await assistantService.create(body.channelId, body.mode);
 });

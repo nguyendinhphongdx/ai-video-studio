@@ -7,6 +7,7 @@ import type { z } from 'zod';
 
 import type { Format } from '../domain/catalog';
 import type { SceneDesign } from '../domain/design';
+import { parseTune, TUNE_KEY } from '../domain/tune';
 import type { BlockRef } from '../domain/episode';
 
 export type ToolFieldKind = 'text' | 'textarea' | 'emoji' | 'count' | 'color' | 'choice';
@@ -39,7 +40,7 @@ export interface BlockDefinition<Schema extends z.ZodType = z.ZodType> {
   /** Shortest on-screen time, even with a very short narration. */
   minSeconds: number;
   /** Blocks that need a generated picture: which prop holds the prompt and the fixed style added to it. */
-  image?: { promptKey: string; style: string; /** The picture is only a set: the series' character references are not applied to it. */ background?: boolean; /** Extra picture direction taken from the other props (camera shot, framing). */ compose?: (props: Record<string, unknown>) => string };
+  image?: { promptKey: string; style: string; /** The picture is only a set: the series' character references are not applied to it. */ background?: boolean; /** This scene's picture is made without the series' characters (they are not in it). */ withoutCharacters?: (props: Record<string, unknown>) => boolean; /** Extra picture direction taken from the other props (camera shot, framing). */ compose?: (props: Record<string, unknown>) => string };
   /** Props that must change from one scene to the next (checked as variety). */
   varyBy?: string[];
   /** Sounds that go with this block's own animation (seconds from the scene start); the video adds a sweep between scenes. */
@@ -80,10 +81,18 @@ export function defineTool(def: ToolDefinition): ToolDefinition {
   return def;
 }
 
-/** Parse props with the block's schema, then apply its normalizer. */
+/**
+ * Parse props with the block's schema, then apply its normalizer. A prop the scene does not have takes the block's
+ * default first, so scenes written before a block gained a prop (a puppet scene without `mood`) still save and render.
+ */
 export function cleanProps(block: BlockDefinition, props: unknown): Record<string, unknown> {
-  const parsed = block.props.parse(props);
-  return (block.normalize ? block.normalize(parsed) : parsed) as Record<string, unknown>;
+  const given = props && typeof props === 'object' && !Array.isArray(props) ? (props as Record<string, unknown>) : null;
+  const filled = given ? { ...(block.defaults as Record<string, unknown>), ...Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)) } : props;
+  const parsed = block.props.parse(filled);
+  const clean = (block.normalize ? block.normalize(parsed) : parsed) as Record<string, unknown>;
+  // Hand adjustments are not part of any block's schema; keep them (last, so comparisons stay stable).
+  const tune = parseTune(given?.[TUNE_KEY]);
+  return tune ? { ...clean, [TUNE_KEY]: tune } : clean;
 }
 
 // ---- rendering (server side) ---------------------------------------------------------------

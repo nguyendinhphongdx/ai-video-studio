@@ -18,6 +18,10 @@ export async function api<T>(path: string, opts: { method?: Method; body?: unkno
     body: opts.form ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
   });
   const data = await res.json().catch(() => null);
+  // The session ended (expired, signed out elsewhere): back to the sign-in page, then here again.
+  if (res.status === 401 && typeof window !== 'undefined' && !path.startsWith('/auth/')) {
+    window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  }
   if (!res.ok) {
     const err = (data as { error?: { code?: string; message?: string } } | null)?.error;
     throw new ApiClientError(res.status, err?.code ?? 'http_error', err?.message ?? `Lỗi ${res.status}`);

@@ -10,8 +10,17 @@ export type Expression = (typeof EXPRESSIONS)[number];
 export const EMOTIONS = ['neutral', 'happy', 'angry', 'sad', 'surprised'] as const;
 export type Emotion = (typeof EMOTIONS)[number];
 
-export const ACTIONS = ['idle', 'enter', 'exit', 'walk', 'jump', 'wave'] as const;
+/** Body poses, in step with POSES in src/core/character/expressions.ts. Walk frames are drawn walking to the right. */
+export const POSES = ['walk1', 'walk2', 'walk3', 'walk4', 'wave1', 'wave2', 'point', 'think', 'cross', 'bow', 'sit', 'crouch', 'leap', 'cheer'] as const;
+export type Pose = (typeof POSES)[number];
+export type SpriteKey = Expression | Pose;
+
+export const ACTIONS = ['idle', 'enter', 'exit', 'walk', 'jump', 'wave', 'point', 'think', 'cross', 'bow', 'sit', 'cheer'] as const;
 export type PuppetAction = (typeof ACTIONS)[number];
+/** What a supporting character does while on stage; `talk` gives it the line (the hero listens). */
+export const COMPANION_ACTIONS = ['idle', 'talk', 'wave', 'point'] as const;
+export type CompanionAction = (typeof COMPANION_ACTIONS)[number];
+
 export const SIDES = ['left', 'center', 'right'] as const;
 export type Side = (typeof SIDES)[number];
 
@@ -51,6 +60,12 @@ const EDGE_X: Record<Side, number> = { left: -0.18, center: -0.18, right: 1.18 }
 const STEP_HZ = 2.4;
 export const ENTER_SECONDS = 1.1;
 export const EXIT_SECONDS = 0.9;
+const WAVE_SECONDS = 2.4;
+/** Wave frame changes per second: slow enough to read as a wave, not a flicker. */
+const WAVE_HZ = 2.5;
+const BOW_FROM = 0.3;
+const BOW_TO = 1.9;
+const JUMP_PERIOD = 1.2;
 
 const REST: PuppetPose = { x: 0.5, y: 0, scale: 1, angle: 0, alpha: 1, squashX: 1, squashY: 1 };
 
@@ -87,8 +102,9 @@ function stride(t: number): { y: number; angle: number; squashY: number } {
   return { y: hop * 0.018, angle: Math.sin(phase * Math.PI) * 2.6, squashY: 1 - (1 - hop) * 0.035 };
 }
 
-/** Where the body is at second `t` of a scene lasting `duration` seconds. */
-export function poseAt(action: PuppetAction, side: Side, t: number, duration: number): PuppetPose {
+/** Where the body is at second `t` of a scene lasting `duration` seconds. `framed`: the scene has pose sprites, so the
+ * body need not fake the gesture by rocking (the wave frames move the arm). */
+export function poseAt(action: PuppetAction, side: Side, t: number, duration: number, framed = false): PuppetPose {
   const anchor = ANCHOR_X[side];
   const breathe = 1 + Math.sin(t * 2.1) * 0.012;
   const idle: PuppetPose = { ...REST, x: anchor, scale: 1, squashY: breathe, squashX: 2 - breathe };
@@ -110,14 +126,16 @@ export function poseAt(action: PuppetAction, side: Side, t: number, duration: nu
       return { ...REST, x: lerp(from, side === 'right' ? ANCHOR_X.right : ANCHOR_X.left, k), ...stride(t), squashX: 1 };
     }
     case 'jump': {
-      const period = 1.2;
-      const p = (t % period) / period;
+      const p = (t % JUMP_PERIOD) / JUMP_PERIOD;
       const arc = Math.sin(p * Math.PI);
       const land = p < 0.12 || p > 0.88 ? 0.06 : 0;
       return { ...idle, y: arc * 0.12, squashY: 1 - land + arc * 0.04, squashX: 1 + land };
     }
     case 'wave':
-      return { ...idle, angle: t < 2.4 ? Math.sin(t * 9) * 5 : 0 };
+      return { ...idle, angle: !framed && t < WAVE_SECONDS ? Math.sin(t * 9) * 5 : 0 };
+    case 'bow':
+      // Dips a little while the bow frame shows.
+      return { ...idle, y: t > BOW_FROM && t < BOW_TO ? -0.004 : 0 };
     default:
       return idle;
   }
@@ -144,6 +162,17 @@ export function mouthOpen(t: number): boolean {
   return h - Math.floor(h) > 0.38;
 }
 
+/**
+ * Everything a supporting character shows at `t`: its gesture or talking mouth first, else a blink, else the face for
+ * the scene's emotion. null = its own base picture (also for any face it was never drawn with).
+ */
+export function companionSpriteAt(opts: { action: CompanionAction; emotion: Emotion; t: number; available: readonly string[]; talkTo?: number }): string | null {
+  const gesture = companionPoseAt(opts.action, opts.t, opts.available, opts.talkTo);
+  if (gesture) return gesture;
+  if (opts.available.includes('blink') && isBlinking(opts.t, 3)) return 'blink';
+  return opts.emotion !== 'neutral' && opts.available.includes(opts.emotion) ? opts.emotion : null;
+}
+
 /** The sprite showing at `t`. Only names in `available` are returned; neutral is the last resort. */
 export function expressionAt(opts: { emotion: Emotion; talking: boolean; t: number; available: readonly string[]; seed?: number }): Expression {
   const has = (e: Expression) => opts.available.includes(e);
@@ -151,4 +180,83 @@ export function expressionAt(opts: { emotion: Emotion; talking: boolean; t: numb
   if (opts.talking && has('talk') && mouthOpen(opts.t)) return 'talk';
   if (opts.emotion !== 'neutral' && has(opts.emotion)) return opts.emotion;
   return 'neutral';
+}
+
+/** Whether the body is travelling across the stage at `t` (walk frames play then). */
+export function isMoving(action: PuppetAction, t: number, duration: number): boolean {
+  if (action === 'walk') return true;
+  if (action === 'enter') return t < ENTER_SECONDS;
+  if (action === 'exit') return t >= Math.max(0, duration - EXIT_SECONDS);
+  return false;
+}
+
+/** The way the body travels: 1 = to the right, -1 = to the left (walk frames are mirrored then). */
+export function heading(action: PuppetAction, side: Side): 1 | -1 {
+  if (action === 'enter') return side === 'right' ? -1 : 1;
+  if (action === 'exit') return side === 'right' ? 1 : -1;
+  return side === 'right' ? 1 : -1;
+}
+
+const WALK_FRAMES: readonly Pose[] = ['walk1', 'walk2', 'walk3', 'walk4'];
+const HELD: Partial<Record<PuppetAction, Pose>> = { point: 'point', think: 'think', cross: 'cross', sit: 'sit', cheer: 'cheer' };
+
+export interface SpriteChoice {
+  /** A standard sprite, or `pose:<id>` for one of the series' own poses. */
+  sprite: SpriteKey | `pose:${string}`;
+  /** Mirror the picture horizontally. */
+  flip: boolean;
+  /** A body pose is showing (no talking mouth or blink on it). */
+  posed: boolean;
+}
+
+/**
+ * The picture showing at `t`: a pose frame when the action has one and the series drew it (walk cycle while travelling,
+ * two wave frames, crouch/leap for a jump, a held pose), else the talking/blinking/emotion face. Missing pose sprites fall
+ * back to the face sprites, so a series with only expressions acts as before.
+ */
+export function spriteAt(opts: { action: PuppetAction; side: Side; emotion: Emotion; talking: boolean; t: number; duration: number; available: readonly string[]; seed?: number; pose?: string }): SpriteChoice {
+  const { action, t } = opts;
+  const has = (k: string) => opts.available.includes(k);
+  const posed = (sprite: SpriteChoice['sprite'], flip = false): SpriteChoice => ({ sprite, flip, posed: true });
+  const moving = isMoving(action, t, opts.duration);
+  if (moving) {
+    const frames = WALK_FRAMES.filter(has);
+    if (frames.length >= 2) return posed(frames[Math.floor(t * STEP_HZ * 2) % frames.length]!, heading(action, opts.side) < 0);
+  }
+  // The series' own pose, held whenever the body stands (it wins over the action's standard gesture).
+  const own = opts.pose ? (`pose:${opts.pose}` as const) : null;
+  if (own && !moving && has(own)) return posed(own);
+  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return posed(Math.floor(t * WAVE_HZ) % 2 ? 'wave2' : 'wave1');
+  if (action === 'jump') {
+    const p = (t % JUMP_PERIOD) / JUMP_PERIOD;
+    const ground = p < 0.12 || p > 0.88;
+    if (ground && has('crouch')) return posed('crouch');
+    if (!ground && has('leap')) return posed('leap');
+  }
+  if (action === 'bow' && t > BOW_FROM && t < BOW_TO && has('bow')) return posed('bow');
+  const held = HELD[action];
+  // The point sprite points to the right; a hero on the right points back towards the middle (and the companion).
+  if (held && has(held)) return posed(held, held === 'point' && opts.side === 'right');
+  return { sprite: expressionAt(opts), flip: false, posed: false };
+}
+
+/** True when the series has the pose sprites `action` needs (so the body skips its fallback rocking). */
+export function hasFrames(action: PuppetAction, available: readonly string[]): boolean {
+  if (action === 'wave') return available.includes('wave1') && available.includes('wave2');
+  return false;
+}
+
+/**
+ * A supporting character's picture at `t`: one of its pose sprites (named by pose in `available`), or null for its
+ * base picture. `talk` flaps the mouth like the hero; `wave` alternates two frames for a while; `point` holds.
+ */
+/** Mirror a supporting character's sprite: its point pose points right, and it should point towards the hero. */
+export const companionFlip = (pose: string | null, heroSide: Side) => pose === 'point' && heroSide !== 'right';
+
+export function companionPoseAt(action: CompanionAction, t: number, available: readonly string[], talkTo = Infinity): 'talk' | 'wave1' | 'wave2' | 'point' | null {
+  const has = (k: string) => available.includes(k);
+  if (action === 'talk' && t > 0.3 && t < talkTo && has('talk') && mouthOpen(t)) return 'talk';
+  if (action === 'wave' && t < WAVE_SECONDS && has('wave1') && has('wave2')) return Math.floor(t * WAVE_HZ) % 2 ? 'wave2' : 'wave1';
+  if (action === 'point' && has('point')) return 'point';
+  return null;
 }

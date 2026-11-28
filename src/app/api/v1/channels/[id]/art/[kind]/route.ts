@@ -13,5 +13,5 @@ const kindOf = (k: string) => {
 };
 
 /** Queue AI background art for the intro or outro (worker job; poll GET /jobs/:id, then reload the channel). */
-export const POST = route<{ id: string; kind: string }>(async (req, { id, kind }) => channelService.requestArt(id, kindOf(kind), (await parseJsonBody(req, z.object({ prompt: z.string().max(400).default('') }))).prompt));
-export const DELETE = route<{ id: string; kind: string }>((_req, { id, kind }) => channelService.removeArt(id, kindOf(kind)));
+export const POST = route<{ id: string; kind: string }>(async (req, { id, kind }) => await channelService.requestArt(id, kindOf(kind), (await parseJsonBody(req, z.object({ prompt: z.string().max(400).default('') }))).prompt));
+export const DELETE = route<{ id: string; kind: string }>(async (_req, { id, kind }) => await channelService.removeArt(id, kindOf(kind)));

@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { isBusy } from '@/features/episode';
 import { errorMessage } from '@/lib/api/client';
 
 import { seriesApi, type SeriesView } from '../services/series.api';
@@ -24,12 +23,11 @@ export function useSeries(id: string) {
   return useQuery({ queryKey: seriesKeys.one(id), queryFn: () => seriesApi.get(id) });
 }
 
-/** Episodes of a series, newest state first; polls while the worker writes or produces. */
+/** Episodes of a series, newest state first; kept current by the live feed (use-live-changes). */
 export function useSeriesEpisodes(id: string) {
   return useQuery({
     queryKey: seriesKeys.episodes(id),
     queryFn: () => seriesApi.episodes(id),
-    refetchInterval: (q) => (q.state.data?.some((v) => isBusy(v) || v.episode.status === 'producing') ? 2500 : false),
   });
 }
 

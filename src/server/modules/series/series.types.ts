@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
+import { CAST_KEY, MAX_CUSTOM_POSES, POSE_ID, SPRITE_KEY } from '@/core/character/expressions';
 import { EpisodeFormatSchema } from '@/core/series/format';
+
+/** One entry of the picture library planned for a series; its picture is drawn later, when the person asks. */
+export const LibraryItemSchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9-]{0,23}$/),
+  kind: z.enum(['hero', 'character', 'item']),
+  name: z.string().trim().min(1).max(60),
+  description: z.string().trim().min(3).max(400),
+});
 
 export const SeriesBibleSchema = z.object({
   premise: z.string().max(1000).default(''),
@@ -10,8 +19,22 @@ export const SeriesBibleSchema = z.object({
   avoid: z.array(z.string().max(200)).max(30).default([]),
   characterAssets: z.array(z.string()).max(20).default([]),
   characters: z.string().max(2000).default(''),
-  characterCast: z.record(z.string().regex(/^[a-z0-9-]{1,24}$/), z.string()).default({}),
-  characterSprites: z.partialRecord(z.enum(['neutral', 'talk', 'blink', 'happy', 'angry', 'sad', 'surprised']), z.string()).default({}),
+  library: z.array(LibraryItemSchema).max(20).optional(),
+  roster: z
+    .record(
+      z.string().regex(POSE_ID),
+      z.object({ name: z.string().trim().max(60).optional(), description: z.string().trim().max(400).optional(), main: z.boolean().optional(), kind: z.enum(['character', 'prop']).optional(), owner: z.string().regex(POSE_ID).optional() }),
+    )
+    .refine((r) => Object.keys(r).length <= 60, 'Tối đa 60 nhân vật và đạo cụ')
+    .optional(),
+  brandIdeas: z.object({ logo: z.string().max(400), introArt: z.string().max(400) }).optional(),
+  characterCast: z.record(z.string().regex(CAST_KEY), z.string()).default({}),
+  characterSprites: z.record(z.string().regex(SPRITE_KEY), z.string()).default({}),
+  /** The hero's own poses: id → what the pose looks like (the AI draws it from this). */
+  customPoses: z
+    .record(z.string().regex(POSE_ID), z.string().trim().min(3).max(300))
+    .refine((r) => Object.keys(r).length <= MAX_CUSTOM_POSES, `Tối đa ${MAX_CUSTOM_POSES} tư thế riêng`)
+    .optional(),
 });
 
 export const PublishTemplateSchema = z.object({

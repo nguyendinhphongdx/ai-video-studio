@@ -19,9 +19,9 @@ export const episodeKeys = {
 export const isBusy = (v: Pick<EpisodeView, 'job'> | undefined) => Boolean(v?.job && (v.job.state === 'queued' || v.job.state === 'running'));
 export const hasFailed = (v: Pick<EpisodeView, 'job'> | undefined) => v?.job?.state === 'failed';
 
-/** One episode; polls while a job runs so progress and results appear without a reload. */
+/** One episode. Progress and results arrive through the live feed (use-live-changes), not by asking again. */
 export function useEpisode(id: string) {
-  return useQuery({ queryKey: episodeKeys.one(id), queryFn: () => episodeApi.get(id), refetchInterval: (q) => (isBusy(q.state.data) ? 1500 : false) });
+  return useQuery({ queryKey: episodeKeys.one(id), queryFn: () => episodeApi.get(id) });
 }
 
 export function useEpisodes(channelId: string | undefined) {
@@ -29,7 +29,6 @@ export function useEpisodes(channelId: string | undefined) {
     queryKey: episodeKeys.list(channelId ?? ''),
     queryFn: () => episodeApi.list(channelId!),
     enabled: Boolean(channelId),
-    refetchInterval: (q) => (q.state.data?.some(isBusy) ? 3000 : false),
   });
 }
 

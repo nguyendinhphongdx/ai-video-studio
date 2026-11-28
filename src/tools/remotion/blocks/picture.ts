@@ -1,3 +1,4 @@
+import { tuneOf } from '@/core/domain/tune';
 import { z } from 'zod';
 
 import type { SfxCue } from '@/core/audio/sfx';
@@ -11,6 +12,10 @@ import { cutCue, FX_OPTIONS, FxEnum, moveCue, RHYTHM_OPTIONS, RhythmEnum, MOTION
 const props = z.object({
   caption: z.string().describe('Chú thích ngắn hiện trên ảnh, tối đa 50 ký tự (tên, con số, ý chính của cảnh). Có thể để trống'),
   imagePrompt: z.string().describe('Tiếng Anh, 1-2 câu: tả chủ thể, bối cảnh và bố cục của cảnh (ví dụ "a street food vendor at night, steam rising, wide shot"). Không tả phong cách vẽ, không có chữ trong ảnh; phong cách ảnh do kênh quy định'),
+  hero: z
+    .enum(['yes', 'no'])
+    .default('yes')
+    .describe('Nhân vật chính của series có mặt trong ảnh với đúng ngoại hình chuẩn không. Chọn no khi lời đọc nói về người hay vật khác, hoặc nhân vật chính chưa ra đời, còn là em bé, hay đang mang hình dạng khác'),
   motion: MotionEnum,
   fx: FxEnum,
   rhythm: RhythmEnum,
@@ -25,9 +30,13 @@ export function pictureCues({ props, ordinal }: { props: Record<string, unknown>
   const rhythm = !props.rhythm || props.rhythm === 'auto' ? cutFor(ordinal) : String(props.rhythm);
   const cues: SfxCue[] = [...(rhythm !== 'none' ? cutCue(rhythm) : moveCue(move))];
   if (String(props.caption ?? '').trim()) {
-    const look = captionLookFor(ordinal);
-    if (look === 'chip') cues.push({ kind: 'pop', at: 0.45 });
-    else if (look === 'ribbon') cues.push({ kind: 'whoosh-soft', at: 0.4, volume: 0.22 });
+    const tune = tuneOf(props);
+    const look = tune.captionLook ?? captionLookFor(ordinal);
+    // The sound follows the words to wherever they were moved on the timeline.
+    const shift = tune.captionTime ? tune.captionTime.from - 0.4 : 0;
+    if (tune.captionPlace === 'off') return cues;
+    if (look === 'chip') cues.push({ kind: 'pop', at: 0.45 + shift });
+    else if (look === 'ribbon') cues.push({ kind: 'whoosh-soft', at: 0.4 + shift, volume: 0.22 });
   }
   return cues;
 }
@@ -38,22 +47,25 @@ export const pictureBlock = defineBlock({
   summary: 'Một ảnh do AI tạo theo phong cách ảnh của kênh, có chuyển động máy quay và chú thích',
   aiGuide:
     'Một cảnh dùng ảnh AI toàn khung để minh hoạ đúng điều lời đọc đang nói. imagePrompt bằng tiếng Anh, tả chủ thể + bối cảnh + bố cục (cận cảnh, toàn cảnh, từ trên xuống...). ' +
+    'Mọi người và vật mà lời đọc nhắc tới phải có trong imagePrompt, đang làm đúng việc đó (kể bà đỡ, người mẹ, dân làng, đồ vật lạ): tả mỗi người bằng tuổi, trang phục, tư thế, và giữ nguyên cách tả khi người đó xuất hiện lại. ' +
+    'Nhân vật chính của series không có mặt đúng như ảnh chuẩn (chưa ra đời, còn là em bé, đã biến hình, hay cảnh nói về người khác) thì đặt hero là no. ' +
     'Không tả phong cách vẽ và không có chữ trong ảnh: phong cách do kênh quy định. caption là chữ ngắn chốt ý của cảnh. Để motion là auto để hệ thống tự đổi chuyển động và kiểu chú thích giữa các cảnh. Mỗi cảnh một chủ thể. LUÔN chọn shot cụ thể và đổi liên tục để các cảnh không cùng một khung hình.',
   props,
   fields: [
     { key: 'caption', label: 'Chú thích', kind: 'text', maxLength: 60 },
     { key: 'imagePrompt', label: 'Mô tả ảnh (tiếng Anh)', kind: 'textarea', maxLength: 400, hint: 'Tả chủ thể, bối cảnh, bố cục. Phong cách ảnh lấy từ cài đặt của kênh.' },
+    { key: 'hero', label: 'Nhân vật chính trong ảnh', kind: 'choice', options: [{ value: 'yes', label: 'Có, đúng ảnh chuẩn' }, { value: 'no', label: 'Không có hoặc khác ảnh chuẩn' }], hint: 'Chọn Không để ảnh nhân vật chính không bị gửi kèm khi vẽ cảnh này.' },
     { key: 'shot', advanced: true, label: 'Kiểu khung hình', kind: 'choice', options: SHOT_OPTIONS, hint: 'Đổi kiểu khung giữa các cảnh để video không lặp bố cục.' },
     { key: 'fx', advanced: true, label: 'Hiệu ứng ánh sáng', kind: 'choice', options: FX_OPTIONS },
     { key: 'rhythm', advanced: true, label: 'Cắt nhịp', kind: 'choice', options: RHYTHM_OPTIONS },
     { key: 'motion', advanced: true, label: 'Chuyển động', kind: 'choice', options: MOTION_OPTIONS },
     { key: 'transition', advanced: true, label: 'Cách mở cảnh', kind: 'choice', options: TRANSITION_OPTIONS },
   ],
-  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', motion: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto', transition: 'auto' },
+  defaults: { caption: '', imagePrompt: 'a calm city street at dusk, wide shot', hero: 'yes', motion: 'auto', fx: 'auto', rhythm: 'auto', shot: 'auto', transition: 'auto' },
   varyBy: ['shot'],
   minSeconds: 4,
   // Empty style: the channel's own image style is used (see the images pipeline step).
-  image: { promptKey: 'imagePrompt', style: '', compose: (p) => SHOT_TEXT[p.shot as Shot] ?? '' },
+  image: { promptKey: 'imagePrompt', style: '', compose: (p) => SHOT_TEXT[p.shot as Shot] ?? '', withoutCharacters: (p) => p.hero === 'no' },
   sfx: pictureCues,
   normalize: (p) => ({ ...p, caption: p.caption.trim().slice(0, 60), imagePrompt: p.imagePrompt.trim() }),
 });

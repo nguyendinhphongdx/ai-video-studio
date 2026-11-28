@@ -77,26 +77,26 @@ export const DEFAULT_SKILLS = ['cinematic'];
 async function ensureDefaults(channelId: string) {
   for (const marketId of DEFAULT_SKILLS) {
     const key = `default-skill:${channelId}:${marketId}`;
-    if (prefsService.flag(key)) continue;
+    if (await prefsService.flag(key)) continue;
     // Mark first: if anything below fails it must not be retried on every request.
-    prefsService.setFlag(key);
+    await prefsService.setFlag(key);
     const markdown = await marketRepository.read(marketId);
-    if (!markdown || channelSkillRepository.list(channelId).some((r) => r.source === `market:${marketId}`)) continue;
+    if (!markdown || (await channelSkillRepository.list(channelId)).some((r) => r.source === `market:${marketId}`)) continue;
     let id = marketId;
-    for (let n = 2; channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
-    channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
+    for (let n = 2; await channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
+    await channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
     // A channel with no default skill gets this one, so "create video" has something sensible preselected.
-    const channel = channelRepository.find(channelId);
-    if (channel && !channel.defaultSkillId) channelRepository.update({ ...channel, defaultSkillId: id, updatedAt: now() });
+    const channel = await channelRepository.find(channelId);
+    if (channel && !channel.defaultSkillId) await channelRepository.update({ ...channel, defaultSkillId: id, updatedAt: now() });
   }
 }
 
 /** Skills that videos, series or the channel default already point at were shared before skills belonged to channels: copy them in once. */
 async function adoptReferenced(channelId: string) {
-  for (const id of channelSkillRepository.referenced(channelId)) {
-    if (channelSkillRepository.find(channelId, id)) continue;
+  for (const id of await channelSkillRepository.referenced(channelId)) {
+    if (await channelSkillRepository.find(channelId, id)) continue;
     const markdown = await marketRepository.read(id);
-    if (markdown) channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${id}`, createdAt: now() });
+    if (markdown) await channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${id}`, createdAt: now() });
   }
 }
 
@@ -117,16 +117,16 @@ export const skillService = {
     await channelService.get(channelId);
     await adoptReferenced(channelId);
     await ensureDefaults(channelId);
-    return Promise.all(channelSkillRepository.list(channelId).map(withUpdate));
+    return Promise.all((await channelSkillRepository.list(channelId)).map(withUpdate));
   },
 
   async get(channelId: string, id: string): Promise<SkillDetail> {
     await channelService.get(channelId);
-    let row = channelSkillRepository.find(channelId, id);
+    let row = await channelSkillRepository.find(channelId, id);
     if (!row) {
       await adoptReferenced(channelId);
       await ensureDefaults(channelId);
-      row = channelSkillRepository.find(channelId, id);
+      row = await channelSkillRepository.find(channelId, id);
     }
     if (!row) throw notFound(`skill "${id}" của kênh này`);
     return { skill: parseSkill(id, row.markdown), markdown: row.markdown, issues: lintSkill(parseSkill(id, row.markdown), toolCatalog), source: row.source, updatedAt: row.updatedAt };
@@ -136,12 +136,12 @@ export const skillService = {
   async save(channelId: string, id: string, markdown: string, { create = false, source = 'custom' } = {}): Promise<SkillDetail> {
     await channelService.get(channelId);
     validate(id, markdown);
-    const exists = channelSkillRepository.find(channelId, id) !== null;
+    const exists = await channelSkillRepository.find(channelId, id) !== null;
     if (create && exists) throw conflict(`Kênh đã có skill "${id}"`);
     if (!create && !exists) throw notFound(`skill "${id}" của kênh này`);
-    if (create) channelSkillRepository.insert({ channelId, skillId: id, markdown, source, createdAt: now() });
-    else channelSkillRepository.update(channelId, id, markdown, now());
-    return skillService.get(channelId, id);
+    if (create) await channelSkillRepository.insert({ channelId, skillId: id, markdown, source, createdAt: now() });
+    else await channelSkillRepository.update(channelId, id, markdown, now());
+    return await skillService.get(channelId, id);
   },
 
   /** Copies a market skill into the channel; from then on it is the channel's own and can be edited freely. */
@@ -150,31 +150,31 @@ export const skillService = {
     const markdown = await marketRepository.read(marketId);
     if (!markdown) throw notFound(`skill "${marketId}" trong market`);
     let id = marketId;
-    for (let n = 2; channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
+    for (let n = 2; await channelSkillRepository.find(channelId, id); n++) id = `${marketId}-${n}`.slice(0, 48);
     validate(id, markdown);
-    channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
-    return skillService.get(channelId, id);
+    await channelSkillRepository.insert({ channelId, skillId: id, markdown, source: `market:${marketId}`, createdAt: now() });
+    return await skillService.get(channelId, id);
   },
 
   /** Brings a market-installed skill up to the market's current version. Replaces the channel's copy, edits included. */
   async upgrade(channelId: string, id: string): Promise<SkillDetail> {
     await channelService.get(channelId);
-    const row = channelSkillRepository.find(channelId, id);
+    const row = await channelSkillRepository.find(channelId, id);
     if (!row) throw notFound(`skill "${id}" của kênh này`);
     const u = await updateOf(row);
     if (!u) throw conflict('Skill này đã là bản mới nhất hoặc không đến từ kho.');
     validate(id, u.markdown);
-    channelSkillRepository.replaceFromMarket(channelId, id, u.markdown, `market:${u.marketId}`, now());
-    return skillService.get(channelId, id);
+    await channelSkillRepository.replaceFromMarket(channelId, id, u.markdown, `market:${u.marketId}`, now());
+    return await skillService.get(channelId, id);
   },
 
   async remove(channelId: string, id: string): Promise<void> {
     const channel = await channelService.get(channelId);
     await skillService.get(channelId, id);
-    const used = channelSkillRepository.usage(channelId, id);
+    const used = await channelSkillRepository.usage(channelId, id);
     if (used.episodes || used.series) throw conflict(`Skill đang được dùng bởi ${used.episodes} video và ${used.series} series. Đổi sang skill khác trước khi xoá.`);
     if (channel.defaultSkillId === id) throw conflict('Đây là skill mặc định của kênh. Chọn skill mặc định khác trước khi xoá.');
-    channelSkillRepository.remove(channelId, id);
+    await channelSkillRepository.remove(channelId, id);
   },
 };
 

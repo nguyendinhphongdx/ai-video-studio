@@ -6,5 +6,5 @@ import { prefsService } from '@/server/modules/prefs/prefs.service';
 
 const Body = z.object({ dismissed: z.boolean() });
 
-export const GET = route(async () => ({ dismissed: prefsService.onboardingDismissed() }));
-export const PUT = route(async (req) => ({ dismissed: prefsService.setOnboardingDismissed((await parseJsonBody(req, Body)).dismissed) }));
+export const GET = route(async () => ({ dismissed: await prefsService.onboardingDismissed() }));
+export const PUT = route(async (req) => ({ dismissed: await prefsService.setOnboardingDismissed((await parseJsonBody(req, Body)).dismissed) }));

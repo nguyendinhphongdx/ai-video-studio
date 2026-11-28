@@ -6,6 +6,7 @@ import { PROVIDERS, type LlmSettings, type LlmSettingsInput, type LlmTestResult 
 
 import { anthropicClient } from './anthropic';
 import { estimateTokens } from '@/core/usage/cost';
+import { createLogger } from '@/server/logger';
 import { usageService } from '@/server/modules/usage/usage.service';
 
 import type { LlmClient, LlmUsage } from './llm.types';
@@ -36,40 +37,70 @@ export function describeLlmError(e: unknown, llm: LlmSettings): string {
 }
 
 /** Writes the call to the cost ledger; when the provider reported no usage, estimates it from the text and says so. */
-function track(settings: LlmSettings, usage: LlmUsage | undefined, text: { in: string; out: string }, purpose: string | undefined, started: number) {
+async function track(settings: LlmSettings, usage: LlmUsage | undefined, text: { in: string; out: string }, purpose: string | undefined, started: number) {
   const reported = usage ?? { input: estimateTokens(text.in), output: estimateTokens(text.out), cached: 0 };
-  usageService.record({
+  await usageService.record({
     kind: 'llm', provider: settings.provider, model: settings.model, purpose, durationMs: Date.now() - started, estimated: !usage,
     usage: { inputTokens: reported.input, outputTokens: reported.output, cachedTokens: reported.cached, units: 0 },
   });
 }
 
+const logger = createLogger('llm');
+
 export const llm: LlmPort = {
   async isReady() {
     return isReady(await settingsService.llm());
   },
-  async chat(input) {
+  async chat({ purpose, onDelta, signal, ...input }) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key.');
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
+    // The picture bytes are not text: leave them out of the estimate used when a provider reports no usage.
+    const sent = input.system + JSON.stringify(input.messages.map(({ images: _images, ...m }) => m));
+    const client = clientFor(settings);
+    const partial = { text: '', reasoning: '' };
     const started = Date.now();
+    // One provider request. A failed or stopped one may still be billed, so it goes into the ledger too, estimated
+    // from what arrived.
+    const attempt = async (stream: boolean) => {
+      partial.text = partial.reasoning = '';
+      try {
+        const { usage, ...out } = await client.chat({ ...input, signal, ...(stream && onDelta ? { onDelta: (d) => ((partial[d.type] += d.delta), onDelta(d)) } : {}) });
+        await track(settings, usage, { in: sent, out: out.text + JSON.stringify(out.toolCalls) }, purpose, started);
+        return { ...out, model: settings.model };
+      } catch (e) {
+        await track(settings, undefined, { in: sent, out: partial.reasoning + partial.text }, purpose, started);
+        throw e;
+      }
+    };
+    const stopped = () => ({ text: partial.text.trim(), toolCalls: [], ...(partial.reasoning ? { reasoning: partial.reasoning.trim() } : {}), stopped: true, model: settings.model });
     try {
-      const { usage, ...out } = await clientFor(settings).chat(input);
-      track(settings, usage, { in: input.system + JSON.stringify(input.messages), out: out.text + JSON.stringify(out.toolCalls) }, input.purpose, started);
-      return { ...out, model: settings.model };
+      if (!onDelta) return await attempt(false);
+      try {
+        return await attempt(true);
+      } catch (e) {
+        const status = (e as { status?: number }).status;
+        if (signal?.aborted || e instanceof UserFacingError || status === 401 || status === 403 || status === 429) throw e;
+        // The server or model cannot stream this request: ask for the whole answer instead (the chat then shows it at once).
+        logger.warn('streaming failed, asking for the whole answer', { provider: settings.provider, model: settings.model, error: String((e as Error)?.message ?? e) });
+        return await attempt(false);
+      }
     } catch (e) {
+      if (signal?.aborted) return stopped();
       if (e instanceof UserFacingError) throw e;
+      if (input.messages.some((m) => m.images?.length) && /image|vision|multimodal|modalit/i.test(String((e as Error)?.message ?? e)))
+        throw new UserFacingError(`Model "${settings.model}" không đọc được ảnh này. Đổi model ở Cài đặt, hoặc gửi lại không kèm ảnh trong cuộc trò chuyện mới.`, String((e as Error)?.stack ?? e));
       throw new UserFacingError(`AI lỗi: ${describeLlmError(e, settings)}`, String((e as Error)?.stack ?? e));
     }
   },
   async generateObject(input) {
     const settings = await settingsService.llm();
     if (!isReady(settings)) throw new UserFacingError('Chưa cài đặt AI. Mở Cài đặt để chọn nhà cung cấp và nhập API key, hoặc dùng chế độ dán kịch bản.');
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
     try {
       const { object, usage } = await clientFor(settings).generateObject(input);
-      track(settings, usage, { in: input.system + input.user, out: JSON.stringify(object) }, input.purpose, started);
+      await track(settings, usage, { in: input.system + input.user, out: JSON.stringify(object) }, input.purpose, started);
       return { object, model: settings.model };
     } catch (e) {
       if (e instanceof UserFacingError) throw e;

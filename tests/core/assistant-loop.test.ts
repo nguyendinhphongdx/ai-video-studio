@@ -46,7 +46,7 @@ function tool(name: string, risk: ToolRisk, log: string[], schema: z.ZodType = z
     schema,
     summarize: (a) => `${name}(${JSON.stringify(a)})`,
     run: async (a: unknown, ctx: ToolContext) => {
-      log.push(`${name}:${ctx.focus.episodeId}`);
+      log.push(`${name}:${ctx.focus?.episodeId}`);
       return { ok: true, message: `ok ${name}`, data: a };
     },
   });

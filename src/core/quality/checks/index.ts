@@ -132,5 +132,57 @@ const avHealth: QualityCheck = {
   },
 };
 
+/** A scene that names a character, prop or pose the series has no picture for renders without it, silently. */
+const castRefs: QualityCheck = {
+  id: 'cast-refs',
+  name: 'Nhân vật và đạo cụ có ảnh',
+  stages: ['script'],
+  run: ({ bible, scenes }) => {
+    if (!bible) return [];
+    const cast = Object.keys(bible.characterCast).filter((k) => !k.includes(':'));
+    const out: QualityIssue[] = [];
+    for (const s of scenes.filter((x) => !x.locked)) {
+      for (const key of ['lead', 'companion', 'item'] as const) {
+        const id = String(s.props[key] ?? '');
+        if (id && !cast.includes(id)) out.push({ check: 'cast-refs', level: 'error', message: `${key} "${id}" chưa có ảnh trong thư viện (đang có: ${cast.join(', ') || 'chưa có ai'})`, sceneId: s.id });
+      }
+      const pose = String(s.props.pose ?? '');
+      if (pose && !bible.characterSprites[`pose:${pose}`]) out.push({ check: 'cast-refs', level: 'error', message: `Tư thế "${pose}" chưa có ảnh`, sceneId: s.id });
+    }
+    return out;
+  },
+};
+
+/** Picture prompts must be usable as written: filled, in English, and not copied from the scene before. */
+const picturePrompts: QualityCheck = {
+  id: 'picture-prompts',
+  name: 'Mô tả ảnh',
+  stages: ['script'],
+  run: ({ scenes }) => {
+    const out: QualityIssue[] = [];
+    scenes.forEach((s, i) => {
+      if (s.locked || !('imagePrompt' in s.props)) return;
+      const prompt = String(s.props.imagePrompt ?? '').trim();
+      if (!prompt) out.push({ check: 'picture-prompts', level: 'error', message: 'Thiếu mô tả ảnh', sceneId: s.id });
+      else if (/[ăâđêôơưĂÂĐÊÔƠƯ]/.test(prompt)) out.push({ check: 'picture-prompts', level: 'warning', message: 'Mô tả ảnh phải viết bằng tiếng Anh', sceneId: s.id });
+      else if (s.block.endsWith('picture') && String(scenes[i - 1]?.props.imagePrompt ?? '').trim() === prompt) out.push({ check: 'picture-prompts', level: 'warning', message: 'Mô tả ảnh y hệt cảnh trước', sceneId: s.id });
+    });
+    return out;
+  },
+};
+
+/** A drawn show (one with a character library) shows a picture in every scene: no words on a plain background. */
+const drawnScenes: QualityCheck = {
+  id: 'drawn-scenes',
+  name: 'Cảnh nào cũng có hình',
+  stages: ['script'],
+  run: ({ bible, scenes, tools }) => {
+    if (!bible?.characterAssets.length || !tools) return [];
+    return scenes
+      .filter((s) => !s.locked && tools.block(s.block) && !tools.block(s.block)!.image)
+      .map((s) => ({ check: 'drawn-scenes', level: 'error' as const, message: 'Cảnh không có hình vẽ: đổi sang cảnh tranh hoặc nhân vật diễn', sceneId: s.id }));
+  },
+};
+
 /** Registered checks. Add a check here. */
-export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken, avHealth];
+export const QUALITY_CHECKS: QualityCheck[] = [duration, slotCounts, catchphrases, avoid, narrationLength, variety, spoken, castRefs, picturePrompts, drawnScenes, avHealth];

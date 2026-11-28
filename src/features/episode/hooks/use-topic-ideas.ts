@@ -3,9 +3,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { episodeApi } from '../services/episode.api';
+import { episodeApi, type TopicIdea } from '../services/episode.api';
 
-type Idea = { topic: string; why: string };
+type Idea = TopicIdea;
 
 const storeKey = (channelId: string, count: number) => `avs-topic-ideas:${channelId}:${count}`;
 const read = (key: string): Idea[] => {

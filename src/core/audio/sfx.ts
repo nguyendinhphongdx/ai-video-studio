@@ -2,6 +2,8 @@
 // Blocks say which sound goes with their own animation (BlockDefinition.sfx); this plans the whole video. The
 // restraint rules (short sounds, quiet under the voice, a gap between cues, one big hit at a time) follow the
 // sound-design notes of video-shotcraft (Apache-2.0), see NOTICE.
+import { tuneOf } from '../domain/tune';
+
 export const SFX_KINDS = ['whoosh', 'whoosh-soft', 'impact', 'riser', 'pop', 'stamp', 'tick', 'sparkle', 'paper'] as const;
 export type SfxKind = (typeof SFX_KINDS)[number];
 
@@ -43,6 +45,7 @@ export interface CueScene {
   ordinal: number;
 }
 
+/** Each scene's own effect level is applied on top of the plan; 0 silences that scene. */
 export function planCues(scenes: CueScene[], durations: number[], hooks: (scene: CueScene, durationSec: number) => SfxCue[] | undefined, master = 1): PlacedCue[] {
   const placed: PlacedCue[] = [];
   let start = 0;
@@ -51,9 +54,10 @@ export function planCues(scenes: CueScene[], durations: number[], hooks: (scene:
     const cues = [...(hooks(scene, dur) ?? [])];
     // Every cut after the first gets a sweep unless the scene already opens with its own entrance sound.
     if (i > 0 && !cues.some((c) => isEntrance(c.kind) && c.at <= 0.15)) cues.push({ kind: TRANSITION_CYCLE[i % TRANSITION_CYCLE.length]!, at: -0.06 });
-    for (const c of cues) {
+    const level = tuneOf(scene.props).sfxVolume ?? 1;
+    for (const c of level > 0 ? cues : []) {
       const atSec = Math.max(0, start + c.at);
-      if (c.at < dur) placed.push({ kind: c.kind, atSec, volume: Math.min(1, (c.volume ?? BASE_VOLUME[c.kind]) * master), sceneId: scene.id });
+      if (c.at < dur) placed.push({ kind: c.kind, atSec, volume: Math.min(1, (c.volume ?? BASE_VOLUME[c.kind]) * master * level), sceneId: scene.id });
     }
     start += dur;
   });

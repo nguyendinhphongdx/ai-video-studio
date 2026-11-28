@@ -15,12 +15,16 @@ import { probeDuration } from '@/server/adapters/video/video.service';
 import { settingsService } from '@/server/modules/settings/settings.service';
 import { usageService } from '@/server/modules/usage/usage.service';
 import { estimateTokens, TTS_TOKENS_PER_SECOND, type Usage } from '@/core/usage/cost';
+import type { VoiceDelivery } from '@/core/domain/tune';
 
 const run = promisify(execFile);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const logger = createLogger('tts');
 
 const RATE = '-8%';
+const SPEED_RATE = { slow: '-18%', fast: '+4%' } as const;
+const SPEED_DIRECTION = { slow: 'Speak noticeably slowly.', fast: 'Speak briskly.' } as const;
+const STYLE_DIRECTION = { cheerful: 'Sound bright and cheerful, smiling.', gentle: 'Sound soft, calm and tender.', dramatic: 'Sound dramatic and suspenseful.', whisper: 'Speak in a hushed, secretive near-whisper.' } as const;
 const GAP_MS = 600;
 const RETRY_DELAYS_MS = [2000, 5000, 10000, 20000];
 const bin = () => process.env.AVS_EDGE_TTS || 'edge-tts';
@@ -55,7 +59,13 @@ export async function voiceAvailable(voice: string): Promise<boolean> {
 /** Tokens Gemini billed for one speech request, when it said so (otherwise null). */
 type GoogleSpeech = { promptTokenCount?: number; candidatesTokenCount?: number } | null;
 
-async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promise<GoogleSpeech> {
+/** The base direction, plus what this one scene asks for. */
+const direction = ({ style, speed }: VoiceDelivery): string => {
+  const extra = [style ? STYLE_DIRECTION[style] : '', speed ? SPEED_DIRECTION[speed] : ''].filter(Boolean).join(' ');
+  return extra ? `${GOOGLE_DIRECTION.replace(/:$/, '.')} ${extra} Say:` : GOOGLE_DIRECTION;
+};
+
+async function speakGoogle(text: string, voice: VoiceId, outFile: string, delivery: VoiceDelivery = {}): Promise<GoogleSpeech> {
   const key = await settingsService.googleKey();
   if (!key) throw new UserFacingError('Chưa có Google API key cho giọng Google. Nhập key ở Cài đặt (mục Tạo ảnh AI) hoặc chọn giọng Edge.');
   await fs.mkdir(path.dirname(outFile), { recursive: true });
@@ -68,7 +78,7 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${GOOGLE_DIRECTION}\n\n${text}` }] }],
+          contents: [{ parts: [{ text: `${direction(delivery)}\n\n${text}` }] }],
           generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: googleVoiceName(voice) } } } },
         }),
       });
@@ -100,16 +110,16 @@ async function speakGoogle(text: string, voice: VoiceId, outFile: string): Promi
   }
 }
 
-async function speak(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta): Promise<void> {
+async function speak(text: string, voice: VoiceId, outFile: string, meta?: UsageMeta, delivery: VoiceDelivery = {}): Promise<void> {
   if (!VOICES[voice]) throw new UserFacingError('Giọng đọc không hợp lệ');
   if (isGoogleVoice(voice)) {
-    usageService.assertWithinBudget();
+    await usageService.assertWithinBudget();
     const started = Date.now();
-    const reported = await speakGoogle(text, voice, outFile);
+    const reported = await speakGoogle(text, voice, outFile, delivery);
     const seconds = await probeDuration(outFile);
     // Audio comes back as tokens; if the response carried no count, estimate it from the text and the audio length.
     const usage: Usage = { inputTokens: reported?.promptTokenCount ?? estimateTokens(text), outputTokens: reported?.candidatesTokenCount ?? Math.round(seconds * TTS_TOKENS_PER_SECOND), cachedTokens: 0, units: seconds };
-    usageService.record({ kind: 'tts', provider: 'gemini', model: GEMINI_TTS_MODEL(), purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage, estimated: !reported });
+    await usageService.record({ kind: 'tts', provider: 'gemini', model: GEMINI_TTS_MODEL(), purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage, estimated: !reported });
     return;
   }
   await fs.mkdir(path.dirname(outFile), { recursive: true });
@@ -119,8 +129,8 @@ async function speak(text: string, voice: VoiceId, outFile: string, meta?: Usage
     lastCall = Date.now();
     try {
       const started = Date.now();
-      await run(bin(), ['--voice', voice, `--rate=${RATE}`, '--text', text, '--write-media', outFile]);
-      usageService.record({ kind: 'tts', provider: 'edge', model: voice, purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: await probeDuration(outFile).catch(() => 0) } });
+      await run(bin(), ['--voice', voice, `--rate=${delivery.speed ? SPEED_RATE[delivery.speed] : RATE}`, '--text', text, '--write-media', outFile]);
+      await usageService.record({ kind: 'tts', provider: 'edge', model: voice, purpose: meta?.purpose ?? 'scene_voice', sceneId: meta?.sceneId, durationMs: Date.now() - started, usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, units: await probeDuration(outFile).catch(() => 0) } });
       return;
     } catch (e) {
       const err = e as Error & { stderr?: string };
@@ -137,8 +147,8 @@ async function speak(text: string, voice: VoiceId, outFile: string, meta?: Usage
 }
 
 export const tts: TtsPort = {
-  async synthesize(text, voice, outFile, meta) {
-    await speak(text, voice, outFile, meta);
+  async synthesize(text, voice, outFile, meta, delivery) {
+    await speak(text, voice, outFile, meta, delivery);
     return probeDuration(outFile);
   },
 };

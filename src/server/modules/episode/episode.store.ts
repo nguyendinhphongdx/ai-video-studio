@@ -3,8 +3,8 @@ import { notFound } from '@/server/http/api-error';
 
 import { episodeRepository } from './episode.repository';
 
-export function loadEpisode(id: string) {
-  const e = episodeRepository.find(id);
+export async function loadEpisode(id: string) {
+  const e = await episodeRepository.find(id);
   if (!e) throw notFound('video');
   return e;
 }
@@ -12,22 +12,22 @@ export function loadEpisode(id: string) {
 /** EpisodeStore port for the core workflows. */
 export const episodeStore: EpisodeStore = {
   async get(id) {
-    return loadEpisode(id);
+    return await loadEpisode(id);
   },
   async update(id, patch) {
-    episodeRepository.update(id, patch);
-    return loadEpisode(id);
+    await episodeRepository.update(id, patch);
+    return await loadEpisode(id);
   },
   async replaceRenders(episodeId, renders) {
-    return episodeRepository.replaceRenders(episodeId, renders);
+    return await episodeRepository.replaceRenders(episodeId, renders);
   },
   async addEvent(episodeId, message) {
-    episodeRepository.addEvent(episodeId, message);
+    await episodeRepository.addEvent(episodeId, message);
   },
   async updateScene(episodeId, sceneId, patch) {
-    episodeRepository.updateScene(episodeId, sceneId, patch);
+    await episodeRepository.updateScene(episodeId, sceneId, patch);
   },
   async listInSeries(seriesId) {
-    return episodeRepository.list({ seriesId });
+    return await episodeRepository.list({ seriesId });
   },
 };

@@ -64,7 +64,7 @@ describe('market and channel-owned skills', () => {
     await s.skills.skillService.save(a.id, 'picture-story', installed.markdown.replace('Kể chuyện bằng ảnh AI', 'Kể chuyện của kênh C'));
     expect((await s.skills.skillService.get(a.id, 'picture-story')).skill.name).toBe('Kể chuyện của kênh C');
     expect((await s.market.marketService.get('picture-story')).skill.name).toBe('Kể chuyện bằng ảnh AI');
-    await expect(s.skills.skillService.get(b.id, 'picture-story')).rejects.toMatchObject({ status: 404 });
+    await expect(async () => s.skills.skillService.get(b.id, 'picture-story')).rejects.toMatchObject({ status: 404 });
     // Installing twice keeps both copies under different ids.
     const second = await s.skills.skillService.install(a.id, 'picture-story');
     expect(second.skill.id).toBe('picture-story-2');
@@ -76,16 +76,16 @@ describe('market and channel-owned skills', () => {
     const installed = await s.skills.skillService.install(c.id, 'picture-story');
     expect((await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!.update).toBeNull();
     // An older copy that nobody edited: the market text differs, so it is offered.
-    repo.channelSkillRepository.replaceFromMarket(c.id, 'picture-story', installed.markdown.replace('remotion/kinetic, ', ''), 'market:picture-story', installed.updatedAt);
+    await repo.channelSkillRepository.replaceFromMarket(c.id, 'picture-story', installed.markdown.replace('remotion/kinetic, ', ''), 'market:picture-story', installed.updatedAt);
     const old = (await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!;
     expect(old.tools).not.toContain('remotion/kinetic');
     expect(old.update?.marketId).toBe('picture-story');
     const upgraded = await s.skills.skillService.upgrade(c.id, 'picture-story');
     expect(upgraded.skill.tools).toContain('remotion/kinetic');
     expect((await s.skills.skillService.list(c.id)).find((x) => x.id === 'picture-story')!.update).toBeNull();
-    await expect(s.skills.skillService.upgrade(c.id, 'picture-story')).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.skills.skillService.upgrade(c.id, 'picture-story')).rejects.toMatchObject({ status: 409 });
     // A copy of a market skill that was renamed follows the new one and keeps its id (videos point at it).
-    repo.channelSkillRepository.insert({ channelId: c.id, skillId: 'vox-explainer', markdown: '---\nname: Vox cũ\ndescription: d\ntools: [remotion/vox, remotion/outro]\nscenes: 3-5\n---\n\nHướng dẫn cũ.\n', source: 'market:vox-explainer', createdAt: new Date().toISOString() });
+    await repo.channelSkillRepository.insert({ channelId: c.id, skillId: 'vox-explainer', markdown: '---\nname: Vox cũ\ndescription: d\ntools: [remotion/vox, remotion/outro]\nscenes: 3-5\n---\n\nHướng dẫn cũ.\n', source: 'market:vox-explainer', createdAt: new Date().toISOString() });
     const renamed = (await s.skills.skillService.list(c.id)).find((x) => x.id === 'vox-explainer')!;
     expect(renamed.update?.marketId).toBe('vox-style');
     const after = await s.skills.skillService.upgrade(c.id, 'vox-explainer');
@@ -95,11 +95,11 @@ describe('market and channel-owned skills', () => {
 
   it('refuses a broken skill and keeps ids unique within a channel', async () => {
     const c = await s.channels.channelService.create(input('Kênh E'));
-    await expect(s.skills.skillService.save(c.id, 'bad', 'không có phần khai báo', { create: true })).rejects.toMatchObject({ status: 400 });
-    await expect(s.skills.skillService.save(c.id, 'tools', '---\nname: X\ntools: [nope/none]\n---\nbody text', { create: true })).rejects.toMatchObject({ status: 400 });
+    await expect(async () => s.skills.skillService.save(c.id, 'bad', 'không có phần khai báo', { create: true })).rejects.toMatchObject({ status: 400 });
+    await expect(async () => s.skills.skillService.save(c.id, 'tools', '---\nname: X\ntools: [nope/none]\n---\nbody text', { create: true })).rejects.toMatchObject({ status: 400 });
     const md = '---\nname: Của tôi\ndescription: d\ntools: [remotion/outro]\nscenes: 3-5\n---\n\nHướng dẫn.\n';
     expect((await s.skills.skillService.save(c.id, 'cua-toi', md, { create: true, source: 'ai' })).source).toBe('ai');
-    await expect(s.skills.skillService.save(c.id, 'cua-toi', md, { create: true })).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.skills.skillService.save(c.id, 'cua-toi', md, { create: true })).rejects.toMatchObject({ status: 409 });
   });
 
   it('adopts the shared skills that existing videos already use, once', async () => {
@@ -118,7 +118,7 @@ describe('market and channel-owned skills', () => {
     const c = await s.channels.channelService.create(input('Kênh F'));
     const d = await s.skills.skillService.install(c.id, 'kids-cards');
     const made = await s.episodes.episodeService.create({ channelId: c.id, seriesId: null, skillId: d.skill.id, topic: 'Số hai', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
-    await expect(s.skills.skillService.remove(c.id, d.skill.id)).rejects.toMatchObject({ status: 409 });
+    await expect(async () => s.skills.skillService.remove(c.id, d.skill.id)).rejects.toMatchObject({ status: 409 });
     await s.episodes.episodeService.remove(made.episode.id);
     await s.skills.skillService.remove(c.id, d.skill.id);
     expect((await s.skills.skillService.list(c.id)).map((x) => x.id)).toEqual(['cinematic']);
@@ -141,7 +141,7 @@ describe('market and channel-owned skills', () => {
 
   it('only lets a video use a skill its own channel has', async () => {
     const a = await s.channels.channelService.create(input('Kênh G'));
-    await expect(s.episodes.episodeService.create({ channelId: a.id, seriesId: null, skillId: 'vox-style', topic: 'Chủ đề', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true })).rejects.toMatchObject({ status: 404 });
+    await expect(async () => s.episodes.episodeService.create({ channelId: a.id, seriesId: null, skillId: 'vox-style', topic: 'Chủ đề', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true })).rejects.toMatchObject({ status: 404 });
   });
 });
 
@@ -165,12 +165,12 @@ describe('channel knowledge', () => {
     await s.knowledge.knowledgeService.save(c.id, 'Tri thức v1', '');
     const made = await s.episodes.episodeService.create({ channelId: c.id, seriesId: null, skillId: d.skill.id, topic: 'Một chủ đề', goal: '', notes: '', formats: ['landscape'], music: true, sceneCount: null, planOnly: true });
     expect(made.knowledge).toEqual({ used: null, current: 1 });
-    s.jobs.jobRepository.claimNext();
+    await s.jobs.jobQueue.claimNext();
     await s.knowledge.knowledgeService.save(c.id, 'Tri thức v2', '');
     expect((await s.episodes.episodeService.get(made.episode.id)).knowledge).toEqual({ used: null, current: 2 });
   });
 
-  it('adds a knowledge layer right after the channel, and leaves it out when there is none', () => {
+  it('adds a knowledge layer right after the channel, and leaves it out when there is none', async () => {
     const withKn = compileContext(CONTEXT_LAYERS, context({ knowledge: { version: 3, markdown: 'Jakarta lún 25 cm mỗi năm.' } }));
     expect(withKn.sections.map((x) => x.id).slice(0, 3)).toEqual(['system', 'channel', 'knowledge']);
     expect(withKn.text).toContain('phiên bản 3');

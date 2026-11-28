@@ -1,12 +1,13 @@
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useJob } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
 
 import { channelApi, type ChannelInput, type ChannelView } from '../services/channel.api';
@@ -29,12 +30,7 @@ export function ChannelArtPanel({ channel, form, setForm }: { channel: ChannelVi
     setWantArt((w) => ({ intro: w.intro || Boolean(form.introDesign?.layers.some((l) => l.kind === 'art')), outro: w.outro || Boolean(form.outroDesign?.layers.some((l) => l.kind === 'art')) }));
   }, [form.introDesign, form.outroDesign]);
 
-  const status = useQuery({
-    queryKey: ['channel-job', job?.id],
-    queryFn: () => channelApi.job(job!.id),
-    enabled: Boolean(job),
-    refetchInterval: (q) => (q.state.data?.state === 'done' || q.state.data?.state === 'failed' ? false : 1200),
-  });
+  const status = useJob(job?.id);
   const state = status.data?.state;
   useEffect(() => {
     if (!job || !state) return;

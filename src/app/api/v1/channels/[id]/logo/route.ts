@@ -5,5 +5,5 @@ import { channelService } from '@/server/modules/channel/channel.service';
 export const POST = route<{ id: string }>(async (req, { id }) => {
   const file = (await req.formData()).get('file');
   if (!(file instanceof File)) throw new ApiError(400, 'validation_error', 'Chọn một ảnh logo');
-  return channelService.setLogo(id, file);
+  return await channelService.setLogo(id, file);
 });

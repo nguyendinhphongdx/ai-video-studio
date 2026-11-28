@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.github
+.claude
+data
+projects
+tmp-puppet-check
+*.log
+tsconfig.tsbuildinfo
+.env
+.env.*
+!.env.example

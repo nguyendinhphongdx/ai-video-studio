@@ -5,9 +5,11 @@ import path from 'node:path';
 
 import { SKILL_ID_RE } from '@/core/skills/skill';
 import { MARKET_SKILLS_DIR } from '@/server/config';
-import { db } from '@/server/db';
+import { and, asc, count, countDistinct, eq, isNotNull } from 'drizzle-orm';
 
-type Row = Record<string, unknown>;
+import { one, orm, owner, scoped } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
+import { channels, channelSkills, episodes, series, seriesVersions } from '@/server/schema';
 
 export const marketRepository = {
   async ids(): Promise<string[]> {
@@ -29,53 +31,56 @@ export interface ChannelSkillRow {
   updatedAt: string;
 }
 
-const toRow = (r: Row): ChannelSkillRow => ({
-  channelId: String(r.channel_id),
-  skillId: String(r.skill_id),
-  markdown: String(r.markdown),
-  source: String(r.source),
-  createdAt: String(r.created_at),
-  updatedAt: String(r.updated_at),
+const toRow = (r: typeof channelSkills.$inferSelect): ChannelSkillRow => ({
+  channelId: r.channelId,
+  skillId: r.skillId,
+  markdown: r.markdown,
+  source: r.source,
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
 });
 
+const thisSkill = (channelId: string, skillId: string) => and(eq(channelSkills.channelId, channelId), eq(channelSkills.skillId, skillId), scoped(channelSkills));
+/** Series versions of a channel's series, in this workspace. */
+const channelSeriesVersions = (channelId: string) => and(eq(series.channelId, channelId), scoped(series), scoped(seriesVersions));
+
 export const channelSkillRepository = {
-  list(channelId: string): ChannelSkillRow[] {
-    return (db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? ORDER BY created_at, skill_id').all(channelId) as Row[]).map(toRow);
+  async list(channelId: string): Promise<ChannelSkillRow[]> {
+    return (await orm().select().from(channelSkills).where(and(eq(channelSkills.channelId, channelId), scoped(channelSkills))).orderBy(asc(channelSkills.createdAt), asc(channelSkills.skillId))).map(toRow);
   },
-  find(channelId: string, skillId: string): ChannelSkillRow | null {
-    const r = db().prepare('SELECT * FROM channel_skills WHERE channel_id = ? AND skill_id = ?').get(channelId, skillId) as Row | undefined;
+  async find(channelId: string, skillId: string): Promise<ChannelSkillRow | null> {
+    const r = await orm().select().from(channelSkills).where(thisSkill(channelId, skillId)).then(one);
     return r ? toRow(r) : null;
   },
-  insert(row: Omit<ChannelSkillRow, 'updatedAt'>) {
-    db()
-      .prepare('INSERT INTO channel_skills (channel_id, skill_id, markdown, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(row.channelId, row.skillId, row.markdown, row.source, row.createdAt, row.createdAt);
+  async insert(row: Omit<ChannelSkillRow, 'updatedAt'>) {
+    await announced('skill', row.channelId, {}, async () => void (await orm().insert(channelSkills).values({ ...row, updatedAt: row.createdAt, ...owner() })));
   },
-  update(channelId: string, skillId: string, markdown: string, updatedAt: string) {
-    db().prepare('UPDATE channel_skills SET markdown = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ?').run(markdown, updatedAt, channelId, skillId);
+  async update(channelId: string, skillId: string, markdown: string, updatedAt: string) {
+    await announced('skill', channelId, {}, async () => void (await orm().update(channelSkills).set({ markdown, updatedAt }).where(thisSkill(channelId, skillId))));
   },
   /** Replaces a skill with a newer market version (and points its source at the market id it now follows). */
-  replaceFromMarket(channelId: string, skillId: string, markdown: string, source: string, updatedAt: string) {
-    db().prepare('UPDATE channel_skills SET markdown = ?, source = ?, updated_at = ? WHERE channel_id = ? AND skill_id = ?').run(markdown, source, updatedAt, channelId, skillId);
+  async replaceFromMarket(channelId: string, skillId: string, markdown: string, source: string, updatedAt: string) {
+    await announced('skill', channelId, {}, async () => void (await orm().update(channelSkills).set({ markdown, source, updatedAt }).where(thisSkill(channelId, skillId))));
   },
-  remove(channelId: string, skillId: string) {
-    db().prepare('DELETE FROM channel_skills WHERE channel_id = ? AND skill_id = ?').run(channelId, skillId);
+  async remove(channelId: string, skillId: string) {
+    await announced('skill', channelId, {}, async () => void (await orm().delete(channelSkills).where(thisSkill(channelId, skillId))));
   },
   /** Skill ids a channel's videos, series or default already point at (to adopt them from the market). */
-  referenced(channelId: string): string[] {
-    const rows = db()
-      .prepare(
-        `SELECT skill_id AS id FROM episodes WHERE channel_id = ?
-         UNION SELECT v.skill_id FROM series_versions v JOIN series s ON s.id = v.series_id WHERE s.channel_id = ?
-         UNION SELECT default_skill_id FROM channels WHERE id = ? AND default_skill_id IS NOT NULL`,
-      )
-      .all(channelId, channelId, channelId) as { id: string }[];
-    return rows.map((r) => r.id);
+  async referenced(channelId: string): Promise<string[]> {
+    const fromEpisodes = await orm().selectDistinct({ id: episodes.skillId }).from(episodes).where(and(eq(episodes.channelId, channelId), scoped(episodes)));
+    const fromSeries = await orm().selectDistinct({ id: seriesVersions.skillId }).from(seriesVersions).innerJoin(series, eq(series.id, seriesVersions.seriesId)).where(channelSeriesVersions(channelId));
+    const fromDefault = await orm().select({ id: channels.defaultSkillId }).from(channels).where(and(eq(channels.id, channelId), scoped(channels), isNotNull(channels.defaultSkillId)));
+    return [...new Set([...fromEpisodes, ...fromSeries, ...fromDefault].map((r) => r.id!))];
   },
   /** How many videos and series versions use the skill. */
-  usage(channelId: string, skillId: string): { episodes: number; series: number } {
-    const e = db().prepare('SELECT COUNT(*) AS n FROM episodes WHERE channel_id = ? AND skill_id = ?').get(channelId, skillId) as { n: number };
-    const s = db().prepare('SELECT COUNT(DISTINCT v.series_id) AS n FROM series_versions v JOIN series s ON s.id = v.series_id WHERE s.channel_id = ? AND v.skill_id = ?').get(channelId, skillId) as { n: number };
-    return { episodes: e.n, series: s.n };
+  async usage(channelId: string, skillId: string): Promise<{ episodes: number; series: number }> {
+    const e = await orm().select({ n: count() }).from(episodes).where(and(eq(episodes.channelId, channelId), eq(episodes.skillId, skillId), scoped(episodes))).then(one);
+    const s = await orm()
+      .select({ n: countDistinct(seriesVersions.seriesId) })
+      .from(seriesVersions)
+      .innerJoin(series, eq(series.id, seriesVersions.seriesId))
+      .where(and(channelSeriesVersions(channelId), eq(seriesVersions.skillId, skillId)))
+      .then(one);
+    return { episodes: e?.n ?? 0, series: s?.n ?? 0 };
   },
 };

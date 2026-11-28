@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Be_Vietnam_Pro } from 'next/font/google';
 import type { ReactNode } from 'react';
 
+import { InstallHint } from '@/components/common/InstallHint';
 import { PwaRegister } from '@/components/common/PwaRegister';
 import { cn } from '@/lib/utils';
 import { Providers } from '@/providers/providers';
@@ -14,8 +15,8 @@ export const metadata: Metadata = {
   title: { default: 'AI Video Studio', template: '%s · AI Video Studio' },
   description: 'AI viết, lồng tiếng và dựng video cho kênh của bạn; bạn duyệt.',
   applicationName: 'AI Video Studio',
-  appleWebApp: { capable: true, title: 'Video Studio', statusBarStyle: 'black-translucent' },
-  icons: { icon: [{ url: '/pwa-icon/192', sizes: '192x192', type: 'image/png' }], apple: [{ url: '/pwa-icon/180', sizes: '180x180', type: 'image/png' }] },
+  appleWebApp: { capable: true, title: 'Video Studio', statusBarStyle: 'black' },
+  icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml' }, { url: '/pwa-icon/192', sizes: '192x192', type: 'image/png' }], apple: [{ url: '/pwa-icon/180', sizes: '180x180', type: 'image/png' }] },
   formatDetection: { telephone: false },
 };
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="h-full font-sans">
         <Providers>{children}</Providers>
         <PwaRegister />
+        <InstallHint />
       </body>
     </html>
   );

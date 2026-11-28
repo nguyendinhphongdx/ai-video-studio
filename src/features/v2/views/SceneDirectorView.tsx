@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FPS } from '@/core/domain/catalog';
+import { tuneOf } from '@/core/domain/tune';
 import type { Scene } from '@/core/domain/episode';
 import { useFollowChannel } from '@/features/app';
 import { useChannel } from '@/features/channel/hooks/use-channels';
@@ -171,10 +172,15 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const used = (...keys: string[]) => new Set(v.episode.scenes.flatMap((x) => keys.map((k) => String(x.props[k] ?? ''))));
   const asPerson = used('lead', 'companion');
   const asItem = used('item');
-  const isItem = (id: string) => items.has(id) || (asItem.has(id) && !asPerson.has(id));
+  const isItem = (id: string) => id in v.props || items.has(id) || (asItem.has(id) && !asPerson.has(id));
   const people = castIds.filter((id) => !isItem(id));
   const known = castIds.filter(isItem);
-  const things = known.length ? known : castIds.filter((id) => !asPerson.has(id));
+  // An accessory is offered only when its owner is in this scene (the hero when the main place names nobody else).
+  const heroId = series.data?.rules.bible.library?.find((x) => x.kind === 'hero')?.id ?? 'hero';
+  const here = new Set([s.block === 'remotion/puppet' ? String(s.props.lead || heroId) : '', String(s.props.companion ?? ''), ...(tuneOf(s.props).extras ?? []).map((x) => x.id)]);
+  // A painted picture does not say who is in it, so everything is offered there.
+  const offered = (id: string) => s.block !== 'remotion/puppet' || !v.props[id] || here.has(v.props[id]!) || s.props.item === id;
+  const things = (known.length ? known : castIds.filter((id) => !asPerson.has(id))).filter(offered);
   const apply = (x: { input: SaveScriptInput; show: string }) =>
     rewrite.mutate(x, { onSuccess: () => x.show && x.show !== sceneId && router.push(sceneHref(projectId, episodeId, x.show)) });
   const opsDisabled = dirty || busy || closed || rewrite.isPending;

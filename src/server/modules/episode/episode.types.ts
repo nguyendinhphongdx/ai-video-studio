@@ -122,6 +122,8 @@ export interface EpisodeView {
   sprites: Record<string, string>;
   /** Media URLs of the series' supporting characters and props by id (for previews). */
   cast: Record<string, string>;
+  /** The series' props: id to the character it belongs to, null when shared. */
+  props: Record<string, string | null>;
   /** Target duration from the series format, if any. */
   durationSec: { min: number; max: number } | null;
 }

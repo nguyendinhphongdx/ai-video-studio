@@ -21,6 +21,8 @@ export interface SeriesBible {
   /** Other transparent sprites a puppet scene can bring on stage (supporting characters, props) by short id, plus
    * `<id>:<pose>` (talk, wave1, wave2, point) for a supporting character's poses: media paths. */
   characterCast: Record<string, string>;
+  /** Name, description, "Chính", character or prop, owner, by id (see core/character/roster). */
+  roster?: Record<string, import('../character/roster').RosterEntry>;
   /** Pictures the series is planned to have (project setup); drawn ones end up in the fields above. */
   library?: { id: string; kind: 'hero' | 'character' | 'item'; name: string; description: string }[];
   /** What the channel's logo and intro background could show (English prompts), from project setup. */

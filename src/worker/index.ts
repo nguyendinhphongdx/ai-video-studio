@@ -10,6 +10,7 @@ import { dbReady } from '@/server/db';
 import { jobPrefixes, storage } from '@/server/adapters/media/storage';
 import { createLogger } from '@/server/logger';
 import { setupService } from '@/server/modules/setup/setup.service';
+import { characterService } from '@/server/modules/series/character.service';
 import { characterSpriteService } from '@/server/modules/series/character-sprites.service';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { assistantService } from '@/server/modules/assistant/assistant.service';
@@ -47,6 +48,7 @@ const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: str
   summarize: (job) => summarizeEpisode(deps, episodeOf(job)),
   generate_sprites: (job, p) => characterSpriteService.run(job, p),
   draw_library: (job, p) => setupService.drawLibrary(job, p),
+  draw_character: (job, p) => characterService.runDraw(job, p),
   generate_art: async (job) => {
     const p = job.payload as { channelId: string; kind: 'intro' | 'outro'; prompt: string };
     await channelService.generateArt(p.channelId, p.kind, p.prompt);
@@ -90,7 +92,7 @@ async function runScopedJob(job: Job): Promise<void> {
     // Everything paid that this job does is attributed to its video (or channel, for channel art).
     const episode = job.episodeId ? await episodeRepository.find(job.episodeId) : null;
     const channelId = episode?.channelId ?? (typeof job.payload.channelId === 'string' ? job.payload.channelId : undefined);
-    const result = await withMedia(job, channelId, () => withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? undefined, channelId }, () => HANDLERS[job.kind](job, progress)));
+    const result = await withMedia(job, channelId, () => withUsage({ jobId: job.id, episodeId: episode?.id, seriesId: episode?.seriesId ?? (typeof job.payload.seriesId === 'string' ? job.payload.seriesId : undefined), channelId }, () => HANDLERS[job.kind](job, progress)));
     // Only jobs that produce data (not an episode change) keep their return value.
     await jobRepository.finish(job.id, job.kind === 'generate_sprites' ? result : undefined);
     logger.info(`done ${job.kind} in ${Math.round((Date.now() - started) / 1000)}s`, { job: job.id });

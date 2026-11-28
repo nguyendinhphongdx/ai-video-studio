@@ -20,6 +20,13 @@ export const SeriesBibleSchema = z.object({
   characterAssets: z.array(z.string()).max(20).default([]),
   characters: z.string().max(2000).default(''),
   library: z.array(LibraryItemSchema).max(20).optional(),
+  roster: z
+    .record(
+      z.string().regex(POSE_ID),
+      z.object({ name: z.string().trim().max(60).optional(), description: z.string().trim().max(400).optional(), main: z.boolean().optional(), kind: z.enum(['character', 'prop']).optional(), owner: z.string().regex(POSE_ID).optional() }),
+    )
+    .refine((r) => Object.keys(r).length <= 60, 'Tối đa 60 nhân vật và đạo cụ')
+    .optional(),
   brandIdeas: z.object({ logo: z.string().max(400), introArt: z.string().max(400) }).optional(),
   characterCast: z.record(z.string().regex(CAST_KEY), z.string()).default({}),
   characterSprites: z.record(z.string().regex(SPRITE_KEY), z.string()).default({}),

@@ -127,3 +127,15 @@ export function castForScene(props: { lead?: unknown; companion?: unknown; item?
   const ids = castIdsOf(props);
   return Object.keys(cast).filter((k) => ids.some((id) => k === id || k.startsWith(`${id}:`)));
 }
+
+/** The first picture of a character or prop that has none, from its description alone. */
+export function firstPicturePrompt(description: string, prop: boolean, style: string): string {
+  return [
+    prop ? `Only this object, nothing else, centred and whole inside the frame: ${description}.` : `One character, full body, standing, facing the viewer, centred, feet fully visible, calm neutral face: ${description}.`,
+    style && `Art style: ${style}.`,
+    `Paint it on a perfectly flat, solid pure green (${CHROMA_HEX}) background that fills the whole frame: no ground, no shadow, no gradient, no text.`,
+    `Do not use green anywhere on the ${prop ? 'object' : 'character'}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}

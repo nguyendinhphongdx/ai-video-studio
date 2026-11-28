@@ -2,10 +2,11 @@
 import { validateTools, type AssistantTool } from '@/core/assistant/tool';
 
 import { channelTools } from './channel';
+import { characterTools } from './characters';
 import { episodeTools } from './episodes';
 import { sceneTools } from './scenes';
 import { seriesTools } from './series';
 import { skillTools } from './skills';
 
-export const ASSISTANT_TOOLS = [...channelTools, ...skillTools, ...seriesTools, ...episodeTools, ...sceneTools] as AssistantTool[];
+export const ASSISTANT_TOOLS = [...channelTools, ...skillTools, ...seriesTools, ...characterTools, ...episodeTools, ...sceneTools] as AssistantTool[];
 validateTools(ASSISTANT_TOOLS);

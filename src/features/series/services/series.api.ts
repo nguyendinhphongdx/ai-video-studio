@@ -23,6 +23,10 @@ export const seriesApi = {
   /** Queues the AI expression sprites; poll `job` and read `result.sprites` when it is done. */
   generateSprites: (body: { reference: string; existing: Record<string, string>; expressions?: string[]; custom?: { key: string; prompt: string }[]; target?: 'hero' | 'cast' }) => api<Job>('/series/characters/sprites', { body }),
   job: (id: string) => api<Job>(`/jobs/${id}`),
+  /** Drawings under way for the series' characters. */
+  drawing: (id: string) => api<Job[]>(s(id, '/characters/draw')),
+  /** Queues a character's missing pictures; they save themselves into the series. */
+  drawCharacter: (id: string, body: { characterId: string; keys?: string[] }) => api<Job>(s(id, '/characters/draw'), { body }),
   versions: (id: string) => api<SeriesView['rules'][]>(s(id, '/versions')),
   importFile: (channelId: string, file: SeriesFile) => api<SeriesView>('/series/import', { body: { channelId, file } }),
   template: (channelId: string, skillId: string) => api<SeriesProposal>(`/series/template?channelId=${encodeURIComponent(channelId)}&skillId=${encodeURIComponent(skillId)}`),

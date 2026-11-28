@@ -4,6 +4,7 @@ import path from 'node:path';
 import { compileContext } from '@/core/context/layer';
 import { emptyAssets, UserFacingError, type Episode, type JobKind, type Scene } from '@/core/domain';
 import { newId } from '@/core/domain/ids';
+import { charactersOf } from '@/core/character/roster';
 import { parseDraft, extractJson, scriptSchema, slotBlocks } from '@/core/script/script';
 import { emptyPublishKit } from '@/core/script/publish';
 import { cleanProps } from '@/core/tools/tool';
@@ -67,6 +68,7 @@ async function baseView(e: Episode): Promise<EpisodeView> {
     durationSec: null,
     sprites: {},
     cast: {},
+    props: {},
   };
 }
 
@@ -90,13 +92,16 @@ function sceneAssetViews(e: Episode, channelStyle: string): Record<string, Scene
 
 const editable = (e: Episode) => e.status === 'draft' || e.status === 'script_review';
 
+const propsOf = (bible: SeriesBible | undefined) => Object.fromEntries((bible ? charactersOf(bible) : []).filter((c) => c.kind === 'prop').map((c) => [c.id, c.owner]));
+
 /** What a scene may name by id: the series' supporting characters, props and the hero's own poses. */
 export function castOf(bible: SeriesBible | undefined): CastMember[] {
   if (!bible) return [];
-  const planned = new Map((bible.library ?? []).map((x) => [x.id, x]));
-  const cast = Object.keys(bible.characterCast ?? {})
-    .filter((k) => !k.includes(':'))
-    .map((id): CastMember => ({ id, kind: planned.get(id)?.kind === 'item' ? 'item' : 'character', about: planned.get(id) ? `${planned.get(id)!.name}. ${planned.get(id)!.description}` : id }));
+  const all = charactersOf(bible);
+  const name = (id: string) => all.find((c) => c.id === id)?.name ?? id;
+  const cast = all
+    .filter((c) => !c.hero && bible.characterCast?.[c.id])
+    .map((c): CastMember => ({ id: c.id, kind: c.kind === 'prop' ? 'item' : 'character', about: [c.name, c.description, c.owner ? `Phụ kiện của ${name(c.owner)}` : ''].filter(Boolean).join('. ') }));
   const poses = Object.entries(bible.customPoses ?? {}).map(([id, about]): CastMember => ({ id, kind: 'pose', about }));
   return [...cast, ...poses];
 }
@@ -150,7 +155,7 @@ export const episodeService = {
       blocks: s.fill === 'ai' ? slotBlocks(s, appDeps.tools).map((b) => b.ref) : [],
       scenes: s.scenes,
     }));
-    return { ...await baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, series: { used: e.seriesVersion, current: ctx.series?.series.currentVersion ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])), cast: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterCast ?? {}).map(([k, v]) => [k, mediaUrl(v)])) };
+    return { ...await baseView(e), knowledge: { used: e.knowledgeVersion, current: ctx.knowledge?.version ?? null }, series: { used: e.seriesVersion, current: ctx.series?.series.currentVersion ?? null }, assets: sceneAssetViews(e, imageStyleOf(ctx)), issues: await scriptIssues(appDeps, e).catch(() => []), slots, durationSec: ctx.format.durationSec, sprites: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterSprites ?? {}).map(([k, v]) => [k, mediaUrl(v)])), cast: Object.fromEntries(Object.entries(ctx.series?.version.bible.characterCast ?? {}).map(([k, v]) => [k, mediaUrl(v)])), props: propsOf(ctx.series?.version.bible) };
   },
 
   async create(input: CreateEpisodeInput): Promise<EpisodeView> {

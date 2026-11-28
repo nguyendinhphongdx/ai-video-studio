@@ -572,3 +572,16 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 .v2 .brandtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-4); }
 @media (max-width: 800px) { .v2 .refgrid { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .v2 .sec-toggle svg { transition: none; } }
+
+/* Library: pick a character, then its parts. */
+.v2 .castbody { display: flex; flex-direction: column; gap: var(--sp-3); border: 0; margin: 0; padding: 0; min-width: 0; }
+.v2 .whos { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: var(--sp-2); }
+.v2 .who { display: flex; flex-direction: column; gap: 4px; align-items: stretch; padding: 4px; border: 2px solid transparent; border-radius: var(--r-md); background: none; color: var(--ink); font: 600 12px var(--font); cursor: pointer; min-width: 0; }
+.v2 .who.on { border-color: var(--ink); background: var(--surface-2); }
+.v2 .who .sprite { width: 100%; object-fit: contain; }
+.v2 .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v2 .whohead { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; border-top: 2px solid var(--ink); padding-top: var(--sp-3); }
+.v2 .whohead h3 { margin: 0; font-size: 20px; }
+.v2 .aboutgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); align-items: end; }
+@media (max-width: 640px) { .v2 .whos { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); } }
+.v2 .castbody .row > .field.grow { flex: 1 1 220px; }

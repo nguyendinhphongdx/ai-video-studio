@@ -1,8 +1,8 @@
-import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm';
 
 import type { AccessLevel } from '@/core/assistant/tool';
 import { one, orm, owner, scoped } from '@/server/orm';
-import { mcpCalls, mcpCodes } from '@/server/schema';
+import { mcpCalls, mcpCodes, mcpUploads } from '@/server/schema';
 
 /** The newest calls kept for each code. */
 const KEPT_CALLS = 500;
@@ -41,5 +41,25 @@ export const mcpRepository = {
 
   async calls(codeId: string, limit = 50) {
     return orm().select().from(mcpCalls).where(and(scoped(mcpCalls), eq(mcpCalls.codeId, codeId))).orderBy(desc(mcpCalls.id)).limit(limit);
+  },
+
+  async insertLink(l: { id: string; tokenHash: string; purpose: string; target: string; expiresAt: string }) {
+    await orm().delete(mcpUploads).where(and(scoped(mcpUploads), lt(mcpUploads.expiresAt, new Date().toISOString())));
+    await orm().insert(mcpUploads).values({ ...l, ...owner() });
+  },
+
+  /** Like a code, a link's token decides the workspace, so these two lookups are not scoped. */
+  async linkByHash(hash: string) {
+    return orm().select().from(mcpUploads).where(eq(mcpUploads.tokenHash, hash)).then(one);
+  },
+
+  /** Takes a one-time link: false when someone already did, or it has expired. */
+  async takeLink(id: string, at: string): Promise<boolean> {
+    const rows = await orm().update(mcpUploads).set({ usedAt: at }).where(and(eq(mcpUploads.id, id), isNull(mcpUploads.usedAt), gt(mcpUploads.expiresAt, at))).returning({ id: mcpUploads.id });
+    return rows.length === 1;
+  },
+
+  async releaseLink(id: string) {
+    await orm().update(mcpUploads).set({ usedAt: null }).where(and(scoped(mcpUploads), eq(mcpUploads.id, id)));
   },
 };

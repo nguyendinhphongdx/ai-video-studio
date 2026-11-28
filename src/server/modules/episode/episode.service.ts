@@ -32,6 +32,7 @@ import { aiRunRepository } from '@/server/modules/ai-run/ai-run.repository';
 import { channelService } from '@/server/modules/channel/channel.service';
 import { seriesRepository } from '@/server/modules/series/series.repository';
 import { withUsage } from '@/server/context';
+import { storage } from '@/server/adapters/media/storage';
 import { jobRepository } from '@/server/modules/job/job.repository';
 import { seriesService } from '@/server/modules/series/series.service';
 import { skillService } from '@/server/modules/skill/skill.service';
@@ -114,6 +115,9 @@ async function storyOf(channelId: string): Promise<{ videos: RecentVideo[]; stor
   const premises = await Promise.all(seriesList.map(async (x) => (await seriesRepository.version(x.id, x.currentVersion))?.bible.premise.trim() ?? ''));
   return { videos, story: premises.filter(Boolean).join('\n') };
 }
+
+const MAX_PICTURE_BYTES = 8 * 1024 * 1024;
+const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export const episodeService = {
   /** Next-video ideas that continue the story: the channel's identity and knowledge, the series premise and every episode in order. */
@@ -372,6 +376,23 @@ export const episodeService = {
     await episodeRepository.updateScene(id, sceneId, { imagePath: rel, imageHash: spec.hash, approved: false });
     await episodeRepository.addEvent(id, 'Đã chọn lại một bản ảnh cũ');
     return await episodeService.get(id);
+  },
+
+  /** The person's own picture for a scene: stored beside the drawn ones, then chosen like any of them. */
+  async uploadScenePicture(id: string, sceneId: string, file: File): Promise<EpisodeView> {
+    const e = await loadEpisode(id);
+    if (!e.scenes.some((s) => s.id === sceneId)) throw new UserFacingError('Cảnh không thuộc video này');
+    if (!editable(e)) throw conflict('Kịch bản đã được duyệt. Mở lại để sửa cảnh.');
+    if (await jobRepository.active(id)) throw conflict('Video đang có việc chạy, chờ xong rồi đổi ảnh.');
+    if (file.size > MAX_PICTURE_BYTES) throw new UserFacingError('Ảnh cảnh tối đa 8MB');
+    const data = Buffer.from(await file.arrayBuffer());
+    if (!data.subarray(0, 8).equals(PNG_HEADER)) throw new UserFacingError('Ảnh cảnh phải là file PNG');
+    const dir = path.join(await appDeps.media.episodeDir(id), 'images');
+    await fs.mkdir(dir, { recursive: true });
+    const name = `${sceneId}-upload-${Date.now().toString(36)}.png`;
+    await fs.writeFile(path.join(dir, name), data);
+    await storage.put(appDeps.media.relative(path.join(dir, name)));
+    return await episodeService.useScenePicture(id, sceneId, name);
   },
 
   /** Queue pictures and/or voices for some or all scenes (worker job). This is when paid providers get called. */

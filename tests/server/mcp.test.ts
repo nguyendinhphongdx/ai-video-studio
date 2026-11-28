@@ -157,4 +157,73 @@ describe('the endpoint', () => {
     expect((await callTool(code, 'get_publish_kit', { projectId: mine, episodeId: 'nope' })).isError).toBe(true);
     expect((await callTool(code, 'get_series_memory', { projectId: mine, seriesId: 'nope' })).isError).toBe(true);
   });
+
+  it('gives file links that open one thing, once or for an hour, and stop with the code', async () => {
+    const projectId = await projectIn(A, 'Gửi file');
+    const { code, view } = await make('files', 'edit');
+    const link = async (purpose: string) => /http:\/\/studio\.test(\/api\/mcp\/upload\/[\w-]+)/.exec((await callTool(code, 'request_upload', { projectId, purpose })).text)![1]!;
+    const { uploadLinkRoute, viewLinkRoute } = await import('@/server/http/mcp-links');
+    const send = async (path: string, type: string) => {
+      const form = new FormData();
+      form.set('file', new File([new Uint8Array([1, 2, 3])], 'x.png', { type }));
+      return (await uploadLinkRoute(new Request(`http://studio.test${path}`, { method: 'POST', body: form }), { params: Promise.resolve({ token: path.split('/').pop()! }) })).status;
+    };
+    const open = async (token: string) => (await viewLinkRoute(new Request('http://studio.test/x'), { params: Promise.resolve({ token }) })).status;
+
+    const logo = await link('logo');
+    expect(await send(logo, 'text/plain')).toBe(400);
+    expect(await send(logo, 'image/png')).toBe(200);
+    expect(await send(logo, 'image/png')).toBe(404);
+    expect(await send('/api/mcp/upload/made-up', 'image/png')).toBe(404);
+
+    const { channelService } = await import('@/server/modules/channel/channel.service');
+    const { linkService } = await import('@/server/modules/mcp/links.service');
+    const logoPath = (await run(A, () => channelService.get(projectId))).logoPath!;
+    const mine = await run(A, () => linkService.view(view.id, logoPath));
+    expect(await open(mine.token)).toBe(200);
+    expect(await open(`${mine.token}x`)).toBe(404);
+    // A link made for a file of another workspace still does not open it.
+    const theirs = await projectIn(B, 'Của B có logo');
+    await run(B, () => channelService.setLogo(theirs, new File([new Uint8Array([1])], 'b.png', { type: 'image/png' })));
+    const stolen = await run(A, () => linkService.view(view.id, `channels/${theirs}/logo/any.png`));
+    expect(await open(stolen.token)).toBe(404);
+    await db.orm().execute(sql`UPDATE mcp_uploads SET expires_at = now() - interval '1 minute' WHERE purpose = 'view'`);
+    expect(await open(mine.token)).toBe(404);
+
+    const unused = await link('avatar');
+    await run(A, () => mcp.revoke(view.id));
+    expect(await send(unused, 'image/png')).toBe(404);
+  });
+
+  it('goes from nothing to a scene whose picture the AI can look at', async () => {
+    const { code } = await make('e2e', 'edit');
+    const made = await callTool(code, 'create_project', { name: 'Truyện tranh', marketSkillId: 'picture-story' });
+    expect(made).toMatchObject({ isError: false });
+    const projectId = /projectId (\w+)/.exec(made.text)![1]!;
+    const episode = await callTool(code, 'create_episode', { projectId, topic: 'Cậu bé và quả sen' });
+    expect(episode).toMatchObject({ isError: false });
+    const episodeId = /id (\w+), skill/.exec(episode.text)![1]!;
+    const details = JSON.parse((await callTool(code, 'get_episode', { projectId, episodeId })).text) as { scenes: unknown[] };
+    expect(details.scenes).toEqual([]);
+    // A planned episode only gets scenes from write_script (a paid job); stand in for its result.
+    await db.orm().execute(sql`UPDATE episodes SET status = 'script_review' WHERE id = ${episodeId}`);
+    const added = await callTool(code, 'add_scene', { projectId, episodeId, block: 'remotion/picture', narration: 'Ngày xưa có một đầm sen.' });
+    expect(added).toMatchObject({ isError: false });
+    const sceneId = /id (\w+)\)/.exec(added.text)![1]!;
+    expect((await callTool(code, 'view_scene_picture', { projectId, episodeId, sceneId })).text).toMatch(/chưa có ảnh/);
+
+    const asked = await callTool(code, 'request_upload', { projectId, purpose: 'scene_picture', episodeId, sceneId });
+    const token = /\/api\/mcp\/upload\/([\w-]+)/.exec(asked.text)![1]!;
+    const { uploadLinkRoute } = await import('@/server/http/mcp-links');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const form = new FormData();
+    form.set('file', new File([new Uint8Array(png)], 'a.png', { type: 'image/png' }));
+    const sent = await uploadLinkRoute(new Request('http://studio.test/x', { method: 'POST', body: form }), { params: Promise.resolve({ token }) });
+    expect(sent.status).toBe(200);
+
+    const res = (await post(code, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'view_scene_picture', arguments: { projectId, episodeId, sceneId } } })).body.result;
+    expect(res.content.map((c: { type: string }) => c.type)).toEqual(['text', 'image']);
+    expect(res.content[0].text).toContain('http://studio.test/api/mcp/media/');
+    expect((await callTool(code, 'get_video', { projectId, episodeId })).text).toMatch(/chưa được dựng/);
+  });
 });

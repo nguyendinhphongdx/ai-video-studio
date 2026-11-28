@@ -24,7 +24,7 @@ export class RejectVideo extends StudioTool<z.infer<typeof Input>, z.infer<typeo
 
   protected async execute({ episodeId, feedback }: z.infer<typeof Input>, ctx: ToolContext) {
     await ownEpisode(ctx, episodeId);
-    if (feedback.trim() && ctx.access && ctx.access !== 'full') throw new UserFacingError('Góp ý để AI sửa là việc tốn tiền, cần mã "Toàn quyền". Gọi lại không kèm feedback để chỉ mở lại video.');
+    if (feedback.trim() && ctx.caller && ctx.caller.access !== 'full') throw new UserFacingError('Góp ý để AI sửa là việc tốn tiền, cần mã "Toàn quyền". Gọi lại không kèm feedback để chỉ mở lại video.');
     const v = await episodeService.rejectVideo(episodeId, feedback.trim());
     return { revising: v.job?.kind === 'revise_script' };
   }

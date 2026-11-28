@@ -5,6 +5,7 @@
 import type { z } from 'zod';
 
 import { UserFacingError } from '@/core/domain/errors';
+import type { ChatImage } from '@/core/ports';
 
 /** read: looks only. write: changes data that is easy to review or undo. paid: calls a paid provider or starts long work. destructive: deletes. */
 export type ToolRisk = 'read' | 'write' | 'paid' | 'destructive';
@@ -28,8 +29,8 @@ export interface ToolContext {
   /** Only the Assistant has a conversation and a place the person is looking at. */
   threadId?: string;
   focus?: AssistantFocus;
-  /** The level of the connection code, when an outside AI is calling. */
-  access?: AccessLevel;
+  /** Set when an outside AI is calling with a connection code. */
+  caller?: { access: AccessLevel; codeId: string; origin: string };
 }
 
 export interface ToolResult<Output = unknown> {
@@ -38,6 +39,8 @@ export interface ToolResult<Output = unknown> {
   message: string;
   /** What the tool returned, as its output schema describes it. */
   output?: Output;
+  /** Pictures the model should look at together with the message. */
+  images?: ChatImage[];
   /** Optional structured data shown or used by the UI. */
   data?: unknown;
 }
@@ -75,6 +78,11 @@ export abstract class StudioTool<Input = any, Output = any> { // eslint-disable-
   /** The result as the model reads it. */
   abstract present(output: Output): string;
 
+  /** Pictures that go with the result; only MCP shows them to the model. */
+  protected pictures(_output: Output): Promise<ChatImage[]> {
+    return Promise.resolve([]);
+  }
+
   async run(raw: unknown, ctx: ToolContext): Promise<ToolResult<Output>> {
     const input = this.input.safeParse(raw);
     if (!input.success) return { ok: false, message: `Tham số không hợp lệ: ${formatIssues(input.error)}` };
@@ -83,7 +91,8 @@ export abstract class StudioTool<Input = any, Output = any> { // eslint-disable-
       // The work is already done, so a result that does not match its schema is reported, not turned into a failure.
       const checked = this.output.safeParse(output);
       if (!checked.success) console.warn(`Tool ${this.name} returned an unexpected result: ${formatIssues(checked.error)}`);
-      return { ok: true, message: this.present(output), output };
+      const images = await this.pictures(output);
+      return { ok: true, message: this.present(output), output, ...(images.length ? { images } : {}) };
     } catch (e) {
       return { ok: false, message: e instanceof UserFacingError ? e.message : `Lỗi: ${String((e as Error)?.message ?? e).slice(0, 300)}` };
     }

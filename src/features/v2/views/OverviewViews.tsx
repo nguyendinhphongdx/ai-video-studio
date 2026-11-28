@@ -17,6 +17,7 @@ import { Page, Topbar } from '../Shell';
 import { AiConnections, SystemTab } from './AiConnections';
 import { useMe } from '@/features/auth/AccountBox';
 import { CostTab, PricesTab } from './CostViews';
+import { McpTab } from './McpTab';
 import { WorkspaceTab } from './WorkspaceTab';
 
 type LibRow = { c: ChannelView; lib: LibraryState };
@@ -167,6 +168,7 @@ export function LibraryAllView() {
 const SETTINGS_TABS = [
   { key: 'workspace', label: 'Workspace' },
   { key: 'ai', label: 'Kết nối AI' },
+  { key: 'mcp', label: 'AI bên ngoài' },
   { key: 'cost', label: 'Chi phí' },
   { key: 'prices', label: 'Bảng giá' },
   { key: 'system', label: 'Hệ thống' },
@@ -177,8 +179,9 @@ type SettingsTab = (typeof SETTINGS_TABS)[number]['key'];
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('ai');
   const admin = useMe().data?.user.isAdmin;
-  // The system tab (shared keys, which workspaces may use them) is for the system admin only.
-  const tabs = SETTINGS_TABS.filter((t) => t.key !== 'system' || admin);
+  const owner = useMe().data?.role === 'owner';
+  // The system tab (shared keys, which workspaces may use them) is for the system admin only; codes for outside AI are the owner's.
+  const tabs = SETTINGS_TABS.filter((t) => (t.key !== 'system' || admin) && (t.key !== 'mcp' || owner));
   return (
     <>
       <Topbar crumbs={[{ label: 'Cài đặt', href: '/settings' }, SETTINGS_TABS.find((t) => t.key === tab)!.label]} />
@@ -190,7 +193,7 @@ export function SettingsView() {
             </a>
           ))}
         </div>
-        {tab === 'workspace' ? <WorkspaceTab /> : tab === 'ai' ? <AiConnections /> : tab === 'cost' ? <CostTab /> : tab === 'system' ? <SystemTab /> : <PricesTab />}
+        {tab === 'workspace' ? <WorkspaceTab /> : tab === 'ai' ? <AiConnections /> : tab === 'mcp' ? <McpTab /> :tab === 'cost' ? <CostTab /> : tab === 'system' ? <SystemTab /> : <PricesTab />}
       </Page>
     </>
   );

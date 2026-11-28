@@ -286,7 +286,10 @@ function Events({ range }: { range: UsageRange }) {
           {rows.map((e) => (
             <tr key={e.id}>
               <td className="mono cap">{new Date(e.at).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</td>
-              <td>{purposeLabel(e.purpose)}</td>
+              <td>
+                {purposeLabel(e.purpose)}
+                {e.via === 'mcp' && <span className="cap"> · qua MCP</span>}
+              </td>
               <td className="cap">
                 {e.channelName ?? '-'}
                 {e.episodeTitle ? ` · ${e.episodeTitle}` : ''}

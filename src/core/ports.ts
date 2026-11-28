@@ -96,10 +96,35 @@ export interface UsageMeta {
   purpose?: string;
 }
 
+/** A piece of an answer as the model produces it. */
+export interface ChatDelta {
+  type: 'text' | 'reasoning';
+  delta: string;
+}
+
+export interface ChatRequest {
+  system: string;
+  messages: ChatMessage[];
+  tools: ChatToolSpec[];
+  purpose?: string;
+  /** Asks for the answer piece by piece. A provider that cannot stream answers whole and never calls it. */
+  onDelta?: (delta: ChatDelta) => void;
+  /** Stops the call; what was produced so far comes back with `stopped`. */
+  signal?: AbortSignal;
+}
+
+export interface ChatReply {
+  text: string;
+  toolCalls: ChatToolCall[];
+  /** The model's thinking, when the provider returns it. */
+  reasoning?: string;
+  stopped?: boolean;
+}
+
 export interface LlmPort {
   isReady(): Promise<boolean>;
   /** One step of a tool-using conversation: the model answers with text and/or tool calls. */
-  chat(input: { system: string; messages: ChatMessage[]; tools: ChatToolSpec[]; purpose?: string }): Promise<{ text: string; toolCalls: ChatToolCall[]; model: string }>;
+  chat(input: ChatRequest): Promise<ChatReply & { model: string }>;
   generateObject(input: { system: string; user: string; schema: z.ZodType; purpose?: string }): Promise<{ object: unknown; model: string }>;
 }
 

@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { toJSONSchema, type z } from 'zod';
 
 import { UserFacingError } from '@/core/domain/errors';
+import type { ChatDelta } from '@/core/ports';
 import { extractJson } from '@/core/script/script';
 import type { LlmSettings } from '@/server/modules/settings/settings.types';
 
@@ -36,6 +37,59 @@ const usageOf = (u: OpenAI.CompletionUsage | undefined): LlmUsage | undefined =>
   return { input: Math.max(0, u.prompt_tokens - cached), output: u.completion_tokens, cached };
 };
 
+// A model that sends broken JSON gets an empty call; the tool's own validation explains what is missing.
+function parseArgs(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw || '{}') as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+/** Collects a streamed completion. Thinking arrives in different places depending on the server. */
+export async function readStream(chunks: AsyncIterable<OpenAI.ChatCompletionChunk>, onDelta: (d: ChatDelta) => void, signal?: AbortSignal) {
+  type Delta = OpenAI.ChatCompletionChunk.Choice.Delta & { reasoning_content?: string; reasoning?: string; extra_content?: { google?: { thought?: boolean } } & Record<string, unknown> };
+  let text = '';
+  let reasoning = '';
+  let usage: OpenAI.CompletionUsage | undefined;
+  const calls: { id: string; name: string; args: string; meta?: Record<string, unknown> }[] = [];
+  const say = (type: ChatDelta['type'], delta: string) => {
+    if (!delta) return;
+    if (type === 'text') text += delta;
+    else reasoning += delta;
+    onDelta({ type, delta });
+  };
+  for await (const chunk of chunks) {
+    usage = chunk.usage ?? usage;
+    const delta = chunk.choices[0]?.delta as Delta | undefined;
+    if (!delta) continue;
+    if (delta.refusal) throw new UserFacingError(`AI từ chối yêu cầu: ${delta.refusal}`);
+    say('reasoning', delta.reasoning_content ?? delta.reasoning ?? '');
+    const content = delta.content ?? '';
+    // Gemini marks a thought chunk and may wrap it in <thought> tags.
+    if (delta.extra_content?.google?.thought) say('reasoning', content.replace(/<\/?thought>/g, ''));
+    else say('text', content.replace(/<thought>[\s\S]*?<\/thought>|<\/thought>/g, ''));
+    for (const part of delta.tool_calls ?? []) {
+      const extra = (part as { extra_content?: Record<string, unknown> }).extra_content;
+      // Some servers repeat the index for each new call; a new id always starts a new call.
+      let call = part.id ? calls.find((c) => c.id === part.id) : calls[part.index] ?? calls.at(-1);
+      if (!call) calls.push((call = { id: part.id ?? `call_${calls.length}`, name: '', args: '' }));
+      call.name ||= part.function?.name ?? '';
+      call.args += part.function?.arguments ?? '';
+      if (extra) call.meta = extra;
+    }
+  }
+  // The SDK ends an aborted stream quietly.
+  if (signal?.aborted) throw new Error('aborted');
+  if (!text && !calls.length) throw new Error('empty stream');
+  return {
+    text: text.trim(),
+    toolCalls: calls.map((c) => ({ id: c.id, name: c.name, args: parseArgs(c.args), ...(c.meta ? { meta: c.meta } : {}) })),
+    ...(reasoning.trim() ? { reasoning: reasoning.trim() } : {}),
+    usage: usageOf(usage),
+  };
+}
+
 export function openaiClient(llm: LlmSettings): LlmClient {
   const client = new OpenAI({ apiKey: llm.apiKey || 'not-needed', ...(llm.baseUrl ? { baseURL: llm.baseUrl } : {}) });
 
@@ -66,7 +120,7 @@ export function openaiClient(llm: LlmSettings): LlmClient {
       const second = await complete(messages, { type: 'json_object' });
       return { object: extractJson(second.text), usage: second.usage };
     },
-    async chat({ system, messages, tools }) {
+    async chat({ system, messages, tools, onDelta, signal }) {
       const out: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
       for (const m of messages) {
         if (m.role === 'user')
@@ -85,21 +139,23 @@ export function openaiClient(llm: LlmSettings): LlmClient {
           });
         else out.push({ role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content });
       }
-      const r = await client.chat.completions.create({
+      const request = {
         model: llm.model,
         messages: out,
         ...(tools.length ? { tools: tools.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: toolSchema(t.schema, (s) => toJSONSchema(s) as Record<string, unknown>) } })) } : {}),
-      });
+      };
+      if (onDelta) {
+        // Gemini returns thought summaries only when asked, in the field its OpenAI endpoint reads.
+        const thinking = llm.provider === 'gemini' ? { reasoning_effort: llm.effort, extra_body: { google: { thinking_config: { include_thoughts: true } } } } : {};
+        const chunks = await client.chat.completions.create({ ...request, ...thinking, stream: true, stream_options: { include_usage: true } }, { signal });
+        return await readStream(chunks, onDelta, signal);
+      }
+      const r = await client.chat.completions.create(request, { signal });
       const choice = r.choices[0];
       if (choice?.message?.refusal) throw new UserFacingError(`AI từ chối yêu cầu: ${choice.message.refusal}`);
       const toolCalls = (choice?.message?.tool_calls ?? []).flatMap((c) => {
         if (c.type !== 'function') return [];
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(c.function.arguments || '{}') as Record<string, unknown>;
-        } catch {
-          // A model that sends broken JSON gets an empty call; the tool's own validation explains what is missing.
-        }
+        const args = parseArgs(c.function.arguments);
         const extra = (c as unknown as { extra_content?: Record<string, unknown> }).extra_content;
         return [{ id: c.id, name: c.function.name, args, ...(extra ? { meta: extra } : {}) }];
       });

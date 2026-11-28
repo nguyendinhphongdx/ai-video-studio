@@ -53,6 +53,27 @@ describe('assistant chat rendering', () => {
     expect(html).not.toContain('rounded-bl-md');
   });
 
+  it('shows the running turn as it is written, without repeating what is already stored', () => {
+    const live = {
+      runId: 'r',
+      ended: null,
+      items: [
+        { kind: 'text' as const, id: 'old', text: 'đã lưu rồi' },
+        { kind: 'reasoning' as const, id: 'new', text: 'đang cân nhắc' },
+        { kind: 'text' as const, id: 'new', text: 'Câu đang viết' },
+        { kind: 'tool' as const, id: 'c9', text: 'Đọc kênh', name: 'get_channel', state: 'running' as const },
+      ],
+    };
+    const html = renderToStaticMarkup(<AssistantMessages running live={live} deciding={false} onDecide={() => {}} messages={[msg({ id: 1, role: 'assistant', content: 'Bản đã lưu', data: { liveId: 'old', reasoning: 'nghĩ trước', stopped: true } })]} />);
+    expect(html).not.toContain('đã lưu rồi');
+    expect(html).toContain('Câu đang viết');
+    expect(html).toContain('Đọc kênh');
+    expect(html).toContain('Đang chạy');
+    expect(html).toContain('Suy nghĩ');
+    expect(html).toContain('Đã dừng');
+    expect(html).not.toContain('Trợ lý đang làm');
+  });
+
   it('renders plain paragraphs and ordered lists', () => {
     const html = renderToStaticMarkup(<RichText text={'Một dòng\nhai dòng\n\n1. đầu\n2. sau'} />);
     expect(html).toContain('<br/>');

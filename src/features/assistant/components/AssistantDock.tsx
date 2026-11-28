@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant-store';
 
 import { useAssistantActions, useFocus, useThread } from '../hooks/use-assistant';
+import { useLiveTurn } from '../hooks/use-live-turn';
 import { useAttachments } from '../hooks/use-attachments';
 import { MODE_INFO, type PermissionMode } from '../services/assistant.api';
 
@@ -41,11 +42,12 @@ export function AssistantDock() {
   const { threadId, threads, view, loading } = useThread(current?.id);
   const [draftMode, setDraftMode] = useState<PermissionMode>('auto');
   const mode = view?.thread.mode ?? draftMode;
-  const { send, decide, setMode, create, ensureThread } = useAssistantActions(current?.id, threadId, mode);
+  const { send, decide, setMode, create, stop, ensureThread } = useAssistantActions(current?.id, threadId, mode);
   const [text, setText] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
   const aiReady = config?.llm.ready ?? false;
   const running = Boolean(view?.running) || send.isPending;
+  const live = useLiveTurn(threadId, Boolean(view?.running));
   const waiting = view?.awaiting != null;
 
   // Pushes the page aside on wide screens so the assistant sits next to the work instead of covering it.
@@ -198,12 +200,15 @@ export function AssistantDock() {
             </div>
           </div>
         ) : null}
-        {view?.messages.length ? <AssistantMessages key={view.thread.id} messages={view.messages} running={running} deciding={decide.isPending} onDecide={(messageId, approve) => decide.mutate({ messageId, approve })} /> : null}
+        {view?.messages.length ? <AssistantMessages key={view.thread.id} messages={view.messages} running={running} live={live} deciding={decide.isPending} onDecide={(messageId, approve) => decide.mutate({ messageId, approve })} /> : null}
       </div>
 
       <div className="border-t bg-card p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         {waiting ? <p className="mb-2 text-caption text-warning">Trợ lý đang chờ bạn đồng ý ở trên. Gõ tin mới sẽ bỏ yêu cầu đó.</p> : null}
         <Composer
+          // The flag stays on the server until the worker ends the turn, so the button waits with it.
+          onStop={view?.running ? () => stop.mutate() : undefined}
+          stopping={stop.isPending || Boolean(view?.stopping)}
           box={box}
           text={text}
           onText={setText}

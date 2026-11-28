@@ -107,5 +107,6 @@ export function useAssistantActions(channelId: string | undefined, threadId: str
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
-  return { send, decide, setMode, create, focus, ensureThread };
+  const stop = useMutation({ mutationFn: () => assistantApi.stop(threadId!), onSuccess: put, onError: (e) => toast.error(errorMessage(e)) });
+  return { send, decide, setMode, create, stop, focus, ensureThread };
 }

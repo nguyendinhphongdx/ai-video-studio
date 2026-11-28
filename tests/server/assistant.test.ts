@@ -5,15 +5,17 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 const env = vi.hoisted(() => {
   process.env.AVS_DATA_DIR = `${process.env.TMPDIR ?? '/tmp'}/avs-assistant-test-${process.pid}`;
-  return { script: [] as { text?: string; calls?: { name: string; args: Record<string, unknown> }[] }[], systems: [] as string[], imageReady: true };
+  return { script: [] as { text?: string; calls?: { name: string; args: Record<string, unknown> }[]; before?: () => Promise<void> }[], systems: [] as string[], imageReady: true };
 });
 vi.mock('@/server/adapters/llm/llm.service', () => ({
   llm: {
     isReady: async () => true,
     generateObject: async () => ({ object: {}, model: 'x' }),
-    chat: async ({ system }: { system: string }) => {
+    chat: async ({ system, onDelta }: { system: string; onDelta?: (d: { type: 'text'; delta: string }) => void }) => {
       env.systems.push(system);
       const s = env.script.shift() ?? { text: 'hết kịch bản' };
+      await s.before?.();
+      if (s.text) onDelta?.({ type: 'text', delta: s.text });
       return { text: s.text ?? '', toolCalls: (s.calls ?? []).map((c, i) => ({ id: `c${Date.now()}${i}${Math.random()}`, ...c })), model: 'fake' };
     },
   },
@@ -219,5 +221,53 @@ describe('scene and series tools', () => {
     expect(made.stats.planned).toBe(2);
     expect(made.rules.bible).toMatchObject({ host: 'Cô Tám', catchphrases: ['Chào nhà ơi'] });
     expect(made.rules.format.slots.some((x) => x.fill === 'ai')).toBe(true);
+  });
+});
+
+describe('live events and stop', () => {
+  const eventsOf = async (threadId: string) => {
+    const { assistantRepository } = await import('@/server/modules/assistant/assistant.repository');
+    const { EventSchemas } = await import('@ag-ui/core/schemas');
+    const rows = await assistantRepository.eventsAfter(threadId, 0);
+    return rows.map((r) => EventSchemas.parse(JSON.parse(r.event)));
+  };
+  /** The stream a reconnecting screen reads, as text. */
+  const read = async (threadId: string, after = 0) => await (await s.assistant.assistantService.events(threadId, after, new AbortController().signal)).text();
+
+  it('keeps the turn as AG-UI events a screen can replay from any position', async () => {
+    const t = await s.assistant.assistantService.create(channelId, 'auto');
+    env.script.push({ calls: [{ name: 'get_channel', args: {} }] }, { text: 'Xem xong rồi.' });
+    const v = await say(t.thread.id, 'Xem kênh');
+    const types = (await eventsOf(t.thread.id)).map((e) => String(e.type));
+    expect(types[0]).toBe('RUN_STARTED');
+    expect(types.at(-1)).toBe('RUN_FINISHED');
+    expect(types).toEqual(expect.arrayContaining(['TOOL_CALL_START', 'TOOL_CALL_RESULT', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END']));
+    expect(v.messages.at(-1)?.data).toHaveProperty('liveId');
+    const whole = await read(t.thread.id);
+    expect(whole).toContain('RUN_STARTED');
+    const first = Number(/^id: (\d+)$/m.exec(whole)![1]);
+    const rest = await read(t.thread.id, first);
+    expect(rest).not.toContain('RUN_STARTED');
+    expect(rest).toContain('RUN_FINISHED');
+  });
+
+  it('ends a run waiting for approval as an interrupt', async () => {
+    const t = await s.assistant.assistantService.create(channelId, 'ask');
+    env.script.push({ calls: [{ name: 'update_channel', args: { hashtags: ['#b'] } }] });
+    const v = await say(t.thread.id, 'Đổi hashtag');
+    expect((await eventsOf(t.thread.id)).at(-1)).toMatchObject({ type: 'RUN_FINISHED', outcome: { type: 'interrupt', interrupts: [{ id: String(v.awaiting), reason: 'approval' }] } });
+  });
+
+  it('stops: no further tool runs, the calls are answered, and the next message works', async () => {
+    const t = await s.assistant.assistantService.create(channelId, 'auto');
+    env.script.push({ text: 'Để mình đổi.', calls: [{ name: 'update_channel', args: { hashtags: ['#stopped'] } }], before: async () => void (await s.assistant.assistantService.stop(t.thread.id)) });
+    const v = await say(t.thread.id, 'Đổi hashtag');
+    expect(v.messages.map((m) => [m.role, m.status])).toEqual([['user', 'done'], ['assistant', 'done'], ['tool', 'rejected']]);
+    expect((await s.channels.channelService.get(channelId)).hashtags).not.toContain('#stopped');
+    expect((await eventsOf(t.thread.id)).at(-1)).toMatchObject({ type: 'RUN_FINISHED', outcome: { type: 'cancelled' } });
+    env.script.push({ text: 'Vâng.' });
+    const next = await say(t.thread.id, 'Thôi');
+    expect(next.messages.at(-1)?.content).toBe('Vâng.');
+    expect((await eventsOf(t.thread.id)).filter((e) => String(e.type) === 'RUN_STARTED')).toHaveLength(1);
   });
 });

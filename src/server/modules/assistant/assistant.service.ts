@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { EventType } from '@ag-ui/core';
+
 import { checkAttachment, isPicture, MAX_ATTACHMENTS, TYPE_BY_EXT, type AssistantAttachment } from '@/core/assistant/attachments';
 import { ASSISTANT_RULES } from '@/core/assistant/guides';
 import { resolveApproval, runAssistantTurn, EMPTY_FOCUS, type AssistantRuntime } from '@/core/assistant/loop';
@@ -21,6 +23,7 @@ import { seriesRepository } from '@/server/modules/series/series.repository';
 import { skillService } from '@/server/modules/skill/skill.service';
 
 import { assistantRepository, assistantStore, type AssistantThread } from './assistant.repository';
+import { eventSink, eventStream } from './assistant.stream';
 
 const MODE_TEXT: Record<PermissionMode, string> = {
   ask: 'HỎI: mọi thao tác ghi dữ liệu đều chờ người dùng đồng ý trước khi chạy.',
@@ -62,6 +65,8 @@ export interface ThreadView {
   messages: AssistantMessage[];
   /** A turn is queued or running. */
   running: boolean;
+  /** The person asked to stop the running turn and the worker has not ended it yet. */
+  stopping: boolean;
   /** Id of the tool call waiting for the person, if any. */
   awaiting: number | null;
 }
@@ -73,8 +78,10 @@ async function load(id: string): Promise<AssistantThread> {
 }
 
 async function viewOf(thread: AssistantThread): Promise<ThreadView> {
+  // Asked before reading: a turn that finishes in between must not look done with its last message missing.
+  const running = Boolean(await jobRepository.activeAssistant(thread.id));
   const messages = await assistantRepository.messages(thread.id);
-  return { thread, messages, running: Boolean(await jobRepository.activeAssistant(thread.id)), awaiting: messages.find((m) => m.role === 'tool' && m.status === 'awaiting')?.id ?? null };
+  return { thread, messages, running, stopping: running && (await assistantRepository.stopRequested(thread.id)), awaiting: messages.find((m) => m.role === 'tool' && m.status === 'awaiting')?.id ?? null };
 }
 
 /** What the screen sends back about an uploaded file; everything else is read from the file itself. */
@@ -92,7 +99,14 @@ async function attached(threadId: string, files: { path: string; name: string }[
   );
 }
 
-const enqueueTurn = async (threadId: string) => await jobRepository.insert(null, 'assistant_turn', { threadId });
+/** The events of the previous turn go first, so a screen that connects now never reads an old ending. */
+async function enqueueTurn(threadId: string) {
+  await assistantRepository.clearEvents(threadId);
+  await assistantRepository.setStop(threadId, false);
+  await jobRepository.insert(null, 'assistant_turn', { threadId });
+}
+
+const STOP_CHECK_MS = 500;
 
 export const assistantService = {
   async threads(channelId: string): Promise<AssistantThread[]> {
@@ -157,15 +171,40 @@ export const assistantService = {
     return await viewOf(await load(id));
   },
 
+  /** The person presses stop: the worker ends the turn, keeping what was written. */
+  async stop(id: string): Promise<ThreadView> {
+    await load(id);
+    if (await jobRepository.activeAssistant(id)) await assistantRepository.setStop(id, true);
+    return await viewOf(await load(id));
+  },
+
+  /** The live events of the running turn after a position, as server-sent events. */
+  async events(id: string, after: number, signal: AbortSignal): Promise<Response> {
+    await load(id);
+    return eventStream(id, after, signal);
+  },
+
   /** Runs in the worker. A failure becomes a message in the chat instead of a silent failed job. */
   async runTurn(id: string): Promise<void> {
+    const sink = eventSink(id);
+    const stop = new AbortController();
+    const stopped = async () => {
+      if (!stop.signal.aborted && (await assistantRepository.stopRequested(id))) stop.abort();
+      return stop.signal.aborted;
+    };
+    const watch = setInterval(() => void stopped().catch(() => {}), STOP_CHECK_MS);
     try {
       const thread = await assistantRepository.find(id);
-      await withUsage({ threadId: id, channelId: thread?.channelId, purpose: 'assistant' }, () => runAssistantTurn(createAssistantRuntime(), id));
+      const rt = { ...createAssistantRuntime(), emit: sink.emit, signal: stop.signal, stopped };
+      await withUsage({ threadId: id, channelId: thread?.channelId, purpose: 'assistant' }, () => runAssistantTurn(rt, id));
     } catch (e) {
       const text = e instanceof UserFacingError ? e.message : 'Trợ lý gặp lỗi. Thử lại hoặc xem nhật ký worker.';
       await assistantRepository.append(id, { role: 'assistant', content: `⚠️ ${text}`, toolCalls: [], toolCallId: null, toolName: null, status: 'error', summary: '', data: null, focus: null });
+      sink.emit({ type: EventType.RUN_ERROR, message: text });
       throw e;
+    } finally {
+      clearInterval(watch);
+      await sink.close();
     }
   },
 };

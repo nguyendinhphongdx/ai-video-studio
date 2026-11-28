@@ -30,7 +30,7 @@ export function anthropicClient(llm: LlmSettings): LlmClient {
       if (!response.parsed_output) throw new UserFacingError(`AI không trả về kịch bản hợp lệ (stop_reason=${response.stop_reason})`);
       return { object: response.parsed_output, usage: usageOf(response.usage) };
     },
-    async chat({ system, messages, tools }) {
+    async chat({ system, messages, tools, onDelta, signal }) {
       const out: Anthropic.MessageParam[] = [];
       for (const m of messages) {
         if (m.role === 'user')
@@ -53,17 +53,30 @@ export function anthropicClient(llm: LlmSettings): LlmClient {
           else out.push({ role: 'user', content: [block] });
         }
       }
-      const response = await client.messages.create({
+      const request = {
         model: llm.model,
-        max_tokens: 8000,
         system,
         tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: toolSchema(t.schema, (s) => toJSONSchema(s) as Record<string, unknown>) as Anthropic.Tool.InputSchema })),
         messages: out,
-      });
+      };
+      let response: Anthropic.Message;
+      if (onDelta) {
+        // Thinking blocks are not replayed on later steps: adaptive thinking accepts a history without them.
+        const stream = client.messages.stream({ ...request, max_tokens: 16000, thinking: { type: 'adaptive', display: 'summarized' }, output_config: { effort: llm.effort } }, { signal });
+        for await (const event of stream) {
+          if (event.type !== 'content_block_delta') continue;
+          if (event.delta.type === 'text_delta') onDelta({ type: 'text', delta: event.delta.text });
+          else if (event.delta.type === 'thinking_delta') onDelta({ type: 'reasoning', delta: event.delta.thinking });
+        }
+        response = await stream.finalMessage();
+      } else response = await client.messages.create({ ...request, max_tokens: 8000 }, { signal });
       if (response.stop_reason === 'refusal') throw new UserFacingError('AI từ chối yêu cầu này.');
       const text = response.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim();
       const toolCalls = response.content.flatMap((b) => (b.type === 'tool_use' ? [{ id: b.id, name: b.name, args: (b.input ?? {}) as Record<string, unknown> }] : []));
-      return { text, toolCalls, usage: usageOf(response.usage) };
+      const reasoning = response.content.flatMap((b) => (b.type === 'thinking' ? [b.thinking] : [])).join('\n\n').trim();
+      // A tool call cut off at the token limit may have half its input: never run it.
+      if (response.stop_reason === 'max_tokens' && toolCalls.length) throw new UserFacingError('Câu trả lời quá dài nên bị cắt giữa chừng. Thử yêu cầu từng phần nhỏ hơn.');
+      return { text, toolCalls, ...(reasoning ? { reasoning } : {}), usage: usageOf(response.usage) };
     },
     async ping() {
       const r = await client.messages.create({ model: llm.model, max_tokens: 16, messages: [{ role: 'user', content: 'Trả lời đúng một chữ: OK' }] });

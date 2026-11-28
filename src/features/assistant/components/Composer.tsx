@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, ImagePlus, Loader2, Plus, Send, X } from 'lucide-react';
+import { FileText, ImagePlus, Loader2, Plus, Send, Square, X } from 'lucide-react';
 import { useRef, type RefObject } from 'react';
 
 import { Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentGroup, AttachmentMedia, AttachmentTitle } from '@/components/ui/attachment';
@@ -22,10 +22,13 @@ interface Props {
   disabled: boolean;
   canSend: boolean;
   sending: boolean;
+  /** Present while a turn is running: the send button becomes "Dừng". */
+  onStop?: () => void;
+  stopping?: boolean;
 }
 
 /** The message box: type, attach from the menu, paste or drop (drop is caught by the whole panel), send. */
-export function Composer({ box, text, onText, chips, onFiles, onRemove, onSubmit, placeholder, disabled, canSend, sending }: Props) {
+export function Composer({ box, text, onText, chips, onFiles, onRemove, onSubmit, placeholder, disabled, canSend, sending, onStop, stopping }: Props) {
   const picker = useRef<HTMLInputElement>(null);
   const pick = (accept: string) => {
     if (!picker.current) return;
@@ -95,9 +98,16 @@ export function Composer({ box, text, onText, chips, onFiles, onRemove, onSubmit
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <InputGroupButton variant="default" size="icon-sm" className="ml-auto rounded-full" disabled={!canSend} onClick={onSubmit} aria-label="Gửi">
-            {sending ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
-          </InputGroupButton>
+          {onStop ? (
+            <InputGroupButton variant="default" size="sm" className="ml-auto rounded-full" disabled={stopping} onClick={onStop}>
+              {stopping ? <Loader2 className="animate-spin" aria-hidden /> : <Square className="fill-current" aria-hidden />}
+              {stopping ? 'Đang dừng…' : 'Dừng'}
+            </InputGroupButton>
+          ) : (
+            <InputGroupButton variant="default" size="icon-sm" className="ml-auto rounded-full" disabled={!canSend} onClick={onSubmit} aria-label="Gửi">
+              {sending ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
+            </InputGroupButton>
+          )}
         </InputGroupAddon>
       </InputGroup>
     </>

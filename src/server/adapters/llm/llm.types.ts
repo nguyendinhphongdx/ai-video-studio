@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import type { ChatMessage, ChatToolCall, ChatToolSpec } from '@/core/ports';
+import type { ChatReply, ChatRequest } from '@/core/ports';
 
 /** Tokens a call used, as the provider reported them. `input` excludes what was served from the cache. */
 export interface LlmUsage {
@@ -11,7 +11,8 @@ export interface LlmUsage {
 
 export interface LlmClient {
   generateObject(input: { system: string; user: string; schema: z.ZodType }): Promise<{ object: unknown; usage?: LlmUsage }>;
-  chat(input: { system: string; messages: ChatMessage[]; tools: ChatToolSpec[] }): Promise<{ text: string; toolCalls: ChatToolCall[]; usage?: LlmUsage }>;
+  /** With `onDelta` the call streams; an abort then throws. Without it, one whole answer. */
+  chat(input: Omit<ChatRequest, 'purpose'>): Promise<ChatReply & { usage?: LlmUsage }>;
   /** Tiny request to check the connection; returns the model that answered. */
   ping(): Promise<string>;
 }

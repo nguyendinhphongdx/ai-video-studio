@@ -26,6 +26,9 @@ export const assistantApi = {
     return api<AssistantAttachment>(`/assistant/threads/${id}/attachments`, { form });
   },
   decide: (id: string, messageId: number, approve: boolean) => api<ThreadView>(`/assistant/threads/${id}/decide`, { body: { messageId, approve } }),
+  stop: (id: string) => api<ThreadView>(`/assistant/threads/${id}/stop`, { method: 'POST' }),
+  /** Server-sent AG-UI events of the running turn. */
+  eventsUrl: (id: string) => `/api/v1/assistant/threads/${id}/events`,
   setMode: (id: string, mode: PermissionMode) => api<ThreadView>(`/assistant/threads/${id}/mode`, { method: 'PUT', body: { mode } }),
   remove: (id: string) => api<{ ok: true }>(`/assistant/threads/${id}`, { method: 'DELETE' }),
 };

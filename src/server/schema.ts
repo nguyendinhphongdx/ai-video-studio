@@ -354,6 +354,8 @@ export const assistantThreads = pgTable(
     channelId: text('channel_id').notNull().references((): AnyPgColumn => channels.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
     mode: text('mode').notNull().default('auto'),
+    /** The person pressed stop; the worker ends the turn and the next message clears it. */
+    stopRequested: integer('stop_requested').notNull().default(0),
     createdAt: isoTime('created_at').notNull(),
     updatedAt: isoTime('updated_at').notNull(),
     workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
@@ -385,6 +387,22 @@ export const assistantMessages = pgTable(
   (t) => [
     index('assistant_messages_ws').on(t.workspaceId),
     index('assistant_messages_thread').on(t.threadId, t.id),
+  ],
+);
+
+/** AG-UI events of the running turn of a conversation, in order; emptied when its next turn is queued. */
+export const assistantStreamEvents = pgTable(
+  'assistant_stream_events',
+  {
+    id: serial('id').primaryKey(),
+    threadId: text('thread_id').notNull().references((): AnyPgColumn => assistantThreads.id, { onDelete: 'cascade' }),
+    event: jsonText('event').notNull(),
+    workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    index('assistant_stream_events_ws').on(t.workspaceId),
+    index('assistant_stream_events_thread').on(t.threadId, t.id),
   ],
 );
 

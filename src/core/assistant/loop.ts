@@ -1,11 +1,14 @@
 // The assistant's conversation loop. Every step is written to the store as it happens, so a turn can stop when a tool
 // needs the person's approval and carry on later (resolveApproval, then runAssistantTurn again).
+import { EventType } from '@ag-ui/core';
+
 import type { AiRun } from '../agent/runner';
 import { UserFacingError } from '../domain/errors';
 import { newId } from '../domain/ids';
 import type { AiRunStore, AssistantMessage, AssistantStore, AssistantThreadInfo, ChatMessage, ChatToolCall, LlmPort } from '../ports';
 
 import { isPicture, type AssistantAttachment } from './attachments';
+import { stepStream, type Emit } from './stream';
 import { needsApproval, type AssistantFocus, type AssistantTool, type ToolContext, type ToolResult } from './tool';
 
 export interface AssistantRuntime {
@@ -19,9 +22,15 @@ export interface AssistantRuntime {
   readAttachment?(attachment: AssistantAttachment): Promise<string>;
   /** Model calls per turn before the assistant stops and asks the person to continue. */
   maxSteps?: number;
+  /** Live events of the turn (AG-UI). Without it the model is asked for whole answers. */
+  emit?: Emit;
+  /** Aborted when the person presses stop; it cuts the model call short. */
+  signal?: AbortSignal;
+  /** Whether the person asked to stop; checked before every step and every tool. */
+  stopped?(): Promise<boolean>;
 }
 
-export type TurnState = 'done' | 'awaiting' | 'steps_exceeded';
+export type TurnState = 'done' | 'awaiting' | 'steps_exceeded' | 'stopped';
 
 export const EMPTY_FOCUS: AssistantFocus = { route: '/', episodeId: null, seriesId: null, sceneId: null, skillId: null };
 const HISTORY_LIMIT = 80;
@@ -87,6 +96,8 @@ export function toChatMessages(messages: AssistantMessage[]): ChatMessage[] {
   while (start < messages.length && messages[start]!.role !== 'user') start++;
   return messages.slice(start).flatMap((m): ChatMessage[] => {
     if (m.role === 'user') return [{ role: 'user', content: m.content }];
+    // A stopped step may hold only thinking: there is nothing of it to send back.
+    if (m.role === 'assistant' && !m.content && !m.toolCalls.length) return [];
     if (m.role === 'assistant') return [{ role: 'assistant', content: m.content, ...(m.toolCalls.length ? { toolCalls: m.toolCalls } : {}) }];
     return [{ role: 'tool', toolCallId: m.toolCallId ?? '', content: m.content || m.summary, isError: m.status === 'error' || m.status === 'rejected' }];
   });
@@ -126,8 +137,13 @@ async function handleCall(rt: AssistantRuntime, thread: AssistantThreadInfo, foc
     await rt.store.append(thread.id, { role: 'tool', content: '', toolCalls: [], toolCallId: call.id, toolName: call.name, status: 'awaiting', summary, data: { risk: tool.risk, args: parsed.data }, focus });
     return 'awaiting';
   }
+  rt.emit?.({ type: EventType.TOOL_CALL_START, toolCallId: call.id, toolCallName: tool.name });
+  rt.emit?.({ type: EventType.CUSTOM, name: 'tool_summary', value: { toolCallId: call.id, summary } });
+  rt.emit?.({ type: EventType.TOOL_CALL_ARGS, toolCallId: call.id, delta: JSON.stringify(parsed.data) });
+  rt.emit?.({ type: EventType.TOOL_CALL_END, toolCallId: call.id });
   const result = await execute(tool, parsed.data, ctx);
-  await answer(rt, thread.id, call, { status: result.ok ? 'done' : 'error', content: result.message, summary, data: result.data });
+  const stored = await answer(rt, thread.id, call, { status: result.ok ? 'done' : 'error', content: result.message, summary, data: result.data });
+  rt.emit?.({ type: EventType.TOOL_CALL_RESULT, messageId: String(stored.id), toolCallId: call.id, content: result.message });
   return 'answered';
 }
 
@@ -159,7 +175,36 @@ export async function resolveApproval(rt: AssistantRuntime, messageId: number, t
   await rt.store.update(m.id, { status: result.ok ? 'done' : 'error', content: result.message, data: result.data ?? null });
 }
 
+/** The turn as one AG-UI run: it starts, streams, and ends done, stopped or interrupted to ask the person. */
 export async function runAssistantTurn(rt: AssistantRuntime, threadId: string): Promise<TurnState> {
+  const runId = newId();
+  rt.emit?.({ type: EventType.RUN_STARTED, threadId, runId });
+  const state = await steps(rt, threadId);
+  const waiting = state === 'awaiting' ? (await rt.store.messages(threadId)).filter((m) => m.role === 'tool' && m.status === 'awaiting') : [];
+  rt.emit?.({
+    type: EventType.RUN_FINISHED,
+    threadId,
+    runId,
+    outcome: waiting.length
+      ? { type: 'interrupt', interrupts: waiting.map((m) => ({ id: String(m.id), reason: 'approval', message: m.summary, toolCallId: m.toolCallId ?? undefined })) }
+      : state === 'stopped'
+        ? { type: 'cancelled' }
+        : { type: 'success' },
+  });
+  return state;
+}
+
+/** Stopping answers the calls that never ran, so the history stays valid for the next message. */
+async function stop(rt: AssistantRuntime, threadId: string): Promise<TurnState> {
+  for (const call of unresolvedCalls(await rt.store.messages(threadId))) {
+    await answer(rt, threadId, call, { status: 'rejected', content: 'Người dùng đã bấm Dừng trước khi thao tác này chạy.', summary: call.name });
+  }
+  return 'stopped';
+}
+
+const isStopped = async (rt: AssistantRuntime) => Boolean(rt.signal?.aborted) || Boolean(await rt.stopped?.());
+
+async function steps(rt: AssistantRuntime, threadId: string): Promise<TurnState> {
   const thread = await rt.store.thread(threadId);
   const specs = rt.tools.map((t) => ({ name: t.name, description: t.description, schema: t.schema }));
   const maxSteps = rt.maxSteps ?? 12;
@@ -167,9 +212,13 @@ export async function runAssistantTurn(rt: AssistantRuntime, threadId: string): 
     const messages = await rt.store.messages(threadId);
     if (messages.some((m) => m.role === 'tool' && m.status === 'awaiting')) return 'awaiting';
     const focus = latestFocus(messages);
+    if (await isStopped(rt)) return await stop(rt, threadId);
     const pending = unresolvedCalls(messages);
     if (pending.length) {
-      for (const call of pending) if ((await handleCall(rt, thread, focus, call)) === 'awaiting') return 'awaiting';
+      for (const call of pending) {
+        if (await isStopped(rt)) return await stop(rt, threadId);
+        if ((await handleCall(rt, thread, focus, call)) === 'awaiting') return 'awaiting';
+      }
       continue;
     }
     if (messages.at(-1)?.role === 'assistant') return 'done';
@@ -178,12 +227,21 @@ export async function runAssistantTurn(rt: AssistantRuntime, threadId: string): 
     const system = await rt.system(thread, focus);
     const started = Date.now();
     const history = await withAttachments(messages, toChatMessages(messages), rt.readAttachment);
-    const res = await rt.llm.chat({ system, messages: history, tools: specs, purpose: 'assistant' });
+    const liveId = newId();
+    const live = rt.emit ? stepStream(rt.emit, liveId) : null;
+    const res = await rt.llm.chat({
+      system, messages: history, tools: specs, purpose: 'assistant',
+      ...(live ? { onDelta: (d) => live.delta(d.type, d.delta) } : {}),
+      ...(rt.signal ? { signal: rt.signal } : {}),
+    });
+    live?.close();
     await rt.runs?.record({
       id: newId(), task: 'assistant', taskVersion: 1, episodeId: null, seriesId: null, model: res.model, context: system, sections: [], prompt: history.at(-1)?.content ?? '',
       output: { text: res.text, toolCalls: res.toolCalls.map((c) => c.name) }, error: null, durationMs: Date.now() - started, createdAt: new Date().toISOString(),
     } satisfies AiRun);
-    await rt.store.append(threadId, { role: 'assistant', content: res.text, toolCalls: res.toolCalls, toolCallId: null, toolName: null, status: 'done', summary: '', data: null, focus: null });
+    const data = { liveId, ...(res.reasoning ? { reasoning: res.reasoning } : {}), ...(res.stopped ? { stopped: true } : {}) };
+    await rt.store.append(threadId, { role: 'assistant', content: res.text, toolCalls: res.toolCalls, toolCallId: null, toolName: null, status: 'done', summary: '', data, focus: null });
+    if (res.stopped) return await stop(rt, threadId);
     if (!res.toolCalls.length) return 'done';
   }
   await rt.store.append(threadId, { role: 'assistant', content: 'Mình đã làm khá nhiều bước liên tiếp nên dừng lại ở đây. Bạn muốn mình tiếp tục không?', toolCalls: [], toolCallId: null, toolName: null, status: 'done', summary: '', data: null, focus: null });

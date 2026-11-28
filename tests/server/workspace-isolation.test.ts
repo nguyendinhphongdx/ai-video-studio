@@ -130,6 +130,13 @@ describe('assistant attachments', () => {
     expect(await run(A, async () => await m.media.canReadMedia(a.path))).toBe(true);
     expect(await run(B, async () => await m.media.canReadMedia(a.path))).toBe(false);
     await expect(run(B, async () => await assistantService.upload(thread.id, png))).rejects.toThrow();
+    // Nor its live stream, and B cannot stop its turn.
+    const { assistantRepository } = await import('@/server/modules/assistant/assistant.repository');
+    await run(A, async () => await assistantRepository.addEvents(thread.id, [{ type: 'RUN_ERROR', message: 'x' } as never]));
+    await expect(run(B, async () => await assistantService.events(thread.id, 0, new AbortController().signal))).rejects.toThrow();
+    await expect(run(B, async () => await assistantService.stop(thread.id))).rejects.toThrow();
+    expect(await run(B, async () => await assistantRepository.eventsAfter(thread.id, 0))).toEqual([]);
+    expect(await run(A, async () => await assistantRepository.eventsAfter(thread.id, 0))).toHaveLength(1);
     await run(A, async () => await assistantService.remove(thread.id));
     expect(fs.existsSync(resolveMedia(a.path))).toBe(false);
   });

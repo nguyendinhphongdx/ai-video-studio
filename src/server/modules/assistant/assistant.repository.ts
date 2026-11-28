@@ -1,11 +1,12 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt } from 'drizzle-orm';
 
+import type { AssistantEvent } from '@/core/assistant/stream';
 import type { AssistantMessage, AssistantStore, AssistantThreadInfo } from '@/core/ports';
 import { newId } from '@/core/domain/ids';
 import { notFound } from '@/server/http/api-error';
 import { json, now } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
-import { assistantMessages as messages, assistantThreads as threads } from '@/server/schema';
+import { assistantMessages as messages, assistantStreamEvents as events, assistantThreads as threads } from '@/server/schema';
 
 export interface AssistantThread extends AssistantThreadInfo {
   createdAt: string;
@@ -54,6 +55,22 @@ export const assistantRepository = {
   },
   async removeThread(id: string) {
     await orm().delete(threads).where(thisThread(id));
+  },
+  async setStop(threadId: string, stop: boolean) {
+    await orm().update(threads).set({ stopRequested: stop ? 1 : 0 }).where(thisThread(threadId));
+  },
+  async stopRequested(threadId: string): Promise<boolean> {
+    return Boolean((await orm().select({ stop: threads.stopRequested }).from(threads).where(thisThread(threadId)).then(one))?.stop);
+  },
+  async addEvents(threadId: string, batch: AssistantEvent[]) {
+    if (batch.length) await orm().insert(events).values(batch.map((e) => ({ threadId, event: JSON.stringify(e), ...owner() })));
+  },
+  /** Events after a position, oldest first. */
+  async eventsAfter(threadId: string, position: number): Promise<{ position: number; event: string }[]> {
+    return await orm().select({ position: events.id, event: events.event }).from(events).where(and(eq(events.threadId, threadId), gt(events.id, position), scoped(events))).orderBy(asc(events.id)).limit(500);
+  },
+  async clearEvents(threadId: string) {
+    await orm().delete(events).where(and(eq(events.threadId, threadId), scoped(events)));
   },
   async messages(threadId: string): Promise<AssistantMessage[]> {
     return (await orm().select().from(messages).where(and(eq(messages.threadId, threadId), scoped(messages))).orderBy(asc(messages.id))).map(toMessage);

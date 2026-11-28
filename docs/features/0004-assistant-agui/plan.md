@@ -21,11 +21,18 @@ Checked before planning (2026-11-28): shadcn/ui is MIT; AG-UI 1.0.5 is MIT and n
 Stop here for the owner. Done 2026-11-28; still unproved: a real model turn with a picture, and clicking approve/reject on screen (rendering is covered by tests).
 
 ### Part B: AG-UI
-5. [ ] Trial: fixed AG-UI events drive the new components, including an interrupt — proof: screen; stop and ask if it does not fit.
-6. [ ] Streaming and thinking in the model port, usage recorded for finished, failed and stopped calls; falls back to a whole answer — proof: tests with fake streams.
-7. [ ] Event storage written by the worker (batched) and an SSE route that replays from a position — proof: isolation and replay tests.
-8. [ ] Screen consumes AG-UI: live text, thinking, tool states, interrupt, reconnect; polling kept as fallback — proof: reload mid-turn, through the tunnel.
-9. [ ] "Dừng": stop flag checked between deltas and before each tool — proof: loop test.
+5. [x] Trial: fixed AG-UI events drive the new components, including an interrupt — proof: screen; stop and ask if it does not fit.
+6. [x] Streaming and thinking in the model port, usage recorded for finished, failed and stopped calls; falls back to a whole answer — proof: tests with fake streams.
+7. [x] Event storage written by the worker (batched) and an SSE route that replays from a position — proof: isolation and replay tests.
+8. [x] Screen consumes AG-UI: live text, thinking, tool states, interrupt, reconnect; polling kept as fallback — proof: reload mid-turn, through the tunnel.
+9. [x] "Dừng": stop flag checked between deltas and before each tool — proof: loop test.
+
+Built 2026-11-28. Choices made while building:
+- Only `@ag-ui/core` (event types and schemas) is used. `@ag-ui/client` expects one request that runs the agent and streams back; here the worker runs it and the browser reads stored events with `EventSource`.
+- Events are emptied when the conversation's next turn is queued, not when a turn ends, so a screen still reading does not lose the ending.
+- Anthropic thinking blocks are not replayed to the model on later steps.
+- "Dừng" cannot cut short a tool that is already running; it ends the turn after it.
+- Unproved: thinking and streaming against a real provider (costs money; ask first), and the stream through the public tunnel with a real turn.
 
 ## Files touched
 | Area | File | Change |

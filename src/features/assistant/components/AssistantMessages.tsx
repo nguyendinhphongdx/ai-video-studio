@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronRight, CircleAlert, CircleCheck, Copy, FileText, Loader2, ShieldQuestion, XCircle } from 'lucide-react';
+import { Brain, Check, ChevronRight, CircleAlert, CircleCheck, Copy, FileText, Loader2, ShieldQuestion, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { Attachment, AttachmentContent, AttachmentGroup, AttachmentMedia, AttachmentTitle, AttachmentTrigger } from '@/components/ui/attachment';
@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message';
 import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from '@/components/ui/message-scroller';
 import { isPicture } from '@/core/assistant/attachments';
+import { pendingItems, type LiveItem, type LiveTurn } from '@/core/assistant/stream';
 import { cn } from '@/lib/utils';
 
 import { attachmentUrl, type AssistantAttachment, type AssistantMessage } from '../services/assistant.api';
@@ -18,6 +19,7 @@ import { RichText } from './RichText';
 
 const RISK_LABEL: Record<string, string> = { write: 'Ghi dữ liệu', paid: 'Tốn tiền hoặc chạy lâu', destructive: 'Xoá' };
 const STATE: Record<string, { label: string; icon: typeof CircleCheck; tone: string }> = {
+  running: { label: 'Đang chạy', icon: Loader2, tone: 'animate-spin text-primary' },
   awaiting: { label: 'Chờ bạn đồng ý', icon: ShieldQuestion, tone: 'text-warning' },
   done: { label: 'Xong', icon: CircleCheck, tone: 'text-success' },
   error: { label: 'Lỗi', icon: CircleAlert, tone: 'text-destructive' },
@@ -73,6 +75,51 @@ function ToolCard({ m, input, onDecide, deciding }: { m: AssistantMessage; input
   );
 }
 
+/** What the model thought before answering: folded away until asked for. */
+function Thinking({ text, live }: { text: string; live?: boolean }) {
+  return (
+    <Collapsible className="w-full text-caption text-muted-foreground">
+      <CollapsibleTrigger className="group flex items-center gap-1.5 py-1 font-semibold">
+        <Brain className={cn('size-3.5', live && 'animate-pulse text-primary')} aria-hidden />
+        {live ? 'Đang suy nghĩ…' : 'Suy nghĩ'}
+        <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 pl-2.5">{text}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/** A piece of the running turn that is not stored yet. */
+function Live({ item, writing }: { item: LiveItem; writing: boolean }) {
+  if (item.kind === 'reasoning') return <Thinking text={item.text} live={writing} />;
+  if (item.kind === 'text')
+    return (
+      <Message>
+        <MessageContent>
+          <Bubble variant="outline" className="max-w-[92%]">
+            <BubbleContent>
+              <RichText text={item.text} />
+            </BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
+    );
+  const state = STATE[item.state === 'done' ? 'done' : 'running']!;
+  return (
+    <div className="flex w-full items-start gap-2 rounded-xl border bg-card px-3 py-2.5 text-small">
+      <state.icon className={cn('mt-0.5 size-4 shrink-0', state.tone)} aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold leading-snug">{item.text || item.name}</span>
+        <span className="block text-caption text-muted-foreground">{state.label}</span>
+      </span>
+    </div>
+  );
+}
+
+const dataOf = (m: AssistantMessage) => (m.data ?? {}) as { attachments?: AssistantAttachment[]; reasoning?: string; stopped?: boolean };
+
 function Sent({ files }: { files: AssistantAttachment[] }) {
   return (
     <AttachmentGroup className="justify-end">
@@ -111,16 +158,20 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function AssistantMessages({ messages, running, onDecide, deciding }: { messages: AssistantMessage[]; running: boolean; onDecide: (id: number, approve: boolean) => void; deciding: boolean }) {
+export function AssistantMessages({ messages, running, live, onDecide, deciding }: { messages: AssistantMessage[]; running: boolean; live?: LiveTurn; onDecide: (id: number, approve: boolean) => void; deciding: boolean }) {
   const inputs = new Map(messages.flatMap((m) => m.toolCalls.map((c) => [c.id, c.args] as const)));
-  const shown = messages.filter((m) => m.role !== 'assistant' || m.content.trim());
+  const shown = messages.filter((m) => m.role !== 'assistant' || m.content.trim() || dataOf(m).reasoning || dataOf(m).stopped);
+  const pending = running && live ? pendingItems(live, messages) : [];
+  const last = pending.at(-1);
+  // Something visibly moving already says the assistant is at work.
+  const busy = last !== undefined && (last.kind !== 'tool' || last.state !== 'done');
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <MessageScroller>
         <MessageScrollerViewport aria-label="Tin nhắn">
           <MessageScrollerContent className="gap-3 px-3 py-4" role="log" aria-live="polite" aria-label="Cuộc trò chuyện với trợ lý">
             {shown.map((m) => {
-              const files = (m.data as { attachments?: AssistantAttachment[] } | null)?.attachments;
+              const { attachments: files, reasoning, stopped } = dataOf(m);
               return (
                 <MessageScrollerItem key={m.id} messageId={String(m.id)} scrollAnchor={m.role === 'user'}>
                   {m.role === 'user' ? (
@@ -137,14 +188,20 @@ export function AssistantMessages({ messages, running, onDecide, deciding }: { m
                   ) : m.role === 'assistant' ? (
                     <Message>
                       <MessageContent className="gap-1">
-                        <Bubble variant={m.status === 'error' ? 'destructive' : 'outline'} className="max-w-[92%]">
-                          <BubbleContent>
-                            <RichText text={m.content} />
-                          </BubbleContent>
-                        </Bubble>
-                        <MessageFooter className="px-0">
-                          <CopyButton text={m.content} />
-                        </MessageFooter>
+                        {reasoning ? <Thinking text={reasoning} /> : null}
+                        {m.content.trim() ? (
+                          <Bubble variant={m.status === 'error' ? 'destructive' : 'outline'} className="max-w-[92%]">
+                            <BubbleContent>
+                              <RichText text={m.content} />
+                            </BubbleContent>
+                          </Bubble>
+                        ) : null}
+                        {stopped ? <span className="text-caption text-muted-foreground">Đã dừng</span> : null}
+                        {m.content.trim() ? (
+                          <MessageFooter className="px-0">
+                            <CopyButton text={m.content} />
+                          </MessageFooter>
+                        ) : null}
                       </MessageContent>
                     </Message>
                   ) : (
@@ -153,7 +210,12 @@ export function AssistantMessages({ messages, running, onDecide, deciding }: { m
                 </MessageScrollerItem>
               );
             })}
-            {running ? (
+            {pending.map((item) => (
+              <MessageScrollerItem key={`${item.kind}-${item.id}`} messageId={`${item.kind}-${item.id}`}>
+                <Live item={item} writing={item === last} />
+              </MessageScrollerItem>
+            ))}
+            {running && !busy ? (
               <MessageScrollerItem messageId="running">
                 <div role="status" className="flex w-fit items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-caption text-muted-foreground">
                   <Loader2 className="size-3.5 animate-spin" aria-hidden />

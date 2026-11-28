@@ -35,15 +35,15 @@ abstract class StudioTool<Input, Output> {
 - No separate scope list: `risk` and `minLevel` decide.
 - The conversion changes no behaviour: names, risks, input schemas and descriptions are snapshotted in a test before it starts.
 
-## Tools (62)
+## Tools (61)
 "project" is `channel` in older tool names. Each project tool takes `projectId`. A level includes the ones above it.
 
 **Chỉ đọc (21)**
 - New: `get_studio_guide`, `list_projects`, `list_running_work`, `view_scene_picture`, `get_video`, `get_publish_kit`, `get_cost_summary`, `get_series_memory`
 - Existing: `get_channel`, `get_knowledge`, `get_settings_status`, `list_blocks`, `list_skills`, `get_skill`, `list_series`, `get_series`, `list_characters`, `list_episodes`, `get_episode`, `list_scene_pictures`, `estimate_cost`
 
-**Được sửa (+27)**
-- New: `create_project`, `request_upload` (logo, avatar, music, scene picture), `change_episode_skill`, `use_latest_series`, `reorder_series_episodes`, `save_series_memory`, `upgrade_skill`, `reject_video`
+**Được sửa (+26)**
+- New: `create_project`, `request_upload` (logo, avatar, music, scene picture), `use_latest_series`, `reorder_series_episodes`, `save_series_memory`, `upgrade_skill`, `reject_video`
 - Existing: `update_channel`, `set_intro_design`, `set_outro_design`, `save_knowledge`, `install_market_skill`, `save_skill`, `create_series`, `update_series`, `add_series_episodes`, `save_character`, `save_character_action`, `create_episode`, `set_episode_options`, `approve_scenes`, `add_scene`, `edit_scene`, `move_scene`, `duplicate_scene`, `use_scene_picture`
 
 **Toàn quyền (+14)**
@@ -53,7 +53,7 @@ abstract class StudioTool<Input, Output> {
 
 **Not offered:** `ai_fix_scene`, topic ideas, topic analysis, project setup proposal (they call a model inside the web request; only the worker may), and everything about keys, members, budgets, prices, administration and sign-in.
 
-New tools are offered over MCP only and call the same services as the screens.
+New tools are offered over MCP only and call the same services as the screens. Changing an episode's skill needs no new tool: `set_episode_options` takes `skillId`. `reject_video` with feedback starts a paid revision, so it takes a "Toàn quyền" code for that.
 
 Over MCP a tool answers with the same text the Assistant's model reads. `output` is checked inside `run` but not advertised: clients that prefer structured results would lose the guidance written in that text.
 
@@ -68,7 +68,7 @@ Each leaves `npm run check` green and is committed on its own.
 3. [ ] Trial: SDK in a Next.js route with one fixed tool, connected from a real client on localhost — files: `app/api/mcp/route.ts`, `package.json` — proof: the client lists the tool; stop and ask if the SDK does not fit.
 4. [x] Codes and call record: tables, repository, service (create, list, revoke, authenticate; hashed; expiry; creator must still be the workspace owner) — files: `schema.ts`, `server/modules/mcp/*` — proof: tests for wrong, revoked, expired, demoted creator, other workspace.
 5. [x] The 43 existing tools over MCP: list by level, `projectId`, refused above level even by name, call record, 120 calls a minute per code — proof: tests per level and isolation; Assistant tests unchanged.
-6. [ ] New data tools: projects (list, create, delete), running work, retry, episode skill and series version, video approve and reject, series order and memory, skill upgrade, publish kit, costs — proof: tests per tool, including level and isolation.
+6. [x] New data tools: projects (list, create, delete), running work, retry, series version, video approve and reject, series order and memory, skill upgrade, publish kit, costs — proof: tests per tool, including level and isolation.
 7. [ ] Files: `view_scene_picture`, `get_video` (frames and signed one-hour links), `request_upload` (one-time link, one purpose, same type and size checks as the screens) — proof: tests for expiry, reuse, tampering, wrong type, other workspace.
 8. [ ] Guide and connection instructions — proof: test that every tool it names exists and is offered at the level it claims.
 9. [ ] Cost marked as MCP: the context carries `via`, a queued job keeps it, the worker passes it to the ledger — proof: test.

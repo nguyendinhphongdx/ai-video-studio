@@ -133,4 +133,28 @@ describe('the endpoint', () => {
     expect(allowed('other', 1000)).toBe(true);
     expect(allowed('fast', 62_000)).toBe(true);
   });
+
+  it('creates, edits and removes a project by name, and keeps final decisions for a full code', async () => {
+    const edit = (await make('data', 'edit')).code;
+    const full = (await make('data-full', 'full')).code;
+    const made = await callTool(edit, 'create_project', { name: 'Dự án thử' });
+    expect(made.isError).toBe(false);
+    const projectId = /projectId (\w+)/.exec(made.text)![1]!;
+    expect(await names(edit)).toEqual(expect.arrayContaining(['reject_video', 'save_series_memory', 'reorder_series_episodes', 'use_latest_series', 'upgrade_skill']));
+    expect(await names(edit)).not.toContain('approve_video');
+    expect((await callTool(full, 'delete_project', { projectId, confirmName: 'dự án thử' })).isError).toBe(true);
+    expect((await callTool(full, 'delete_project', { projectId, confirmName: 'Dự án thử' })).isError).toBe(false);
+    expect((await callTool(edit, 'list_projects', {})).text).not.toContain(projectId);
+    expect((await callTool(edit, 'list_running_work', {})).text).toContain('Không có việc nào');
+  });
+
+  it('reads and refuses by project for the new reading tools', async () => {
+    const mine = await projectIn(A, 'Chi phí');
+    const theirs = await projectIn(B, 'Của B');
+    const { code } = await make('cost', 'read');
+    expect((await callTool(code, 'get_cost_summary', { projectId: mine })).text).toContain('totals');
+    expect((await callTool(code, 'get_cost_summary', { projectId: theirs })).isError).toBe(true);
+    expect((await callTool(code, 'get_publish_kit', { projectId: mine, episodeId: 'nope' })).isError).toBe(true);
+    expect((await callTool(code, 'get_series_memory', { projectId: mine, seriesId: 'nope' })).isError).toBe(true);
+  });
 });

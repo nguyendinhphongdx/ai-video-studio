@@ -28,6 +28,8 @@ export interface ToolContext {
   /** Only the Assistant has a conversation and a place the person is looking at. */
   threadId?: string;
   focus?: AssistantFocus;
+  /** The level of the connection code, when an outside AI is calling. */
+  access?: AccessLevel;
 }
 
 export interface ToolResult<Output = unknown> {

@@ -1,3 +1,8 @@
+import { GetPublishKit } from './get-publish-kit.tool';
+import { UseLatestSeries } from './use-latest-series.tool';
+import { RejectVideo } from './reject-video.tool';
+import { ApproveVideo } from './approve-video.tool';
+import { RetryWork } from './retry-work.tool';
 import { ListEpisodes } from './list-episodes.tool';
 import { GetEpisode } from './get-episode.tool';
 import { CreateEpisode } from './create-episode.tool';
@@ -14,4 +19,4 @@ import { ApproveScenes } from './approve-scenes.tool';
 import { ProduceVideo } from './produce-video.tool';
 import { DeleteEpisode } from './delete-episode.tool';
 
-export const episodeTools = [new ListEpisodes(), new GetEpisode(), new CreateEpisode(), new WriteScript(), new ReviseScript(), new EditScene(), new AiFixScene(), new AddScene(), new RemoveScene(), new SetEpisodeOptions(), new EstimateCost(), new GenerateSceneAssets(), new ApproveScenes(), new ProduceVideo(), new DeleteEpisode()];
+export const episodeTools = [new ListEpisodes(), new GetEpisode(), new CreateEpisode(), new WriteScript(), new ReviseScript(), new EditScene(), new AiFixScene(), new AddScene(), new RemoveScene(), new SetEpisodeOptions(), new EstimateCost(), new GenerateSceneAssets(), new ApproveScenes(), new ProduceVideo(), new DeleteEpisode(), new RetryWork(), new ApproveVideo(), new RejectVideo(), new UseLatestSeries(), new GetPublishKit()];

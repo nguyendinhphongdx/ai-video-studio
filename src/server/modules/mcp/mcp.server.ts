@@ -41,7 +41,7 @@ async function call(session: McpSession, tool: StudioTool, args: Record<string, 
       result = { ok: false, message: `Tham số không hợp lệ: ${formatIssues(parsed.error)}` };
     } else {
       summary = await Promise.resolve(tool.summarize(parsed.data, { channelId })).catch(() => tool.title);
-      result = await tool.run(rest, { channelId });
+      result = await tool.run(rest, { channelId, access: session.level });
     }
   } catch (e) {
     result = { ok: false, message: e instanceof Error ? e.message.slice(0, 300) : String(e) };

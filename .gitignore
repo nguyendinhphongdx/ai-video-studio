@@ -6,9 +6,9 @@ next-env.d.ts
 .env.local
 *.log
 # runtime data: SQLite db, settings with API keys, media (voice, renders)
-data/
+/data/
 # media from the pre-Next.js MVP
-projects/
+/projects/
 # local Claude Code state; the shared harness lives in .agent/ and .claude/ only links to it
 .claude/*
 !.claude/settings.json

@@ -9,12 +9,12 @@ import type { AiRunStore, AssistantMessage, AssistantStore, AssistantThreadInfo,
 
 import { isPicture, type AssistantAttachment } from './attachments';
 import { stepStream, type Emit } from './stream';
-import { needsApproval, type AssistantFocus, type AssistantTool, type ToolContext, type ToolResult } from './tool';
+import { formatIssues, needsApproval, type AssistantFocus, type StudioTool, type ToolContext } from './tool';
 
 export interface AssistantRuntime {
   llm: LlmPort;
   store: AssistantStore;
-  tools: AssistantTool[];
+  tools: StudioTool[];
   /** System prompt for this thread; it may read fresh data (the channel changes as the assistant works). */
   system(thread: AssistantThreadInfo, focus: AssistantFocus): Promise<string>;
   runs?: AiRunStore;
@@ -67,7 +67,7 @@ export async function withAttachments(messages: AssistantMessage[], chat: ChatMe
   return chat.map((m) => out.get(m) ?? m);
 }
 
-const byName = (tools: AssistantTool[]) => new Map(tools.map((t) => [t.name, t]));
+const byName = (tools: StudioTool[]) => new Map(tools.map((t) => [t.name, t]));
 
 /** Calls of the last assistant message that have no answer yet, in order. */
 export function unresolvedCalls(messages: AssistantMessage[]): ChatToolCall[] {
@@ -103,18 +103,6 @@ export function toChatMessages(messages: AssistantMessage[]): ChatMessage[] {
   });
 }
 
-function formatIssues(error: { issues: { path: PropertyKey[]; message: string }[] }): string {
-  return error.issues.slice(0, 6).map((i) => `${i.path.map(String).join('.') || '(gốc)'}: ${i.message}`).join('; ');
-}
-
-async function execute(tool: AssistantTool, args: unknown, ctx: ToolContext): Promise<ToolResult> {
-  try {
-    return await tool.run(args, ctx);
-  } catch (e) {
-    return { ok: false, message: e instanceof UserFacingError ? e.message : `Lỗi: ${String((e as Error)?.message ?? e).slice(0, 300)}` };
-  }
-}
-
 async function answer(rt: AssistantRuntime, threadId: string, call: ChatToolCall, outcome: { status: 'done' | 'error' | 'rejected'; content: string; summary: string; data?: unknown }) {
   return rt.store.append(threadId, { role: 'tool', content: outcome.content, toolCalls: [], toolCallId: call.id, toolName: call.name, status: outcome.status, summary: outcome.summary, data: outcome.data ?? null, focus: null });
 }
@@ -126,7 +114,7 @@ async function handleCall(rt: AssistantRuntime, thread: AssistantThreadInfo, foc
     await answer(rt, thread.id, call, { status: 'error', content: `Không có công cụ "${call.name}". Dùng đúng tên công cụ trong danh sách.`, summary: call.name });
     return 'answered';
   }
-  const parsed = tool.schema.safeParse(call.args);
+  const parsed = tool.input.safeParse(call.args);
   if (!parsed.success) {
     await answer(rt, thread.id, call, { status: 'error', content: `Tham số không hợp lệ: ${formatIssues(parsed.error)}`, summary: tool.name });
     return 'answered';
@@ -141,7 +129,7 @@ async function handleCall(rt: AssistantRuntime, thread: AssistantThreadInfo, foc
   rt.emit?.({ type: EventType.CUSTOM, name: 'tool_summary', value: { toolCallId: call.id, summary } });
   rt.emit?.({ type: EventType.TOOL_CALL_ARGS, toolCallId: call.id, delta: JSON.stringify(parsed.data) });
   rt.emit?.({ type: EventType.TOOL_CALL_END, toolCallId: call.id });
-  const result = await execute(tool, parsed.data, ctx);
+  const result = await tool.run(parsed.data, ctx);
   const stored = await answer(rt, thread.id, call, { status: result.ok ? 'done' : 'error', content: result.message, summary, data: result.data });
   rt.emit?.({ type: EventType.TOOL_CALL_RESULT, messageId: String(stored.id), toolCallId: call.id, content: result.message });
   return 'answered';
@@ -166,12 +154,12 @@ export async function resolveApproval(rt: AssistantRuntime, messageId: number, t
     return;
   }
   const args = (m.data as { args?: unknown } | null)?.args;
-  const parsed = tool.schema.safeParse(args);
+  const parsed = tool.input.safeParse(args);
   if (!parsed.success) {
     await rt.store.update(m.id, { status: 'error', content: `Tham số không hợp lệ: ${formatIssues(parsed.error)}` });
     return;
   }
-  const result = await execute(tool, parsed.data, { threadId, channelId: thread.channelId, focus: latestFocus(messages) });
+  const result = await tool.run(parsed.data, { threadId, channelId: thread.channelId, focus: latestFocus(messages) });
   await rt.store.update(m.id, { status: result.ok ? 'done' : 'error', content: result.message, data: result.data ?? null });
 }
 
@@ -206,7 +194,7 @@ const isStopped = async (rt: AssistantRuntime) => Boolean(rt.signal?.aborted) ||
 
 async function steps(rt: AssistantRuntime, threadId: string): Promise<TurnState> {
   const thread = await rt.store.thread(threadId);
-  const specs = rt.tools.map((t) => ({ name: t.name, description: t.description, schema: t.schema }));
+  const specs = rt.tools.map((t) => ({ name: t.name, description: t.description, schema: t.input }));
   const maxSteps = rt.maxSteps ?? 12;
   for (let step = 0; step < maxSteps; step++) {
     const messages = await rt.store.messages(threadId);

@@ -7,7 +7,7 @@ import { ASSISTANT_TOOLS } from '@/server/assistant/tools';
 
 describe('assistant tool contract', () => {
   it('keeps names, order, risks, descriptions and arguments', async () => {
-    const contract = ASSISTANT_TOOLS.map((t) => ({ name: t.name, risk: t.risk, description: t.description, input: z.toJSONSchema(t.schema, { io: 'input' }) }));
+    const contract = ASSISTANT_TOOLS.map((t) => ({ name: t.name, risk: t.risk, description: t.description, input: z.toJSONSchema(t.input, { io: 'input' }) }));
     expect(contract).toHaveLength(44);
     await expect(`${JSON.stringify(contract, null, 2)}\n`).toMatchFileSnapshot('./assistant-tools.contract.json');
   });

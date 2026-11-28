@@ -27,7 +27,8 @@ export function useDraft(saved: Scene | null) {
   }, [key]);
 
   // Approval and assets always come from the server; only the editable content is a draft.
-  const value = state.value && saved && state.value.id === saved.id ? { ...state.value, approved: saved.approved, assets: saved.assets } : null;
+  // Right after moving to another scene the state still holds the previous one: show the saved scene, not a blank.
+  const value = saved ? { ...(state.value?.id === saved.id ? state.value : saved), approved: saved.approved, assets: saved.assets } : null;
   const dirty = Boolean(value && saved && content(value) !== content(saved));
 
   /** `tag` names what is being changed, so a run of keystrokes in one box undoes at once. */

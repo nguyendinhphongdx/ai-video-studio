@@ -11,7 +11,7 @@ import type { ImagesOutput, ProductionContext, RenderOutput, VoiceOutput } from 
  * Bump when the scene drawing changes in a way old clips should not survive (the puppet rig, sprite sizing): the
  * cached clips of every episode are then drawn again on its next production instead of being reused.
  */
-export const RENDER_VERSION = 6;
+export const RENDER_VERSION = 7;
 
 const pick = (all: Record<string, string>, keys: string[]) => Object.fromEntries(keys.flatMap((k) => (all[k] ? [[k, all[k]!]] : [])));
 

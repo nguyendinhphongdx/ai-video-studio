@@ -62,6 +62,13 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const player = useRef<StageApi | null>(null);
+  // The screen stays up between scenes; the playhead belongs to the one being left.
+  const [shown, setShown] = useState(sceneId);
+  if (shown !== sceneId) {
+    setShown(sceneId);
+    setFrame(0);
+    setPlaying(false);
+  }
 
   const save = useEpisodeAction(episodeId, (scene: Scene) => episodeApi.saveScript(episodeId, toSaveInput(v!, { scene })), 'Đã lưu cảnh');
   const rewrite = useEpisodeAction(episodeId, (x: { input: SaveScriptInput; show: string }) => episodeApi.saveScript(episodeId, x.input));
@@ -245,7 +252,7 @@ export function SceneDirectorView({ projectId, episodeId, sceneId }: { projectId
         </main>
 
         <aside className="edright">
-          <AiBox episodeId={episodeId} draft={draft} disabled={readOnly || busy} />
+          <AiBox key={sceneId} episodeId={episodeId} draft={draft} disabled={readOnly || busy} />
           {layer ? (
             <Inspector p={tabProps} layer={layer} people={people} things={things} seconds={seconds} voiceUrl={voiceUrl} writing={writePicture.isPending} onWrite={() => writePicture.mutate(s)} onReplay={replay} onSelect={select} />
           ) : (

@@ -27,6 +27,25 @@ function restingBoxes(scene: Scene): { layer: TuneLayer; x: number; bottom: numb
 /** An added figure's box, as fractions of the frame. */
 const extraBox = (e: Extra) => (e.kind === 'item' ? { x: e.x, bottom: 0.17 + e.y, h: 0.33 * e.scale, w: 0.18 * e.scale } : { x: e.x, bottom: 0.17 + e.y, h: 0.57 * e.scale, w: 0.2 * e.scale });
 
+export interface Spot {
+  /** `hero`, `companion`, `item` or `x:<index>`. */
+  who: string;
+  x: number;
+  /** Middle of the figure, up from the bottom of the frame. */
+  y: number;
+}
+
+/** Where everyone on stage rests, so a step can be aimed at the middle or at someone. */
+export function restingSpots(scene: Scene): Spot[] {
+  const tune = tuneOf(scene.props);
+  const slots = restingBoxes(scene).map((b) => ({ who: b.layer as string, x: b.x + (tune[b.layer]?.dx ?? 0), y: b.bottom - (tune[b.layer]?.dy ?? 0) + b.h / 2 }));
+  const extras = (tune.extras ?? []).map((e, i) => {
+    const b = extraBox(e);
+    return { who: `x:${i}`, x: b.x, y: b.bottom + b.h / 2 };
+  });
+  return [...slots, ...extras];
+}
+
 /** Handles over the preview: drag a figure to move it; the corner changes its size. */
 export function DragLayer({ draft, onGrab, onSelect }: { draft: Draft; onGrab: () => void; onSelect: (layer: LayerId) => void }) {
   const scene = draft.value!;

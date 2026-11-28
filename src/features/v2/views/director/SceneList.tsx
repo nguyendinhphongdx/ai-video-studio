@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 import type { Scene } from '@/core/domain/episode';
 import { newId } from '@/core/domain/ids';
 import type { BlockInfo, EpisodeView, SaveScriptInput } from '@/features/episode/services/episode.api';
@@ -52,6 +54,12 @@ export function retype(scene: Scene, to: BlockInfo): Scene {
 }
 
 export function SceneList({ view, sceneId, blocks, canAdd, disabled, onOpen, onAdd }: { view: EpisodeView; sceneId: string; blocks: Map<string, BlockInfo>; canAdd: boolean; disabled: boolean; onOpen: (id: string) => void; onAdd: () => void }) {
+  // Moving with the arrow keys keeps the open scene in sight.
+  const current = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Braces matter: some browsers return a promise here, which React would take for a clean-up.
+    current.current?.scrollIntoView({ block: 'nearest' });
+  }, [sceneId]);
   return (
     <aside className="edleft dlist" aria-label="Các cảnh">
       <div className="dlist-scroll">
@@ -59,7 +67,7 @@ export function SceneList({ view, sceneId, blocks, canAdd, disabled, onOpen, onA
           const a = view.assets[s.id];
           const state = s.approved ? { cls: 'ok', mark: '✓', text: 'Đã duyệt' } : a?.ready ? { cls: 'info', mark: '•', text: 'Chờ duyệt' } : { cls: 'warn', mark: '!', text: a?.imageStale || a?.voiceStale ? 'Cần làm lại' : 'Còn thiếu' };
           return (
-            <button key={s.id} className={`drow${s.id === sceneId ? ' on' : ''}`} onClick={() => onOpen(s.id)} aria-current={s.id === sceneId}>
+            <button key={s.id} ref={s.id === sceneId ? current : undefined} className={`drow${s.id === sceneId ? ' on' : ''}`} onClick={() => onOpen(s.id)} aria-current={s.id === sceneId}>
               <div className={a?.imageUrl ? 'thumb' : 'thumb empty'} style={a?.imageUrl ? { background: `center / cover url(${a.imageUrl})` } : undefined}>
                 <span>{String(i + 1).padStart(2, '0')}</span>
               </div>

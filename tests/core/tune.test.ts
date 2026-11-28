@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { castForScene } from '@/core/character/expressions';
-import { parseTune, patchTune, spanAt, TunePatchSchema, ToolTuneSchema } from '@/core/domain/tune';
+import { actingAt, animAt, moveAt, parseTune, patchTune, spanAt, TunePatchSchema, ToolTuneSchema } from '@/core/domain/tune';
 import { carryOver, voiceHashOf } from '@/core/scenes/assets';
 import { fixSceneTask, type FixSceneInput } from '@/core/tasks/fix-scene';
 import { buildTimeline, sceneDuration } from '@/core/timeline';
@@ -62,6 +62,36 @@ describe('hand adjustments of a scene', () => {
     for (const key of [...knobs, 'flip', 'front', 'enter', 'motion', 'glow', 'emotion', 'action']) expect(json).toContain(`"${key}"`);
   });
 
+  it('keeps an animation even when nothing else is adjusted, and moves the figure with it', () => {
+    const tune = parseTune({ hero: { dx: 0, dy: 0, scale: 1, anim: { type: 'jump', speed: 1, power: 1 } } });
+    expect(tune?.hero?.anim?.type).toBe('jump');
+    expect(animAt(tune?.hero?.anim, 0.4).y).toBeGreaterThan(0);
+    expect(animAt(undefined, 0.4)).toEqual({ x: 0, y: 0, rotate: 0, sx: 1, sy: 1 });
+  });
+
+  it('moves only inside the chosen time, and a model sending null means no limit', () => {
+    const timed = parseTune({ hero: { anim: { type: 'jump', start: 2, lasts: 1 }, dx: 0, dy: 0, scale: 1 } })!.hero!.anim;
+    expect([animAt(timed, 1.9).y, animAt(timed, 3).y]).toEqual([0, 0]);
+    expect(animAt(timed, 2.4).y).toBeGreaterThan(0);
+    const open = parseTune({ hero: { anim: { type: 'jump', start: null, lasts: null }, dx: 0, dy: 0, scale: 1 } })!.hero!.anim!;
+    expect([open.start, open.lasts]).toEqual([undefined, undefined]);
+  });
+
+  it('walks leg by leg and stays where the last one ended', () => {
+    const { moves } = parseTune({ hero: { dx: 0, dy: 0, scale: 1, moves: [{ at: 3, over: 1, x: -0.2, y: 0, scale: 1 }, { at: 1, over: 1, x: 0.4, y: 0, scale: null }] } })!.hero!;
+    expect(moveAt(moves, 0.5)).toMatchObject({ x: 0, going: false });
+    expect(moveAt(moves, 1.5)).toMatchObject({ x: 0.2, going: true });
+    expect(moveAt(moves, 2.5)).toMatchObject({ x: 0.4, scale: 1, going: false });
+    expect(moveAt(moves, 9).x).toBeCloseTo(-0.2);
+  });
+
+  it('carries face and gesture from step to step, and a step without a place stays put', () => {
+    const { moves } = parseTune({ companion: { dx: 0, dy: 0, scale: 1, moves: [{ at: 1, over: 1, x: 0.2 }, { at: 3, over: 1, emotion: 'angry', action: null, x: null }] } })!.companion!;
+    expect(actingAt(moves, 2)).toEqual({});
+    expect(actingAt(moves, 5)).toEqual({ emotion: 'angry' });
+    expect(moveAt(moves, 3.5)).toMatchObject({ x: 0.2, going: false });
+  });
+
   it('stays on a scene the AI rewrote without changing what it says', () => {
     const base = { id: 'a', slotId: 'body', block: puppet.id, locked: false, narration: 'Một lời', approved: true, assets: { imagePath: null, imageHash: null, voicePath: null, voiceSeconds: null, voiceHash: null } };
     const previous = [{ ...base, block: 'remotion/puppet' as const, props: { ...(puppet.defaults as object), _tune: { holdSec: 1 } } }];
@@ -79,7 +109,7 @@ describe('fix-scene', () => {
     cast: [{ id: 'ly-tinh', kind: 'character', about: 'cha' }],
     request: '',
   };
-  const raw = (props: object) => ({ narration: 'Lời khác', props: { ...(puppet.defaults as object), imagePrompt: 'a lotus pond at dawn', ...props }, switchTo: null, tune: { ...Object.fromEntries(Object.keys(TunePatchSchema.shape).map((k) => [k, null])), hero: { dx: -0.2, dy: 0, scale: 1 } }, note: 'ok' });
+  const raw = (props: object) => ({ narration: 'Lời khác', props: { ...(puppet.defaults as object), imagePrompt: 'a lotus pond at dawn', ...props }, switchTo: null, tune: { ...Object.fromEntries(Object.keys(TunePatchSchema.shape).map((k) => [k, null])), hero: { dx: -0.2, dy: 0, scale: 1, anim: null, moves: null } }, note: 'ok' });
 
   it('never invents a character and never rewrites the words unless asked', () => {
     const out = fixSceneTask.parse(raw({ companion: 'khong-co', lead: 'ly-tinh' }), input, {} as never);

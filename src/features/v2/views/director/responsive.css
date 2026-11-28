@@ -20,7 +20,7 @@
   .v2 .director .dtl .trk { grid-template-columns: 78px minmax(0, 1fr) 24px; gap: 6px; }
 
   .v2 .director .edleft, .v2 .director .edright { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--e-panel); border: 0; border-top: 1px solid var(--e-line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55); overscroll-behavior: contain; }
-  .v2 .director[data-sheet="scenes"] .edleft { display: flex; top: 56px; padding: 10px 12px 14px; }
+  .v2 .director[data-sheet="scenes"] .edleft { display: flex; top: 56px; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
   /* Lower than the picture's bottom edge, so a change is seen as it is made. */
   .v2 .director[data-sheet="panel"] .edright { display: flex; height: 56dvh; overflow-y: auto; padding: 0 14px 14px; }
   .v2 .director .edright > * { flex-shrink: 0; }
@@ -35,7 +35,7 @@
   .v2 .director .drow { grid-template-columns: minmax(0, 1fr) auto; align-content: start; border-color: var(--e-line); }
   .v2 .director .drow .thumb { grid-column: 1 / -1; width: 100%; aspect-ratio: 16 / 9; height: auto; }
 
-  .v2 .director .dfab { display: grid; place-items: center; position: fixed; left: 14px; bottom: 14px; z-index: 20; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--accent); color: #fff; font-size: 22px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+  .v2 .director .dfab { display: grid; place-items: center; position: fixed; left: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 20; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--accent); color: #fff; font-size: 22px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
 }
 
 /* A phone has no room for the title next to the buttons (the picture shows the caption anyway). */

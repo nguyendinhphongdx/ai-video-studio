@@ -18,6 +18,7 @@ import type { KnowledgeView } from '@/server/modules/knowledge/knowledge.service
 
 import { setupPrompt, type SetupKey } from '../lib/setup-prompts';
 import { projectHref, usd } from '../model';
+import { LogoDraftCard } from './LogoDraft';
 
 /**
  * What the project still lacks, as a checklist: a tick for each finished part, an empty circle for each open one. An open
@@ -81,7 +82,7 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
       href: library,
       draw: toDraw.length ? { what: 'library', text: `Vẽ ${toDraw.length} ảnh (${price(toDraw.length)})` } : undefined,
     },
-    { key: 'logo', label: 'Logo', done: Boolean(c.logoUrl), hint: 'Tải logo lên', href: channelPage },
+    { key: 'logo', label: 'Logo', done: Boolean(c.logoUrl), hint: 'Tải lên hoặc nhờ AI vẽ', href: settings, ai: 'logo' },
     ...(['intro', 'outro'] as const).map((k): Item => {
       const done = Boolean(k === 'intro' ? c.introArtUrl : c.outroArtUrl);
       const known = Boolean(bible?.brandIdeas?.introArt);
@@ -121,6 +122,7 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
               <Link href={i.href}>{i.label}</Link>
               <span className="sr-only">{i.done ? ' (đã xong)' : ' (chưa xong)'}</span>
               {!i.done && <span className="cap">{i.hint}</span>}
+              {!i.done && i.key === 'logo' && <LogoDraftCard projectId={projectId} />}
             </div>
             {!i.done && i.draw && (
               <button type="button" className="btn sm pri" disabled={busy} onClick={() => draw.mutate(i.draw!.what)}>

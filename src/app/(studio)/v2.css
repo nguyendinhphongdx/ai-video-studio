@@ -585,3 +585,6 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 .v2 .aboutgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); align-items: end; }
 @media (max-width: 640px) { .v2 .whos { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); } }
 .v2 .castbody .row > .field.grow { flex: 1 1 220px; }
+
+.v2 .logo-draft { display: flex; align-items: center; gap: var(--sp-3); margin-top: 6px; }
+.v2 .logo-draft img { width: 88px; height: 88px; object-fit: contain; border: 1px solid #e3e2dd; border-radius: 12px; background: #fff; flex: none; }

@@ -14,6 +14,7 @@ import { useChannelAction } from '@/features/channel/hooks/use-channels';
 import { channelApi, type ChannelInput, type ChannelView } from '@/features/channel/services/channel.api';
 
 import { projectHref } from '../../model';
+import { LogoDrawer } from '../LogoDraft';
 import type { FormProps } from './sections';
 
 /** One file picker that uploads at once (images and music are saved the moment they are chosen, not with the form). */
@@ -72,6 +73,7 @@ export function BrandSection({ project, form, set, setForm }: FormProps & { proj
               </div>
             </div>
           </div>
+          <LogoDrawer projectId={project.id} />
           <span className="hint cap">Lưu ngay khi tải. PNG, JPG, WEBP, tối đa 4MB. Avatar hiện trong cảnh mở đầu và kết, thay cho logo lớn.</span>
         </section>
 

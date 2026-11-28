@@ -50,7 +50,8 @@ const HANDLERS: Record<Job['kind'], (job: Job, progress: (f: number, phase?: str
   draw_library: (job, p) => setupService.drawLibrary(job, p),
   draw_character: (job, p) => characterService.runDraw(job, p),
   generate_art: async (job) => {
-    const p = job.payload as { channelId: string; kind: 'intro' | 'outro'; prompt: string };
+    const p = job.payload as { channelId: string; kind: 'intro' | 'outro' | 'logo'; prompt: string };
+    if (p.kind === 'logo') return await channelService.generateLogo(p.channelId, p.prompt);
     await channelService.generateArt(p.channelId, p.kind, p.prompt);
   },
 };

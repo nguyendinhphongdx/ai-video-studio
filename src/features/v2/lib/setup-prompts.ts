@@ -3,7 +3,7 @@
  * (through AskAiButton: the person can edit it, nothing is sent or spent until they confirm). Each asks for ONE part,
  * step by step, and for a go-ahead before anything is saved or paid for.
  */
-export type SetupKey = 'general' | 'knowledge' | 'style' | 'skill' | 'introArt' | 'outroArt';
+export type SetupKey = 'general' | 'knowledge' | 'style' | 'skill' | 'logo' | 'introArt' | 'outroArt';
 
 export interface SetupFacts {
   name: string;
@@ -76,6 +76,21 @@ Các bước:
 1. Xem các skill trong kho và skill dự án đã cài.
 2. Chọn 1-2 skill hợp nhất với nội dung và khán giả, nói rõ vì sao và skill đó làm video kiểu gì.
 3. Đợi tôi đồng ý rồi mới cài và đặt mặc định. Nếu không skill nào hợp, đề nghị viết một skill riêng và cho tôi xem dàn ý trước.
+
+${RULES}`,
+      };
+    case 'logo':
+      return {
+        title: 'AI vẽ logo',
+        prompt: `Hãy làm LOGO cho dự án "${f.name}".
+
+Hiện có:
+${now}
+
+Các bước:
+1. Đề xuất 2-3 ý tưởng biểu tượng (một hình gọn, không có chữ) hợp với tên dự án và phong cách hình vẽ.
+2. Đợi tôi chọn, nói rõ sẽ vẽ 1 ảnh và chi phí ước tính, rồi ĐỢI TÔI ĐỒNG Ý trước khi vẽ.
+3. Vẽ bản nháp và nhắc tôi xem ở Cài đặt dự án để bấm "Dùng logo này" nếu ưng.
 
 ${RULES}`,
       };

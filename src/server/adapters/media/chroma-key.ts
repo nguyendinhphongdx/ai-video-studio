@@ -249,3 +249,13 @@ export async function refitSprite(png: Buffer, canvas: SpriteCanvas, ratio = 1):
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return place({ data, width: info.width, height: info.height }, canvas, ratio);
 }
+
+/** A logo or emblem painted on the key colour: cut out, trimmed and centred on a transparent square. */
+export async function toMark(input: Buffer, size = 1024): Promise<Buffer> {
+  const keyed = await keyOut(input);
+  const box = alphaBounds(keyed);
+  if (!box) throw new UserFacingError('AI vẽ ảnh không có hình nào. Thử đổi mô tả rồi vẽ lại.');
+  const inner = size - 2 * MARGIN;
+  const cut = await sharp(keyed.data, { raw: { width: keyed.width, height: keyed.height, channels: 4 } }).extract(box).resize(inner, inner, { fit: 'inside' }).png().toBuffer();
+  return sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: cut, gravity: 'centre' }]).png().toBuffer();
+}

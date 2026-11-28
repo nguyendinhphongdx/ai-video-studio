@@ -56,6 +56,17 @@ export const jobRepository = {
       .then(one);
     return r ? toJob(r) : null;
   },
+  /** The newest logo drawing of a project: how it is going, and the draft it made. */
+  async latestLogo(channelId: string): Promise<Job | null> {
+    const r = await orm()
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.kind, 'generate_art'), scoped(jobs), eq(sql`${jobs.payload}->>'channelId'`, channelId), eq(sql`${jobs.payload}->>'kind'`, 'logo')))
+      .orderBy(desc(jobs.createdAt))
+      .limit(1)
+      .then(one);
+    return r ? toJob(r) : null;
+  },
   async listActive(): Promise<Job[]> {
     return (await orm().select().from(jobs).where(and(scoped(jobs), inArray(jobs.state, ACTIVE))).orderBy(asc(jobs.createdAt))).map(toJob);
   },

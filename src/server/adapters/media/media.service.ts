@@ -58,8 +58,13 @@ export async function removeChannelMedia(channelId: string) {
   await storage.remove(`channels/${channelId}/`);
 }
 
+export async function removeLogoDraft(channelId: string) {
+  await fs.rm(path.join(MEDIA_DIR, 'channels', channelId, 'logo-draft'), { recursive: true, force: true });
+  await storage.remove(`channels/${channelId}/logo-draft/`);
+}
+
 /** Replaces the channel's previous file of this kind (logo, avatar or music); returns the media-relative path. */
-export async function saveChannelFile(channelId: string, kind: 'logo' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
+export async function saveChannelFile(channelId: string, kind: 'logo' | 'logo-draft' | 'avatar' | 'music' | 'intro-art' | 'outro-art', data: Buffer, ext: string): Promise<string> {
   const dir = path.join(MEDIA_DIR, 'channels', channelId, kind);
   await fs.rm(dir, { recursive: true, force: true });
   await storage.remove(`${path.relative(MEDIA_DIR, dir)}/`);

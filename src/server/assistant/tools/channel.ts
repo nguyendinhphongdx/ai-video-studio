@@ -12,6 +12,7 @@ import { settingsService } from '@/server/modules/settings/settings.service';
 import { seriesService } from '@/server/modules/series/series.service';
 import { skillService } from '@/server/modules/skill/skill.service';
 import { episodeService } from '@/server/modules/episode/episode.service';
+import { usageService } from '@/server/modules/usage/usage.service';
 
 import { asJson } from './util';
 
@@ -125,6 +126,21 @@ export const generateChannelArt = defineTool({
   },
 });
 
+export const drawLogo = defineTool({
+  name: 'draw_logo',
+  description: 'Vẽ một bản nháp logo bằng AI cho dự án (tốn tiền 1 ảnh, chạy nền ~20 giây). prompt bằng tiếng Anh, tả hình biểu tượng, không chữ; để trống thì dùng ý tưởng logo đã có của dự án. Logo CHƯA đổi: người dùng xem bản nháp rồi tự bấm "Dùng logo này" ở Cài đặt dự án, mục Thương hiệu.',
+  risk: 'paid',
+  schema: z.object({ prompt: z.string().max(400).default('') }),
+  async summarize() {
+    const { usd } = await usageService.estimate({ images: 1, texts: [], voice: '' });
+    return `Vẽ 1 bản nháp logo (${usd == null ? 'chưa rõ giá' : `khoảng $${usd.toFixed(2)}`})`;
+  },
+  async run({ prompt }, ctx) {
+    await channelService.requestLogo(ctx.channelId, prompt);
+    return { ok: true, message: 'Đã giao worker vẽ bản nháp logo. Khoảng 20 giây nữa xem ở Cài đặt dự án, mục Thương hiệu, rồi bấm "Dùng logo này" nếu ưng.' };
+  },
+});
+
 export const getKnowledge = defineTool({
   name: 'get_knowledge',
   description: 'Đọc tri thức hiện tại của kênh (toàn văn, kèm số phiên bản).',
@@ -149,4 +165,4 @@ export const saveKnowledge = defineTool({
   },
 });
 
-export const channelTools = [getSettingsStatus, getChannel, updateChannel, setIntroDesign, setOutroDesign, generateChannelArt, getKnowledge, saveKnowledge];
+export const channelTools = [getSettingsStatus, getChannel, updateChannel, setIntroDesign, setOutroDesign, generateChannelArt, drawLogo, getKnowledge, saveKnowledge];

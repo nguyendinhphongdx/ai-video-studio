@@ -546,3 +546,29 @@ html[data-assistant="open"] .director { padding-right: 420px; }
 .v2 .todo-head svg { transition: transform .15s; transform: rotate(-90deg); flex: 0 0 auto; }
 .v2 .todo-head svg.open { transform: none; }
 @media (prefers-reduced-motion: reduce) { .v2 .todo-head svg { transition: none; } }
+
+/* Library list: brand kit thumbnails */
+.v2 .slots { display: inline-flex; gap: 6px; }
+.v2 .slot { display: inline-block; flex: 0 0 auto; width: 40px; height: 40px; border-radius: var(--r-sm); object-fit: contain; background: var(--surface-2); border: 1px solid var(--line); }
+.v2 .slot.blank { border-style: dashed; border-color: var(--line-strong); background: transparent; }
+.v2 .clamp1 { display: block; max-width: min(360px, 40vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Foldable groups (project library) */
+.v2 .sec { display: flex; flex-direction: column; gap: var(--sp-3); }
+.v2 .sec:not(.flat) + .sec, .v2 .card.cast .sec { border-top: 1px solid var(--line); padding-top: var(--sp-3); }
+.v2 .sec.flat { background: var(--surface-2); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); border-top: 0; }
+.v2 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.v2 .sec-toggle { display: flex; align-items: center; gap: var(--sp-2); border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--ink); font: inherit; text-align: left; min-width: 0; flex-wrap: wrap; }
+.v2 .sec-toggle h3, .v2 .sec-toggle h2 { margin: 0; }
+.v2 .sec-toggle svg { flex: 0 0 auto; transition: transform .15s; transform: rotate(-90deg); color: var(--ink-3); }
+.v2 .sec-toggle svg.open { transform: none; }
+.v2 .sec-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.v2 .sec-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.v2 .card.cast > .sec-head { padding-bottom: var(--sp-1); }
+.v2 .spritegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--sp-3); }
+.v2 .refgrid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+.v2 .refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-2); }
+.v2 .refadd { padding: var(--sp-2); text-align: center; }
+.v2 .brandtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-4); }
+@media (max-width: 800px) { .v2 .refgrid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .v2 .sec-toggle svg { transition: none; } }

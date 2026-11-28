@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -11,6 +12,7 @@ import { usageApi } from '@/features/usage/services/usage.api';
 import { errorMessage } from '@/lib/api/client';
 
 import { usd } from '../model';
+import { Section } from '../Section';
 
 export const media = (p: string) => `/api/v1/media/${p.split('/').map(encodeURIComponent).join('/')}`;
 const LABEL: Record<SpriteKey, string> = {
@@ -59,8 +61,9 @@ function UploadButton({ label, onUploaded, className = 'btn sm', disabled }: { l
  * AI reads, the puppet's expression sprites (uploaded or generated from the reference) and the supporting cast.
  * Saving writes a new series version; episodes already written keep the version they pinned.
  */
-export function CastEditor({ series }: { series: SeriesView }) {
+export function CastEditor({ series, defaultOpen = true }: { series: SeriesView; defaultOpen?: boolean }) {
   const qc = useQueryClient();
+  const [open, setOpen] = useState(defaultOpen);
   const saved = series.rules.bible as SeriesBible;
   const [bible, setBible] = useState<SeriesBible>(saved);
   useEffect(() => setBible(series.rules.bible as SeriesBible), [series.rules]);
@@ -171,45 +174,66 @@ export function CastEditor({ series }: { series: SeriesView }) {
   const castIdOk = CAST_ID.test(castId) && !(castId in bible.characterCast);
   const castPoseCount = (id: string) => CAST_POSES.filter((k) => bible.characterCast[castPoseKey(id, k)]).length;
 
+  const heroDrawn = EXPRESSIONS.filter((k) => bible.characterSprites[k]).length + POSES.filter((k) => bible.characterSprites[k]).length;
+  const heroTotal = EXPRESSIONS.length + POSES.length;
+
   return (
-    <div className="card">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <span className="eyebrow">Series · bản {series.currentVersion}</span>
-          <h2>{series.name}</h2>
-        </div>
-        <div className="row">
+    <div className="card cast">
+      <div className="sec-head">
+        <button type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <ChevronDown size={20} className={open ? 'open' : undefined} aria-hidden />
+          <span className="col" style={{ gap: 0 }}>
+            <span className="eyebrow">Series · bản {series.currentVersion}</span>
+            <h2>{series.name}</h2>
+          </span>
+          <span className="chip">
+            {heroDrawn}/{heroTotal} ảnh nhân vật chính · {castIds.length} nhân vật phụ
+          </span>
+        </button>
+        <div className="sec-actions">
           {dirty && <span className="chip warn">Chưa lưu</span>}
           {dirty && (
-            <button className="btn sm ghost" onClick={() => setBible(saved)}>
+            <button className="btn sm" onClick={() => setBible(saved)}>
               Bỏ thay đổi
             </button>
           )}
           <button className="btn sm pri" disabled={!dirty || save.isPending || working} onClick={() => save.mutate()}>
-            Lưu nhân vật
+            {save.isPending ? 'Đang lưu…' : 'Lưu nhân vật'}
           </button>
         </div>
       </div>
 
-      <div className="row" style={{ alignItems: 'flex-start', gap: 24 }}>
-        <div className="col" style={{ flex: '0 0 220px' }}>
-          <span className="eyebrow">Ảnh chuẩn · {bible.characterAssets.length}/{MAX_REFERENCES}</span>
-          <div className="grid2" style={{ gap: 8 }}>
-            {bible.characterAssets.map((p, i) => (
-              <div key={p} style={{ position: 'relative' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={media(p)} alt={`Ảnh chuẩn ${i + 1}`} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
-                <button className="btn sm" aria-label="Bỏ ảnh này" style={{ position: 'absolute', top: 4, right: 4, minHeight: 24, padding: '0 6px' }} onClick={() => set({ characterAssets: bible.characterAssets.filter((x) => x !== p) })}>
-                  ×
-                </button>
+      {open && (
+        <div className="col" style={{ gap: 'var(--sp-3)' }}>
+          <Section title="Ảnh chuẩn và mô tả" badge={`${bible.characterAssets.length}/${MAX_REFERENCES} ảnh`}>
+            <div className="refgrid">
+              <div className="col">
+                <div className="refs">
+                  {bible.characterAssets.map((p, i) => (
+                    <div key={p} style={{ position: 'relative' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={media(p)} alt={`Ảnh chuẩn ${i + 1}`} className="sprite" style={{ width: '100%', objectFit: 'contain' }} />
+                      <button className="btn sm" aria-label="Bỏ ảnh này" style={{ position: 'absolute', top: 4, right: 4, minHeight: 24, padding: '0 6px' }} onClick={() => set({ characterAssets: bible.characterAssets.filter((x) => x !== p) })}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {bible.characterAssets.length < MAX_REFERENCES && (
+                    <div className="sprite refadd">
+                      <UploadButton label="+ Thêm ảnh chuẩn" onUploaded={(p) => set({ characterAssets: [...bible.characterAssets, p] })} />
+                    </div>
+                  )}
+                </div>
+                <span className="cap">Mọi ảnh cảnh được vẽ theo các ảnh này. Đổi ảnh thì các cảnh cần tạo lại ảnh.</span>
               </div>
-            ))}
-          </div>
-          {bible.characterAssets.length < MAX_REFERENCES && <UploadButton label="+ Thêm ảnh chuẩn" onUploaded={(p) => set({ characterAssets: [...bible.characterAssets, p] })} />}
-          <span className="cap">Mọi ảnh cảnh được vẽ theo các ảnh này. Đổi ảnh thì các cảnh cần tạo lại ảnh.</span>
-        </div>
+              <div className="field">
+                <label htmlFor={`chars-${series.id}`}>Mô tả nhân vật cho AI</label>
+                <textarea id={`chars-${series.id}`} className="area" rows={6} maxLength={2000} value={bible.characters} onChange={(e) => set({ characters: e.target.value })} placeholder="Tên và đặc điểm cố định, ví dụ: Na Tra: bé trai tóc búi hai bên, áo đỏ, vòng vàng." />
+                <span className="hint">{bible.characters.length} / 2000 ký tự</span>
+              </div>
+            </div>
+          </Section>
 
-        <div className="col grow">
           {heroGroup('Biểu cảm', EXPRESSIONS, 'Ảnh toàn thân, nền trong suốt. Cần ít nhất Bình thường; thêm Đang nói và Nháy mắt để nhân vật nói và chớp mắt.')}
           {heroGroup('Tư thế', POSES, 'Bước 1–4 tạo dáng đi khi nhân vật vào, ra và đi ngang (vẽ hướng sang phải, đi sang trái tự lật). Vẫy 1–2 cho vẫy tay, Lấy đà và Bật nhảy cho nhảy. Thiếu tư thế nào thì cảnh đó dùng ảnh biểu cảm như cũ.')}
 
@@ -226,56 +250,56 @@ export function CastEditor({ series }: { series: SeriesView }) {
             onSet={setSprite}
             onRemoveItem={(k) => removePose(k.slice(5))}
             mono
-          />
-          <div className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div className="field" style={{ width: 180 }}>
-              <label htmlFor={`pose-id-${series.id}`}>Id tư thế</label>
-              <input id={`pose-id-${series.id}`} className="input mono" placeholder="ví dụ: mua-thuong" maxLength={24} value={poseId} onChange={(e) => setPoseId(e.target.value.toLowerCase())} />
+            defaultOpen={Object.keys(customPoses).length > 0}
+          >
+            <div className="row" style={{ alignItems: 'flex-end' }}>
+              <div className="field" style={{ width: 180 }}>
+                <label htmlFor={`pose-id-${series.id}`}>Id tư thế</label>
+                <input id={`pose-id-${series.id}`} className="input mono" placeholder="ví dụ: mua-thuong" maxLength={24} value={poseId} onChange={(e) => setPoseId(e.target.value.toLowerCase())} />
+              </div>
+              <div className="field grow">
+                <label htmlFor={`pose-text-${series.id}`}>Tư thế trông thế nào (tiếng Anh vẽ chuẩn hơn)</label>
+                <input id={`pose-text-${series.id}`} className="input" maxLength={300} placeholder="ví dụ: spinning a red-tasselled spear above the head, one leg raised" value={poseText} onChange={(e) => setPoseText(e.target.value)} />
+              </div>
+              <button
+                className="btn"
+                disabled={!poseOk}
+                onClick={() => {
+                  set({ customPoses: { ...customPoses, [poseId]: poseText.trim() } });
+                  setPoseId('');
+                  setPoseText('');
+                }}
+              >
+                + Thêm tư thế
+              </button>
+              {poseId && !poseIdOk && <span className="cap">Id chỉ gồm chữ thường, số và dấu gạch, không trùng.</span>}
             </div>
-            <div className="field grow">
-              <label htmlFor={`pose-text-${series.id}`}>Tư thế trông thế nào (tiếng Anh vẽ chuẩn hơn)</label>
-              <input id={`pose-text-${series.id}`} className="input" maxLength={300} placeholder="ví dụ: spinning a red-tasselled spear above the head, one leg raised" value={poseText} onChange={(e) => setPoseText(e.target.value)} />
-            </div>
-            <button
-              className="btn sm"
-              disabled={!poseOk}
-              onClick={() => {
-                set({ customPoses: { ...customPoses, [poseId]: poseText.trim() } });
-                setPoseId('');
-                setPoseText('');
-              }}
-            >
-              + Thêm tư thế
-            </button>
-            {poseId && !poseIdOk && <span className="cap">Id chỉ gồm chữ thường, số và dấu gạch, không trùng.</span>}
-          </div>
+          </SpriteGroup>
 
-          <span className="eyebrow" style={{ marginTop: 8 }}>
-            Nhân vật phụ và đạo cụ · {castIds.length}
-          </span>
-          <div className="grid4" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 }}>
-            {castIds.map((k) => (
-              <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={media(bible.characterCast[k]!)} alt={k} className="sprite" style={{ width: '100%', objectFit: 'contain', outline: openCast === k ? '2px solid var(--ink)' : undefined }} />
-                <figcaption className="mono cap" style={{ textAlign: 'center' }}>
-                  {k}
-                </figcaption>
-                <div className="row" style={{ gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <UploadButton label="Đổi" className="btn sm ghost" onUploaded={(path) => setCast(k, path)} />
-                  <button className="btn sm ghost" aria-expanded={openCast === k} onClick={() => setOpenCast(openCast === k ? null : k)}>
-                    Biểu cảm {castPoseCount(k)}/{CAST_POSES.length}
-                  </button>
-                  <button className="btn sm ghost" disabled={working} onClick={() => removeCast(k)}>
-                    Bỏ
-                  </button>
-                </div>
-              </figure>
-            ))}
-          </div>
-          {openCast && bible.characterCast[openCast] && (
-            <div className="card flat">
+          <Section title="Nhân vật phụ và đạo cụ" badge={castIds.length} defaultOpen={castIds.length > 0}>
+            <div className="spritegrid">
+              {castIds.map((k) => (
+                <figure key={k} className="col" style={{ margin: 0, gap: 4 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={media(bible.characterCast[k]!)} alt={k} className="sprite" style={{ width: '100%', objectFit: 'contain', outline: openCast === k ? '2px solid var(--ink)' : undefined }} />
+                  <figcaption className="mono cap" style={{ textAlign: 'center' }}>
+                    {k}
+                  </figcaption>
+                  <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
+                    <UploadButton label="Đổi" className="btn sm ghost" onUploaded={(path) => setCast(k, path)} />
+                    <button className="btn sm ghost" aria-expanded={openCast === k} onClick={() => setOpenCast(openCast === k ? null : k)}>
+                      Biểu cảm {castPoseCount(k)}/{CAST_POSES.length}
+                    </button>
+                    <button className="btn sm ghost" disabled={working} onClick={() => removeCast(k)}>
+                      Bỏ
+                    </button>
+                  </div>
+                </figure>
+              ))}
+            </div>
+            {openCast && bible.characterCast[openCast] && (
               <SpriteGroup
+                flat
                 title={`Biểu cảm và tư thế của ${openCast}`}
                 items={CAST_POSES.map((k) => ({ key: k, label: CAST_LABEL[k] }))}
                 hint="Đang nói và Nháy mắt cho gương mặt sống động; Vui, Buồn, Ngạc nhiên, Giận cho biểu cảm; Vẫy 1–2 và Chỉ tay cho động tác. Nhân vật hiếm khi xuất hiện thì không cần vẽ. Đồ vật (bảo vật) không cần."
@@ -286,40 +310,34 @@ export function CastEditor({ series }: { series: SeriesView }) {
                 progress={progress}
                 onGenerate={(keys) => generate.mutate({ keys, cast: openCast })}
                 onSet={(k, path) => setCast(castPoseKey(openCast, k as CastPose), path)}
-                columns={5}
               />
+            )}
+            <div className="row" style={{ alignItems: 'flex-end' }}>
+              <div className="field" style={{ width: 220 }}>
+                <label htmlFor={`cast-${series.id}`}>Thêm nhân vật phụ hoặc đạo cụ</label>
+                <input id={`cast-${series.id}`} className="input mono" placeholder="ví dụ: ngao-binh" value={castId} onChange={(e) => setCastId(e.target.value.toLowerCase())} />
+              </div>
+              <UploadButton
+                label="Chọn ảnh và thêm"
+                className="btn"
+                disabled={!castIdOk}
+                onUploaded={(path) => {
+                  set({ characterCast: { ...bible.characterCast, [castId]: path } });
+                  setCastId('');
+                }}
+              />
+              {castId && !castIdOk && <span className="cap">Id chỉ gồm chữ thường, số và dấu gạch, không trùng.</span>}
             </div>
-          )}
-          <div className="row" style={{ alignItems: 'flex-end' }}>
-            <div className="field" style={{ width: 220 }}>
-              <label htmlFor={`cast-${series.id}`}>Thêm nhân vật phụ hoặc đạo cụ</label>
-              <input id={`cast-${series.id}`} className="input mono" placeholder="ví dụ: ngao-binh" value={castId} onChange={(e) => setCastId(e.target.value.toLowerCase())} />
-            </div>
-            <UploadButton
-              label="Chọn ảnh và thêm"
-              disabled={!castIdOk}
-              onUploaded={(path) => {
-                set({ characterCast: { ...bible.characterCast, [castId]: path } });
-                setCastId('');
-              }}
-            />
-            {castId && !castIdOk && <span className="cap">Id chỉ gồm chữ thường, số và dấu gạch, không trùng.</span>}
-          </div>
-          <span className="cap">Cảnh có nhân vật diễn gọi các id này ở ô Nhân vật phụ và Bảo vật.</span>
+            <span className="cap">Cảnh có nhân vật diễn gọi các id này ở ô Nhân vật phụ và Bảo vật.</span>
+          </Section>
         </div>
-      </div>
-
-      <div className="field">
-        <label htmlFor={`chars-${series.id}`}>Mô tả nhân vật cho AI</label>
-        <textarea id={`chars-${series.id}`} className="area" rows={4} maxLength={2000} value={bible.characters} onChange={(e) => set({ characters: e.target.value })} placeholder="Tên và đặc điểm cố định, ví dụ: Na Tra: bé trai tóc búi hai bên, áo đỏ, vòng vàng." />
-        <span className="hint">{bible.characters.length} / 2000 ký tự</span>
-      </div>
+      )}
     </div>
   );
 }
 
-/** One row of sprites (expressions, poses, a supporting character's poses): upload, remove, or have the AI draw the missing ones (with a cost estimate). */
-function SpriteGroup({ title, items, hint, get, extraNeutral, canGenerate, working, progress, onGenerate, onSet, onRemoveItem, mono, columns = 7 }: {
+/** One group of sprites (expressions, poses, a supporting character's poses): upload, remove, or have the AI draw the missing ones (with a cost estimate). Folds away; the draw button stays in the header. */
+function SpriteGroup({ title, items, hint, get, extraNeutral, canGenerate, working, progress, onGenerate, onSet, onRemoveItem, mono, flat, defaultOpen, children }: {
   title: string;
   items: { key: string; label: string; title?: string }[];
   hint: string;
@@ -334,26 +352,31 @@ function SpriteGroup({ title, items, hint, get, extraNeutral, canGenerate, worki
   /** Removes the item itself (a custom pose), not just its picture. */
   onRemoveItem?: (key: string) => void;
   mono?: boolean;
-  columns?: number;
+  flat?: boolean;
+  defaultOpen?: boolean;
+  /** Extra controls under the pictures (for example the form that adds a pose). */
+  children?: React.ReactNode;
 }) {
   const missing = items.filter((i) => !get(i.key)).map((i) => i.key);
   const cost = missing.length + (extraNeutral && missing.length && !missing.includes('neutral') ? 1 : 0);
   const estimate = useQuery({ queryKey: ['estimate', 'sprites', cost], queryFn: () => usageApi.estimate({ images: cost, texts: [], voice: '' }), enabled: cost > 0, staleTime: 60_000 });
   const name = title.toLowerCase();
   return (
-    <>
-      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-        <span className="eyebrow">
-          {title} · {items.length - missing.length}/{items.length}
-        </span>
-        {items.length > 0 && (
+    <Section
+      flat={flat}
+      title={title}
+      badge={`${items.length - missing.length}/${items.length}`}
+      defaultOpen={defaultOpen ?? missing.length > 0}
+      actions={
+        items.length > 0 && (
           <button className="btn sm dark" disabled={!canGenerate || missing.length === 0 || working} onClick={() => onGenerate(missing)} title={!canGenerate ? 'Cần ảnh chuẩn trước' : undefined}>
             {working ? `Đang vẽ… ${Math.round(progress * 100)}%` : missing.length === 0 ? `Đã đủ ${name}` : `Vẽ ${missing.length} ảnh còn thiếu · ${estimate.data?.usd == null ? 'chưa rõ giá' : usd(estimate.data.usd)}`}
           </button>
-        )}
-      </div>
+        )
+      }
+    >
       {items.length > 0 && (
-        <div className="grid4" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 8 }}>
+        <div className="spritegrid">
           {items.map(({ key, label, title: tip }) => {
             const p = get(key);
             return (
@@ -367,7 +390,7 @@ function SpriteGroup({ title, items, hint, get, extraNeutral, canGenerate, worki
                 <figcaption className={mono ? 'mono cap' : 'cap'} style={{ textAlign: 'center' }}>
                   {label}
                 </figcaption>
-                <div className="row" style={{ gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div className="row" style={{ gap: 2, justifyContent: 'center' }}>
                   <UploadButton label={p ? 'Đổi' : 'Tải lên'} className="btn sm ghost" disabled={working} onUploaded={(path) => onSet(key, path)} />
                   {p && (
                     <button className="btn sm ghost" disabled={working} onClick={() => onSet(key, null)}>
@@ -386,6 +409,7 @@ function SpriteGroup({ title, items, hint, get, extraNeutral, canGenerate, worki
         </div>
       )}
       <span className="cap">{hint}</span>
-    </>
+      {children}
+    </Section>
   );
 }

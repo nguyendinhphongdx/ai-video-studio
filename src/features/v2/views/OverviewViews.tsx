@@ -1,21 +1,122 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+
+import { DataTable, type DataColumn, type DataFilter } from '@/components/data-table';
+import type { ChannelView } from '@/features/channel/services/channel.api';
+import { seriesApi } from '@/features/series/services/series.api';
 import Link from 'next/link';
 
 import { appApi, queryKeys } from '@/features/app';
 
+import { libraryState, type LibraryState } from '../lib/library';
 import { projectHref } from '../model';
-import { Loading, Page, Topbar } from '../Shell';
+import { Page, Topbar } from '../Shell';
 import { AiConnections, SystemTab } from './AiConnections';
 import { useMe } from '@/features/auth/AccountBox';
 import { CostTab, PricesTab } from './CostViews';
 import { WorkspaceTab } from './WorkspaceTab';
 
-/** Product-level library: a map of what each project owns. Editing happens in the project's own library. */
+type LibRow = { c: ChannelView; lib: LibraryState };
+
+const slot = (url: string | null, label: string) =>
+  url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img key={label} className="slot" src={url} alt={label} title={label} />
+  ) : (
+    <span key={label} className="slot blank" title={`${label}: chưa có`} aria-label={`${label}: chưa có`} />
+  );
+
+const libColumns = (): DataColumn<LibRow>[] => [
+  {
+    id: 'name',
+    header: 'Dự án',
+    cell: ({ c }) => (
+      <span className="eptitle">
+        <b>{c.name}</b>
+        <span className="cap clamp1" title={c.description || undefined}>
+          {c.description || 'Chưa có mô tả'}
+        </span>
+      </span>
+    ),
+    sortValue: ({ c }) => c.name,
+  },
+  { id: 'brand', header: 'Thương hiệu', cell: ({ c }) => <span className="slots">{[slot(c.logoUrl, 'Logo'), slot(c.avatarUrl, 'Người dẫn'), slot(c.introArtUrl, 'Nền intro'), slot(c.outroArtUrl, 'Nền outro')]}</span> },
+  {
+    id: 'figures',
+    header: 'Nhân vật',
+    cell: ({ lib }) =>
+      lib.figures ? (
+        <span className="eptitle">
+          <b>
+            {lib.drawn}/{lib.figures} đã vẽ
+          </b>
+          <span className="bar" aria-hidden style={{ width: 90 }}>
+            <i style={{ width: `${(lib.drawn / lib.figures) * 100}%` }} />
+          </span>
+        </span>
+      ) : (
+        <span className="cap">Chưa có</span>
+      ),
+    sortValue: ({ lib }) => lib.figures,
+    hideBelow: 'sm',
+  },
+  { id: 'music', header: 'Nhạc nền', cell: ({ c }) => <span className="mono">{c.music === 'none' ? 'Không' : c.music.replace(/^media:.*\//, '')}</span>, sortValue: ({ c }) => c.music, hideBelow: 'md' },
+  {
+    id: 'done',
+    header: 'Hoàn thiện',
+    cell: ({ lib }) => {
+      const missing = lib.parts.filter((p) => !p.done).map((p) => p.label);
+      return (
+        <span className="eptitle">
+          <span className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+            <span className="bar" style={{ width: 70 }} role="progressbar" aria-label="Hoàn thiện" aria-valuemin={0} aria-valuemax={lib.total} aria-valuenow={lib.done}>
+              <i style={{ width: `${(lib.done / lib.total) * 100}%` }} />
+            </span>
+            <span className="cap">
+              {lib.done}/{lib.total}
+            </span>
+          </span>
+          <span className="cap">{lib.complete ? 'Đủ bộ' : missing.length ? `Thiếu ${missing.join(', ')}` : 'Còn nhân vật chưa vẽ'}</span>
+        </span>
+      );
+    },
+    sortValue: ({ lib }) => lib.done / lib.total,
+    hideBelow: 'sm',
+  },
+  {
+    id: 'open',
+    header: '',
+    cell: ({ c }) => (
+      <Link className="btn sm" href={projectHref(c.id, 'library')} onClick={(e) => e.stopPropagation()}>
+        Mở
+      </Link>
+    ),
+    align: 'right',
+    width: 80,
+  },
+];
+
+const libFilter: DataFilter<LibRow> = {
+  id: 'state',
+  label: 'Tình trạng',
+  options: [
+    { value: 'missing', label: 'Còn thiếu', match: ({ lib }) => !lib.complete },
+    { value: 'full', label: 'Đủ bộ', match: ({ lib }) => lib.complete },
+  ],
+};
+
+/** Product-level library: what each project's library holds and lacks. Editing happens in the project's own library. */
 export function LibraryAllView() {
+  const router = useRouter();
   const channels = useQuery({ queryKey: queryKeys.channels, queryFn: appApi.channels });
+  const list = useMemo(() => channels.data ?? [], [channels.data]);
+  const series = useQueries({ queries: list.map((c) => ({ queryKey: ['series', c.id], queryFn: () => seriesApi.list(c.id) })) });
+  const rows = useMemo<LibRow[]>(() => list.map((c, i) => ({ c, lib: libraryState(c, series[i]?.data ?? []) })), [list, series]);
+  const columns = useMemo(libColumns, []);
+  const ready = rows.filter((r) => r.lib.complete).length;
   return (
     <>
       <Topbar crumbs={['Thư viện']} />
@@ -23,45 +124,41 @@ export function LibraryAllView() {
         <div className="head">
           <div>
             <h1>Thư viện</h1>
-            <p>Tổng quan tài sản của mọi dự án. Nhân vật, bối cảnh và đạo cụ thuộc về từng dự án; mở dự án để sửa.</p>
+            <p>Tài sản của mọi dự án: logo, người dẫn, nền intro và outro, nhạc, nhân vật. Mở một dự án để sửa.</p>
           </div>
         </div>
-        {channels.isLoading ? (
-          <Loading />
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Dự án</th>
-                <th>Logo</th>
-                <th>Người dẫn</th>
-                <th>Intro / outro</th>
-                <th>Nhạc nền</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {(channels.data ?? []).map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <b>{c.name}</b>
-                  </td>
-                  <td>{c.logoUrl ? <span className="chip ok">Có</span> : <span className="chip">Chưa có</span>}</td>
-                  <td>{c.avatarUrl ? <span className="chip ok">Có</span> : <span className="chip">Chưa có</span>}</td>
-                  <td>
-                    {c.introDesign || c.introArtUrl ? <span className="chip ok">Đã thiết kế</span> : <span className="chip warn">Chưa thiết kế</span>}
-                  </td>
-                  <td className="mono">{c.music === 'none' ? 'Không' : c.music.replace(/^media:.*\//, '')}</td>
-                  <td>
-                    <Link className="btn sm" href={projectHref(c.id, 'library')}>
-                      Mở
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {list.length > 0 && (
+          <dl className="metrics" aria-label="Tổng quan">
+            <div className="metric">
+              <dd>{list.length}</dd>
+              <dt>Dự án</dt>
+            </div>
+            <div className="metric">
+              <dd>{ready}</dd>
+              <dt>Đủ bộ</dt>
+            </div>
+            <div className={`metric${list.length - ready ? ' hot' : ''}`}>
+              <dd>{list.length - ready}</dd>
+              <dt>Còn thiếu</dt>
+            </div>
+            <div className="metric">
+              <dd>{rows.reduce((n, r) => n + r.lib.figures, 0)}</dd>
+              <dt>Nhân vật</dt>
+            </div>
+          </dl>
         )}
+        <DataTable
+          data={rows}
+          columns={columns}
+          rowId={(r) => r.c.id}
+          label="Thư viện của các dự án"
+          loading={channels.isLoading}
+          search={{ placeholder: 'Tìm dự án', text: (r) => `${r.c.name} ${r.c.description}` }}
+          filters={[libFilter]}
+          onRowClick={(r) => router.push(projectHref(r.c.id, 'library'))}
+          initialState={{ sort: { id: 'name', dir: 'asc' } }}
+          empty={<p className="cap">Chưa có dự án nào.</p>}
+        />
       </Page>
     </>
   );

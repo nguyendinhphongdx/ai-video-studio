@@ -1,0 +1,17 @@
+import { ListEpisodes } from './list-episodes.tool';
+import { GetEpisode } from './get-episode.tool';
+import { CreateEpisode } from './create-episode.tool';
+import { WriteScript } from './write-script.tool';
+import { ReviseScript } from './revise-script.tool';
+import { EditScene } from './edit-scene.tool';
+import { AiFixScene } from './ai-fix-scene.tool';
+import { AddScene } from './add-scene.tool';
+import { RemoveScene } from './remove-scene.tool';
+import { SetEpisodeOptions } from './set-episode-options.tool';
+import { EstimateCost } from './estimate-cost.tool';
+import { GenerateSceneAssets } from './generate-scene-assets.tool';
+import { ApproveScenes } from './approve-scenes.tool';
+import { ProduceVideo } from './produce-video.tool';
+import { DeleteEpisode } from './delete-episode.tool';
+
+export const episodeTools = [new ListEpisodes(), new GetEpisode(), new CreateEpisode(), new WriteScript(), new ReviseScript(), new EditScene(), new AiFixScene(), new AddScene(), new RemoveScene(), new SetEpisodeOptions(), new EstimateCost(), new GenerateSceneAssets(), new ApproveScenes(), new ProduceVideo(), new DeleteEpisode()];

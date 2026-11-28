@@ -6,7 +6,7 @@ import { characterTools } from './characters';
 import { episodeTools } from './episodes';
 import { sceneTools } from './scenes';
 import { seriesTools } from './series';
-import { skillTools } from './skills';
+import { skillTools } from './skill';
 
 export const ASSISTANT_TOOLS = [...channelTools, ...skillTools, ...seriesTools, ...characterTools, ...episodeTools, ...sceneTools] as StudioTool[];
 validateTools(ASSISTANT_TOOLS);

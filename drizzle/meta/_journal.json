@@ -29,6 +29,13 @@
       "when": 1795870004574,
       "tag": "0003_abandoned_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795878077746,
+      "tag": "0004_sticky_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

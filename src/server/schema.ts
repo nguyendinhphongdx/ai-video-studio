@@ -406,6 +406,65 @@ export const assistantStreamEvents = pgTable(
   ],
 );
 
+/** A connection code: lets an outside AI act in the workspace over MCP. Only its hash is kept. */
+export const mcpCodes = pgTable(
+  'mcp_codes',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    codeHash: text('code_hash').notNull(),
+    level: text('level').notNull(),
+    createdAt: isoTime('created_at').notNull(),
+    expiresAt: isoTime('expires_at'),
+    revokedAt: isoTime('revoked_at'),
+    lastUsedAt: isoTime('last_used_at'),
+    workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    index('mcp_codes_ws').on(t.workspaceId),
+    uniqueIndex('mcp_codes_hash').on(t.codeHash),
+  ],
+);
+
+/** What each code did. Arguments are not kept. */
+export const mcpCalls = pgTable(
+  'mcp_calls',
+  {
+    id: serial('id').primaryKey(),
+    codeId: text('code_id').notNull().references((): AnyPgColumn => mcpCodes.id, { onDelete: 'cascade' }),
+    tool: text('tool').notNull(),
+    summary: text('summary').notNull(),
+    ok: boolean('ok').notNull(),
+    at: isoTime('at').notNull(),
+    workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    index('mcp_calls_ws').on(t.workspaceId),
+    index('mcp_calls_code').on(t.codeId, t.id),
+  ],
+);
+
+/** A one-time link that accepts one file for one purpose without signing in. */
+export const mcpUploads = pgTable(
+  'mcp_uploads',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    purpose: text('purpose').notNull(),
+    target: jsonText('target').notNull(),
+    expiresAt: isoTime('expires_at').notNull(),
+    usedAt: isoTime('used_at'),
+    workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    index('mcp_uploads_ws').on(t.workspaceId),
+    uniqueIndex('mcp_uploads_hash').on(t.tokenHash),
+  ],
+);
+
 export const usageEvents = pgTable(
   'usage_events',
   {
@@ -429,6 +488,8 @@ export const usageEvents = pgTable(
     costUsd: doublePrecision('cost_usd'),
     estimated: boolean('estimated').notNull().default(false),
     durationMs: integer('duration_ms').notNull().default(0),
+    /** Where the work was asked from: '' (the studio) or 'mcp'. */
+    via: text('via').notNull().default(''),
     workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
     userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   },

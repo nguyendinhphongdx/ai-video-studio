@@ -10,6 +10,7 @@ import type { Membership, Role, User, Workspace } from './auth.types';
 export const DATA_TABLES = [
   'channels', 'series', 'series_versions', 'series_memory', 'episodes', 'scenes', 'renders', 'episode_memory', 'episode_events', 'jobs',
   'step_runs', 'ai_runs', 'outbox', 'channel_skills', 'channel_knowledge_versions', 'assistant_threads', 'assistant_messages', 'usage_events', 'budgets',
+  'mcp_codes', 'mcp_calls', 'mcp_uploads',
 ] as const;
 
 const toUser = (r: typeof users.$inferSelect): User & { passwordHash: string } => ({ id: r.id, email: r.email, name: r.name, isAdmin: r.isAdmin, createdAt: r.createdAt, passwordHash: r.passwordHash });

@@ -61,6 +61,18 @@ export default tseslint.config(
     ),
   },
   {
+    // Screens never ask "has it changed?" on a timer: the live feed says so (0006, docs/conventions/10-live-updates.md).
+    files: ['src/features/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    ignores: ['src/features/app/lib/live-feed.ts', 'src/features/assistant/hooks/use-live-turn.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        { selector: "Property[key.name='refetchInterval']", message: 'No polling: the live feed refreshes screens when something changes (docs/conventions/10-live-updates.md). Add the topic to `src/features/app/lib/live-signals.ts` instead.' },
+        { selector: "NewExpression[callee.name='EventSource']", message: 'Only the live feed hook opens a connection (docs/conventions/10-live-updates.md).' },
+      ],
+    },
+  },
+  {
     // Route handlers and pages call services; never repositories, the database or adapters.
     files: ['src/app/**/*.{ts,tsx}'],
     rules: rule([

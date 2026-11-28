@@ -26,7 +26,7 @@ Example page: `src/app/(studio)/direct/[id]/[eid]/[sid]/page.tsx` only reads `us
 
 1. `services/<f>.api.ts` has one function per endpoint using `api<T>()` (`src/lib/api/client.ts`); types come from the server module with `import type`.
 2. `hooks/use-<f>.ts` wraps them in `useQuery`/`useMutation`. Query keys come from one key factory per feature (`seriesKeys.one(id)`), never inline arrays. A mutation invalidates the keys it changes.
-3. Errors: `toast.error(errorMessage(e))` (sonner). Poll only while a job is running (`isBusy`), and stop when it is done.
+3. Errors: `toast.error(errorMessage(e))` (sonner). Never poll: no `refetchInterval`, no timer that fetches. The live feed refreshes what a change touches ([10 Live updates](10-live-updates.md)); to show a job use `useJob(id)`. Checked by: ESLint.
 4. Server state lives in React Query, not in Zustand or `useState`. Zustand is for UI state only.
 
 ## Components

@@ -24,14 +24,28 @@ export function useLiveTurn(threadId: string | null, running: boolean): LiveTurn
     if (!threadId || !running || typeof EventSource === 'undefined') return;
     let turn = EMPTY_TURN;
     const source = new EventSource(assistantApi.eventsUrl(threadId));
+    // The conversation used to be polled while a turn ran. Now only if this stream breaks, so a step that finished
+    // still reaches the screen.
+    let rescue: ReturnType<typeof setInterval> | null = null;
+    const refresh = () => void qc.invalidateQueries({ queryKey: ['assistant-thread', threadId] });
+    source.onopen = () => {
+      if (rescue) clearInterval(rescue);
+      rescue = null;
+    };
+    source.onerror = () => {
+      rescue ??= setInterval(refresh, 1500);
+    };
     source.onmessage = (message) => {
       const event = JSON.parse(message.data as string) as AssistantEvent;
       turn = applyEvent(turn, event);
       setState({ threadId, turn });
-      if (STORED.includes(event.type)) void qc.invalidateQueries({ queryKey: ['assistant-thread', threadId] });
+      if (STORED.includes(event.type)) refresh();
       if (turn.ended) source.close();
     };
-    return () => source.close();
+    return () => {
+      source.close();
+      if (rescue) clearInterval(rescue);
+    };
   }, [threadId, running, qc]);
 
   return running && state?.threadId === threadId ? state.turn : EMPTY_TURN;

@@ -6,6 +6,7 @@ import type { EpisodePatch } from '@/core/ports';
 import { ctx } from '@/server/context';
 import { json, now, transaction } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
+import { changesRepository } from '@/server/modules/changes/changes.repository';
 import { episodeEvents, episodes, renders, scenes } from '@/server/schema';
 
 const toScene = (r: typeof scenes.$inferSelect): Scene => ({
@@ -83,12 +84,15 @@ export const episodeRepository = {
     return r ? toEpisode(r, (await scenesOf([id])).get(id) ?? []) : null;
   },
   async insert(e: Omit<Episode, 'scenes' | 'publish' | 'title' | 'knowledgeVersion' | 'autoImages' | 'autoVoice'>) {
-    await orm()
-      .insert(episodes)
-      .values({
-        id: e.id, channelId: e.channelId, seriesId: e.seriesId, seriesVersion: e.seriesVersion, number: e.number, topic: e.topic, goal: e.goal, notes: e.notes, skillId: e.skillId, status: e.status,
-        formats: JSON.stringify(e.formats), voice: e.voice, music: e.music, musicVolume: e.musicVolume ?? 0.12, sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
-      });
+    await transaction(async () => {
+      await orm()
+        .insert(episodes)
+        .values({
+          id: e.id, channelId: e.channelId, seriesId: e.seriesId, seriesVersion: e.seriesVersion, number: e.number, topic: e.topic, goal: e.goal, notes: e.notes, skillId: e.skillId, status: e.status,
+          formats: JSON.stringify(e.formats), voice: e.voice, music: e.music, musicVolume: e.musicVolume ?? 0.12, sceneCount: e.sceneCount, title: '', publish: null, createdAt: e.createdAt, updatedAt: e.updatedAt, ...owner(),
+        });
+      await changesRepository.add('episode', e.id, { channelId: e.channelId, seriesId: e.seriesId });
+    });
   },
   async update(id: string, patch: EpisodeUpdate) {
     await transaction(async () => {
@@ -108,7 +112,8 @@ export const episodeRepository = {
       if (patch.skillId !== undefined) set.skillId = patch.skillId;
       if (patch.autoImages !== undefined) set.autoImages = patch.autoImages;
       if (patch.autoVoice !== undefined) set.autoVoice = patch.autoVoice;
-      const changed = await orm().update(episodes).set(set).where(thisEpisode(id)).returning({ id: episodes.id });
+      const changed = await orm().update(episodes).set(set).where(thisEpisode(id)).returning({ id: episodes.id, channelId: episodes.channelId, seriesId: episodes.seriesId });
+      if (changed[0]) await changesRepository.add('episode', id, { channelId: changed[0].channelId, seriesId: changed[0].seriesId });
       if (patch.scenes && changed.length) {
         // Scenes are rewritten as a whole; a scene that already existed keeps the person who made it.
         const ofEpisode = and(eq(scenes.episodeId, id), scoped(scenes));
@@ -138,14 +143,21 @@ export const episodeRepository = {
     if (patch.voiceHash !== undefined) set.voiceHash = patch.voiceHash;
     if (patch.approved !== undefined) set.approved = patch.approved;
     if (!Object.keys(set).length) return;
-    await orm().update(scenes).set(set).where(and(eq(scenes.id, sceneId), eq(scenes.episodeId, episodeId), scoped(scenes)));
-    await episodeRepository.touch(episodeId);
+    await transaction(async () => {
+      await orm().update(scenes).set(set).where(and(eq(scenes.id, sceneId), eq(scenes.episodeId, episodeId), scoped(scenes)));
+      await episodeRepository.touch(episodeId);
+      await changesRepository.add('episode', episodeId);
+    });
   },
+  /** Bookkeeping only: the worker calls it on every progress write, so it never announces anything. */
   async touch(id: string) {
     await orm().update(episodes).set({ updatedAt: now() }).where(thisEpisode(id));
   },
   async remove(id: string) {
-    await orm().delete(episodes).where(thisEpisode(id));
+    await transaction(async () => {
+      await orm().delete(episodes).where(thisEpisode(id));
+      await changesRepository.add('episode', id);
+    });
   },
   async nextNumber(seriesId: string): Promise<number> {
     const r = await orm().select({ n: max(episodes.number) }).from(episodes).where(and(eq(episodes.seriesId, seriesId), scoped(episodes))).then(one);
@@ -168,6 +180,7 @@ export const episodeRepository = {
       const setNumber = (id: string, number: number) => orm().update(episodes).set({ number, updatedAt: now() }).where(thisEpisode(id));
       for (const [i, a] of assignments.entries()) await setNumber(a.id, -(i + 1));
       for (const a of assignments) await setNumber(a.id, a.number);
+      for (const a of assignments) await changesRepository.add('episode', a.id);
     });
   },
   async renders(episodeId: string): Promise<Render[]> {
@@ -177,6 +190,7 @@ export const episodeRepository = {
     await transaction(async () => {
       await orm().delete(renders).where(and(eq(renders.episodeId, episodeId), scoped(renders)));
       if (list.length) await orm().insert(renders).values(list.map((r) => ({ id: newId(), episodeId, format: r.format, filePath: r.filePath, thumbnailPath: r.thumbnailPath, durationSec: r.durationSec, createdAt: now(), ...owner() })));
+      await changesRepository.add('episode', episodeId);
     });
     return await episodeRepository.renders(episodeId);
   },
@@ -184,7 +198,10 @@ export const episodeRepository = {
     return orm().select({ at: episodeEvents.at, message: episodeEvents.message }).from(episodeEvents).where(and(eq(episodeEvents.episodeId, episodeId), scoped(episodeEvents))).orderBy(asc(episodeEvents.id));
   },
   async addEvent(episodeId: string, message: string) {
-    await orm().insert(episodeEvents).values({ episodeId, at: now(), message, ...owner() });
-    await episodeRepository.touch(episodeId);
+    await transaction(async () => {
+      await orm().insert(episodeEvents).values({ episodeId, at: now(), message, ...owner() });
+      await episodeRepository.touch(episodeId);
+      await changesRepository.add('episode', episodeId);
+    });
   },
 };

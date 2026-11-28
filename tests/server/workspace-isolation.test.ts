@@ -60,7 +60,7 @@ beforeAll(async () => {
 
 describe('workspace isolation', () => {
   it('stamps every row with the workspace and the person who made it', async () => {
-    for (const t of ['channels', 'episodes', 'jobs', 'usage_events']) {
+    for (const t of ['channels', 'episodes', 'jobs', 'usage_events', 'changes']) {
       const rows = m.db.rowsOf<{ workspace_id: string; user_id: string }>(await m.db.orm().execute(sql`SELECT workspace_id, user_id FROM ${sql.identifier(t)}`));
       expect(rows.length, t).toBeGreaterThan(0);
       for (const r of rows) expect([r.workspace_id, r.user_id], t).toEqual([A.workspace.id, A.user.id]);

@@ -2,6 +2,7 @@ import { and, desc, eq } from 'drizzle-orm';
 
 import { now } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
 import { channelKnowledgeVersions as versions } from '@/server/schema';
 
 export interface KnowledgeVersion {
@@ -31,7 +32,7 @@ export const knowledgeRepository = {
   async insert(channelId: string, markdown: string, note: string): Promise<KnowledgeVersion> {
     const next = ((await knowledgeRepository.latest(channelId))?.version ?? 0) + 1;
     const createdAt = now();
-    await orm().insert(versions).values({ channelId, version: next, markdown, note, createdAt, ...owner() });
+    await announced('knowledge', channelId, {}, async () => void (await orm().insert(versions).values({ channelId, version: next, markdown, note, createdAt, ...owner() })));
     return { channelId, version: next, markdown, note, createdAt };
   },
 };

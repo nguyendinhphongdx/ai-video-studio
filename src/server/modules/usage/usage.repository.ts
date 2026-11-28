@@ -8,6 +8,7 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { maybeCtx } from '@/server/context';
 import { transaction } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
 import { budgets, priceBook, usageEvents as ev, workspacePrefs } from '@/server/schema';
 
 export interface UsageEvent {
@@ -88,13 +89,15 @@ const USAGE_PREF = (key: string) => and(scoped(workspacePrefs), eq(workspacePref
 export const usageRepository = {
   async insert(e: Omit<UsageEvent, 'id'> & { runId?: string | null }): Promise<string> {
     const id = newId();
-    await orm()
-      .insert(ev)
-      .values({
-        id, at: e.at, kind: e.kind, provider: e.provider, model: e.model, purpose: e.purpose, channelId: e.channelId, seriesId: e.seriesId, episodeId: e.episodeId, sceneId: e.sceneId, jobId: e.jobId,
-        threadId: e.threadId, runId: e.runId ?? null, inputTokens: e.inputTokens, outputTokens: e.outputTokens, cachedTokens: e.cachedTokens, units: e.units, costUsd: e.costUsd, estimated: e.estimated,
-        durationMs: e.durationMs, via: e.via ?? '', ...owner(),
-      });
+    await announced('usage', e.channelId ?? '', {}, async () => {
+      await orm()
+        .insert(ev)
+        .values({
+          id, at: e.at, kind: e.kind, provider: e.provider, model: e.model, purpose: e.purpose, channelId: e.channelId, seriesId: e.seriesId, episodeId: e.episodeId, sceneId: e.sceneId, jobId: e.jobId,
+          threadId: e.threadId, runId: e.runId ?? null, inputTokens: e.inputTokens, outputTokens: e.outputTokens, cachedTokens: e.cachedTokens, units: e.units, costUsd: e.costUsd, estimated: e.estimated,
+          durationMs: e.durationMs, via: e.via ?? '', ...owner(),
+        });
+    });
     return id;
   },
 
@@ -172,12 +175,14 @@ export const usageRepository = {
     const id = b.id ?? newId();
     const fields = { scope: b.scope, channelId: b.channelId, period: b.period, limitUsd: b.limitUsd, mode: b.mode, alertPct: b.alertPct };
     const thisBudget = and(eq(budgets.id, id), scoped(budgets));
-    if (await orm().select({ id: budgets.id }).from(budgets).where(thisBudget).then(one)) await orm().update(budgets).set(fields).where(thisBudget);
-    else await orm().insert(budgets).values({ id, ...fields, createdAt: at, ...owner() });
+    await announced('usage', b.channelId ?? '', {}, async () => {
+      if (await orm().select({ id: budgets.id }).from(budgets).where(thisBudget).then(one)) await orm().update(budgets).set(fields).where(thisBudget);
+      else await orm().insert(budgets).values({ id, ...fields, createdAt: at, ...owner() });
+    });
     return id;
   },
   async removeBudget(id: string) {
-    await orm().delete(budgets).where(and(eq(budgets.id, id), scoped(budgets)));
+    await announced('usage', '', {}, async () => void (await orm().delete(budgets).where(and(eq(budgets.id, id), scoped(budgets)))));
   },
 
   async pref(key: string): Promise<string | null> {

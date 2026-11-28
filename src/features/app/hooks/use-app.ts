@@ -14,7 +14,7 @@ export const queryKeys = {
 };
 
 export function useAppConfig() {
-  return useQuery({ queryKey: queryKeys.config, queryFn: appApi.config, refetchOnWindowFocus: true, refetchInterval: 30_000 }); // 30 s only until 0006 step 2 adds the worker signal
+  return useQuery({ queryKey: queryKeys.config, queryFn: appApi.config, refetchOnWindowFocus: true });
 }
 
 /** A page about one channel's video or series makes that channel the current one, so the top bar and the assistant talk about the same channel. */

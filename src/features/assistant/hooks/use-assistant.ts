@@ -35,7 +35,6 @@ export function useThread(channelId: string | undefined) {
     queryKey: ['assistant-thread', threadId],
     queryFn: () => assistantApi.get(threadId!),
     enabled: Boolean(threadId),
-    refetchInterval: (q) => (q.state.data?.running ? 900 : false),
   });
 
   // A remembered thread that no longer exists (deleted, other database): fall back to the newest one.

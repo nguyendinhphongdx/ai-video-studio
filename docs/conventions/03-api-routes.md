@@ -17,7 +17,7 @@ export const PATCH = route<{ id: string }>(async (req, { id }) => await seriesSe
 - Wrap every handler in `route()`. It checks the session (401), opens the request context (`ctx()`), runs the handler, and turns thrown errors into JSON. `publicRoute()` is only for sign-up, sign-in, sign-out.
 - Input is a zod schema from `<module>.types.ts`, parsed with `parseJsonBody(req, Schema)` for bodies; query strings are read and narrowed in the route (see `usage/events/route.ts`) and anything beyond a few fields gets a schema.
 - No business rule, no `orm()`, no repository, no adapter, no model/voice/render call in a route. If you want one, it belongs in a service.
-- Long work: the service enqueues a job and returns the `Job`; the UI polls `/jobs/:id`. A route never waits for a model, a voice or a render.
+- Long work: the service enqueues a job and returns the `Job`; the UI follows it through `useJob(id)` and the live feed (10 Live updates), not by polling. A route never waits for a model, a voice or a render.
 - Return plain data. `undefined` becomes `{ ok: true }`; return a `Response` only for files and streams (`media/[...path]`).
 - Paths: plural nouns, nesting for ownership (`/series/:id/rules`), `PUT` to replace, `PATCH` to merge, `POST` for creating or for an action (`/series/:id/write`). Version prefix `v1` stays.
 - Errors are thrown (`notFound`, `conflict`, `ApiError`) with Vietnamese messages; never return 403 for a row of another workspace.

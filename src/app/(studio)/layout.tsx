@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
+import { LiveChanges } from '@/features/app';
 import { AssistantDock } from '@/features/assistant/components/AssistantDock';
 
 import './v2.css';
@@ -12,6 +13,8 @@ export default function V2Layout({ children }: { children: ReactNode }) {
   return (
     <div className="v2">
       {children}
+      {/* The tab's one connection for live changes: nothing on screen asks "has it changed?" on a timer. */}
+      <LiveChanges />
       {/* The one AI assistant ("Đạo diễn"), on every page; it works on the project the page is about. */}
       <AssistantDock />
     </div>

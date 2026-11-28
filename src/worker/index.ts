@@ -17,6 +17,7 @@ import { assistantService } from '@/server/modules/assistant/assistant.service';
 import { episodeRepository } from '@/server/modules/episode/episode.repository';
 import { keptResult, jobQueue, jobRepository } from '@/server/modules/job/job.repository';
 import { authService } from '@/server/modules/auth/auth.service';
+import { changesRepository } from '@/server/modules/changes/changes.repository';
 import { outboxRepository } from '@/server/modules/outbox/outbox.repository';
 import { prefsService } from '@/server/modules/prefs/prefs.service';
 import { SUBSCRIBERS } from '@/server/subscribers';
@@ -164,6 +165,10 @@ async function main() {
       logger.warn('heartbeat failed', { error: String((e as Error)?.message ?? e) });
     }
   }, 5000).unref();
+  // The change log only needs the last day: tidy it now and every hour.
+  const tidy = () => changesRepository.prune().catch((e) => logger.warn('changes cleanup failed', { error: String((e as Error)?.message ?? e) }));
+  void tidy();
+  setInterval(tidy, 60 * 60 * 1000).unref();
   for (const { job, workspaceId, userId } of await jobQueue.failInterrupted('Bị gián đoạn do worker khởi động lại. Bấm Thử lại.')) {
     const context = await authService.contextFor(workspaceId, userId);
     if (context) await runWithContext(context, () => rollback(job));

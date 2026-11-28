@@ -3,6 +3,7 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Series, SeriesVersion } from '@/core/domain';
 import { json } from '@/server/db';
 import { one, orm, owner, scoped } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
 import { series, seriesVersions } from '@/server/schema';
 
 const toSeries = (r: typeof series.$inferSelect): Series => ({
@@ -41,14 +42,16 @@ export const seriesRepository = {
     return (await orm().select().from(seriesVersions).where(and(eq(seriesVersions.seriesId, seriesId), scoped(seriesVersions))).orderBy(desc(seriesVersions.version))).map(toVersion);
   },
   async insert(s: Series) {
-    await orm().insert(series).values({ ...s, ...owner() });
+    await announced('series', s.id, { channelId: s.channelId }, async () => void (await orm().insert(series).values({ ...s, ...owner() })));
   },
   async update(s: Series) {
-    await orm().update(series).set({ name: s.name, status: s.status, currentVersion: s.currentVersion, updatedAt: s.updatedAt }).where(and(eq(series.id, s.id), scoped(series)));
+    await announced('series', s.id, { channelId: s.channelId }, async () => void (await orm().update(series).set({ name: s.name, status: s.status, currentVersion: s.currentVersion, updatedAt: s.updatedAt }).where(and(eq(series.id, s.id), scoped(series)))));
   },
   async insertVersion(v: SeriesVersion) {
-    await orm()
-      .insert(seriesVersions)
-      .values({ seriesId: v.seriesId, version: v.version, skillId: v.skillId, bible: JSON.stringify(v.bible), format: JSON.stringify(v.format), publish: JSON.stringify(v.publish), createdAt: v.createdAt, ...owner() });
+    await announced('series', v.seriesId, {}, async () => {
+      await orm()
+        .insert(seriesVersions)
+        .values({ seriesId: v.seriesId, version: v.version, skillId: v.skillId, bible: JSON.stringify(v.bible), format: JSON.stringify(v.format), publish: JSON.stringify(v.publish), createdAt: v.createdAt, ...owner() });
+    });
   },
 };

@@ -58,7 +58,7 @@ await changes.add('episode', episode.id, { channelId: episode.channelId });
 
 ## Checked by
 
-- **Checked by: ESLint** (`no-restricted-syntax`): `refetchInterval` anywhere in `src/features` and `new EventSource` outside the live hook and `use-live-turn`. **Planned**, added in the same change as the hook (step 2 of the plan); soft until then.
+- **Checked by: ESLint** (`no-restricted-syntax`): `refetchInterval` anywhere in `src/features` and `new EventSource` outside the live hook and `use-live-turn`. `src/features/app/lib/live-feed.ts` (the 30 s fallback) and `use-live-turn.ts` (the chat stream) are the only exceptions.
 - **Checked by: a test**: every topic in the catalog has a UI map entry; `data` of each topic validates against its schema.
 - **Checked by: a test**: a tab receives only its own workspace's signals.
 - **Checked by: a test**: a progress write (and `touch`) leaves no `episode` row.

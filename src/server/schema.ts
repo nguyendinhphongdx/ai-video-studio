@@ -271,6 +271,24 @@ export const outbox = pgTable(
   ],
 );
 
+/** What changed, one small row per change, so every open screen can refresh what it shows (0006). Pruned after a day. */
+export const changes = pgTable(
+  'changes',
+  {
+    id: serial('id').primaryKey(),
+    topic: text('topic').notNull(),
+    ref: text('ref').notNull(),
+    data: jsonText('data').notNull().default('{}'),
+    at: isoTime('at').notNull(),
+    workspaceId: text('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    index('changes_ws').on(t.workspaceId, t.id),
+    index('changes_at').on(t.at),
+  ],
+);
+
 export const episodeEvents = pgTable(
   'episode_events',
   {

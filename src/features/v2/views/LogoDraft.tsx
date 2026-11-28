@@ -15,7 +15,7 @@ import { usd } from '../model';
 const key = (id: string) => ['logo-draft', id] as const;
 
 export function useLogoDraft(projectId: string) {
-  return useQuery({ queryKey: key(projectId), queryFn: () => channelApi.logoDraft(projectId), refetchInterval: (q) => (q.state.data?.drawing ? 2000 : 15000) });
+  return useQuery({ queryKey: key(projectId), queryFn: () => channelApi.logoDraft(projectId) });
 }
 
 /** The AI logo draft waiting for a decision (or being drawn). Nothing changes until "Dùng logo này". */

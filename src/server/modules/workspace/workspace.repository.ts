@@ -5,6 +5,7 @@ import { and, asc, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { ctx } from '@/server/context';
 import { transaction } from '@/server/db';
 import { one, orm } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
 import { invites, memberships, users, workspaces } from '@/server/schema';
 
 import type { Role } from '../auth/auth.types';
@@ -49,11 +50,11 @@ export const workspaceRepository = {
   },
 
   async setRole(userId: string, role: Role) {
-    await orm().update(memberships).set({ role }).where(member(userId));
+    await announced('member', ctx().workspaceId, {}, async () => void (await orm().update(memberships).set({ role }).where(member(userId))));
   },
 
   async removeMember(userId: string) {
-    await orm().delete(memberships).where(member(userId));
+    await announced('member', ctx().workspaceId, {}, async () => void (await orm().delete(memberships).where(member(userId))));
   },
 
   async rename(name: string) {

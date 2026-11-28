@@ -8,6 +8,7 @@ import { MARKET_SKILLS_DIR } from '@/server/config';
 import { and, asc, count, countDistinct, eq, isNotNull } from 'drizzle-orm';
 
 import { one, orm, owner, scoped } from '@/server/orm';
+import { announced } from '@/server/modules/changes/changes.repository';
 import { channels, channelSkills, episodes, series, seriesVersions } from '@/server/schema';
 
 export const marketRepository = {
@@ -52,17 +53,17 @@ export const channelSkillRepository = {
     return r ? toRow(r) : null;
   },
   async insert(row: Omit<ChannelSkillRow, 'updatedAt'>) {
-    await orm().insert(channelSkills).values({ ...row, updatedAt: row.createdAt, ...owner() });
+    await announced('skill', row.channelId, {}, async () => void (await orm().insert(channelSkills).values({ ...row, updatedAt: row.createdAt, ...owner() })));
   },
   async update(channelId: string, skillId: string, markdown: string, updatedAt: string) {
-    await orm().update(channelSkills).set({ markdown, updatedAt }).where(thisSkill(channelId, skillId));
+    await announced('skill', channelId, {}, async () => void (await orm().update(channelSkills).set({ markdown, updatedAt }).where(thisSkill(channelId, skillId))));
   },
   /** Replaces a skill with a newer market version (and points its source at the market id it now follows). */
   async replaceFromMarket(channelId: string, skillId: string, markdown: string, source: string, updatedAt: string) {
-    await orm().update(channelSkills).set({ markdown, source, updatedAt }).where(thisSkill(channelId, skillId));
+    await announced('skill', channelId, {}, async () => void (await orm().update(channelSkills).set({ markdown, source, updatedAt }).where(thisSkill(channelId, skillId))));
   },
   async remove(channelId: string, skillId: string) {
-    await orm().delete(channelSkills).where(thisSkill(channelId, skillId));
+    await announced('skill', channelId, {}, async () => void (await orm().delete(channelSkills).where(thisSkill(channelId, skillId))));
   },
   /** Skill ids a channel's videos, series or default already point at (to adopt them from the market). */
   async referenced(channelId: string): Promise<string[]> {

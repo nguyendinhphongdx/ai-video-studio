@@ -95,7 +95,7 @@ export function CastEditor({ series, defaultOpen = true }: { series: SeriesView;
   });
 
   // Drawings under way (also those the assistant asked for). When one ends, its pictures are already saved.
-  const drawing = useQuery({ queryKey: ['drawing', series.id], queryFn: () => seriesApi.drawing(series.id), refetchInterval: (q) => (q.state.data?.length ? 2000 : 15_000) });
+  const drawing = useQuery({ queryKey: ['drawing', series.id], queryFn: () => seriesApi.drawing(series.id) });
   const job = drawing.data?.[0];
   const working = Boolean(job);
   const last = useRef<string | null>(null);

@@ -28,6 +28,10 @@ const ACTIVE = ['queued', 'running'];
 const thisJob = (id: string) => and(eq(jobs.id, id), scoped(jobs));
 const scopeOf = (r: Row) => ({ job: toJob(r), workspaceId: r.workspaceId, userId: r.userId });
 
+/** Only jobs that produce data (not an episode change) keep what their handler returned. */
+const KEEPS_RESULT = new Set<Job['kind']>(['generate_sprites', 'generate_art']);
+export const keptResult = (kind: Job['kind'], result: unknown) => (KEEPS_RESULT.has(kind) ? result : undefined);
+
 export const jobRepository = {
   async insert(episodeId: string | null, kind: JobKind, payload: Record<string, unknown>): Promise<Job> {
     const id = newId();

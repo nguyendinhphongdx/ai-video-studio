@@ -7,7 +7,7 @@ import { errorMessage } from '@/lib/api/client';
 
 import { usageApi, usageKeys, type BudgetInput, type PriceRow, type UsageRange } from '../services/usage.api';
 
-export const useUsageSummary = (range: UsageRange) => useQuery({ queryKey: usageKeys.summary(range), queryFn: () => usageApi.summary(range), refetchInterval: 15_000 });
+export const useUsageSummary = (range: UsageRange) => useQuery({ queryKey: usageKeys.summary(range), queryFn: () => usageApi.summary(range), refetchOnWindowFocus: true });
 
 export function usePrices() {
   return useQuery({ queryKey: usageKeys.prices, queryFn: usageApi.prices });

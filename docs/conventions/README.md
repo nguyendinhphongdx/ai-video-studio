@@ -15,6 +15,7 @@ Read the files for the layer you touch before writing code. Copy the neighbour t
 | 07 | [AI calls and cost](07-ai-calls.md) | anything that calls a model, picture or voice provider |
 | 08 | [Testing](08-testing.md) | any change (every change needs a test) |
 | 09 | [Naming and style](09-naming-and-style.md) | any new file, function, comment |
+| 10 | [Live updates](10-live-updates.md) | anything that must show up on screen without a reload: sending a change, following one in a screen |
 
 ## How a rule is enforced
 

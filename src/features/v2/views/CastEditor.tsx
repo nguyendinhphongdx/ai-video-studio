@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { customPoseKey, MAX_CUSTOM_POSES, POSE_ID, type SpriteKey } from '@/core/character/expressions';
 import { charactersOf, missingPictures, removeCharacter, saveCharacter, setPicture, type Character } from '@/core/character/roster';
 import type { SeriesBible } from '@/core/domain/series';
+import { jobApi } from '@/features/app';
 import { seriesApi, type SeriesView } from '@/features/series/services/series.api';
 import { usageApi } from '@/features/usage/services/usage.api';
 import { errorMessage } from '@/lib/api/client';
@@ -103,7 +104,7 @@ export function CastEditor({ series, defaultOpen = true }: { series: SeriesView;
     last.current = job?.id ?? null;
     if (!done) return;
     reload();
-    void seriesApi.job(done).then((j) => (j.state === 'failed' ? toast.error(j.error ?? 'Chưa vẽ được. Thử lại nhé.') : toast.success('Đã vẽ xong và lưu vào series.')));
+    void jobApi.get(done).then((j) => (j.state === 'failed' ? toast.error(j.error ?? 'Chưa vẽ được. Thử lại nhé.') : toast.success('Đã vẽ xong và lưu vào series.')));
   }, [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const generate = useMutation({
     mutationFn: (req: { characterId: string; keys: string[] }) => seriesApi.drawCharacter(series.id, req),

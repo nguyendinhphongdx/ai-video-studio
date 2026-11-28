@@ -25,7 +25,6 @@ export const channelApi = {
   useLogoDraft: (id: string) => api<ChannelView>(`/channels/${id}/logo/draft`, { method: 'PUT' }),
   discardLogoDraft: (id: string) => api<void>(`/channels/${id}/logo/draft`, { method: 'DELETE' }),
   removeArt: (id: string, kind: 'intro' | 'outro') => api<ChannelView>(`/channels/${id}/art/${kind}`, { method: 'DELETE' }),
-  job: (id: string) => api<Job>(`/jobs/${id}`),
   removeAvatar: (id: string) => api<ChannelView>(`/channels/${id}/avatar`, { method: 'DELETE' }),
   uploadMusic: (id: string, file: File) => upload(`/channels/${id}/music`, file),
 };

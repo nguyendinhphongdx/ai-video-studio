@@ -1,10 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EXPRESSIONS } from '@/core/character/expressions';
 import type { SeriesBible } from '@/core/domain';
+import { useJob } from '@/features/app';
 import { errorMessage } from '@/lib/api/client';
 
 import { seriesApi } from '../services/series.api';
@@ -110,12 +109,7 @@ function SpriteSheet({ value, onChange }: { value: SeriesBible; onChange: (v: Se
   latest.current = { value, onChange };
   const reference = value.characterAssets[0];
   const missing = EXPRESSIONS.filter((e) => !value.characterSprites[e]).length;
-  const job = useQuery({
-    queryKey: ['sprite-job', jobId],
-    queryFn: () => seriesApi.job(jobId!),
-    enabled: Boolean(jobId),
-    refetchInterval: (q) => (q.state.data?.state === 'done' || q.state.data?.state === 'failed' ? false : 1500),
-  });
+  const job = useJob(jobId);
   const state = job.data?.state;
   useEffect(() => {
     if (!jobId || !state) return;

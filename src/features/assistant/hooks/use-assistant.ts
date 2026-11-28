@@ -24,7 +24,7 @@ export function useFocus(): Focus {
 }
 
 /** Queries that show data the assistant can change; refreshed whenever it finishes a step. */
-const DATA_KEYS = [['episode'], ['episodes'], ['channel'], ['channels'], ['series'], ['series-one'], ['series-episodes'], ['series-memory'], ['skills'], ['skill'], ['market'], ['knowledge'], ['config'], ['settings']];
+const DATA_KEYS = [['episode'], ['episodes'], ['channel'], ['channels'], ['series'], ['series-one'], ['series-episodes'], ['series-memory'], ['skills'], ['skill'], ['market'], ['knowledge'], ['config'], ['settings'], ['usage'], ['drawing'], ['logo-draft']];
 
 export function useThread(channelId: string | undefined) {
   const qc = useQueryClient();

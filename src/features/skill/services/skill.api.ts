@@ -18,7 +18,6 @@ export const skillApi = {
   install: (channelId: string, marketId: string) => api<SkillDetail>(c(channelId, '/install'), { body: { marketId } }),
   market: (channelId?: string) => api<MarketSkill[]>(channelId ? `/market/skills?channelId=${encodeURIComponent(channelId)}` : '/market/skills'),
   author: (channelId: string, body: { goal: string; feedback: string; current: string }) => api<Job>(c(channelId, '/author'), { body }),
-  job: (id: string) => api<Job>(`/jobs/${id}`),
 };
 
 export const skillKeys = { list: (channelId: string) => ['skills', channelId] as const, market: (channelId = '') => ['market', channelId] as const, one: (channelId: string, id: string) => ['skill', channelId, id] as const };

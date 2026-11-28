@@ -22,7 +22,6 @@ export const seriesApi = {
   },
   /** Queues the AI expression sprites; poll `job` and read `result.sprites` when it is done. */
   generateSprites: (body: { reference: string; existing: Record<string, string>; expressions?: string[]; custom?: { key: string; prompt: string }[]; target?: 'hero' | 'cast' }) => api<Job>('/series/characters/sprites', { body }),
-  job: (id: string) => api<Job>(`/jobs/${id}`),
   /** Drawings under way for the series' characters. */
   drawing: (id: string) => api<Job[]>(s(id, '/characters/draw')),
   /** Queues a character's missing pictures; they save themselves into the series. */

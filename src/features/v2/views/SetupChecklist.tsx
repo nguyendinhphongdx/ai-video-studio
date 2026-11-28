@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { queryKeys } from '@/features/app';
+import { queryKeys, useJob } from '@/features/app';
 import { AskAiButton } from '@/features/assistant/components/AskAiButton';
 import { useChannel } from '@/features/channel/hooks/use-channels';
 import { channelApi } from '@/features/channel/services/channel.api';
@@ -31,12 +31,7 @@ export function SetupChecklist({ projectId }: { projectId: string }) {
   const knowledge = useQuery({ queryKey: ['knowledge', projectId], queryFn: () => api<KnowledgeView>(`/channels/${projectId}/knowledge`) });
   const series = useQuery({ queryKey: ['setup-series', projectId], queryFn: () => seriesApi.list(projectId) });
   const [jobId, setJobId] = useState<string | null>(null);
-  const job = useQuery({
-    queryKey: ['job', jobId],
-    queryFn: () => channelApi.job(jobId!),
-    enabled: Boolean(jobId),
-    refetchInterval: (q) => (q.state.data && ['done', 'failed'].includes(q.state.data.state) ? false : 2000),
-  });
+  const job = useJob(jobId);
   const state = job.data?.state;
   useEffect(() => {
     if (state !== 'done' && state !== 'failed') return;

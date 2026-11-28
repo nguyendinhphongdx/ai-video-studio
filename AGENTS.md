@@ -63,17 +63,7 @@ Follow [docs/AGENT-PLAYBOOK.md](docs/AGENT-PLAYBOOK.md): the recipe for each kin
 
 ### The harness (`.agent/`)
 
-Subagents, skills and commands live in [.agent/](.agent/README.md), one place for every tool (`.claude/agents|skills|commands` are symlinks to it; never copy files out of `.agent`). A feature is delivered as a dossier in `docs/features/NNNN-slug/` (`spec.md`, `plan.md`, `review.md`; templates in `docs/features/_templates`):
-
-```text
-/spec <idea> → /plan NNNN → /build NNNN → /review NNNN → /deliver NNNN      (/check runs every machine check)
-```
-
-- The owner approves the spec, and the plan on large work. You never approve your own.
-- The code is reviewed by an agent that did not write it (`reviewer`, plus `arch-guard` for layers, data and AI calls).
-- Small fixes have no dossier: put `[small]` in the PR title. CI fails a PR that changes `src/`, `remotion/` or `drizzle/` with neither a dossier nor `[small]`.
-- `npm run check` and `node scripts/harness/check-dossiers.mjs` must be green; the Claude Stop hook (`scripts/harness/stop-check.sh`) refuses to finish while typecheck or lint is red.
-- A mistake the owner corrects twice becomes a line in `docs/conventions/` and a check, not a one-off fix.
+Subagents, skills and commands live in [.agent/](.agent/README.md) (an index of where each thing is defined; `.claude/*` links to it, never copy out of it). A feature is delivered as a dossier in `docs/features/NNNN-slug/`; the loop, its gates and the `[small]` exception are defined once, in `.agent/skills/deliver-feature/SKILL.md`. CI fails a PR that changes `src/`, `remotion/` or `drizzle/` with neither a dossier nor `[small]` in its title, and the Claude Stop hook refuses to finish while typecheck or lint is red. A mistake the owner corrects twice becomes a line in `docs/conventions/` and a check.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
